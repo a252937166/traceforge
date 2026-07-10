@@ -104,20 +104,9 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
   let status: WorkflowResult["returnRecord"]["status"];
   let refundCents = 0;
 
-  // Counterexample and boundary evidence established that the amount threshold
-  // has higher priority than the customer-tier rule.
-  if (input.amountCents >= 50_000) {
-    selected = {
-      decision: "MANUAL_REVIEW",
-      ruleId: "RULE-HIGH-VALUE-REVIEW",
-      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
-    };
-    status = "PENDING_REVIEW";
-    sideEffects.push({
-      type: "REVIEW_QUEUE",
-      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
-    });
-  } else if (input.customerTier === "VIP") {
+  // Candidate 01 deliberately over-generalizes the observed VIP trace. The
+  // hidden high-value counterexample will prove this priority is wrong.
+  if (input.customerTier === "VIP") {
     selected = {
       decision: "REPLACEMENT",
       ruleId: "RULE-VIP-REPLACEMENT",
@@ -129,7 +118,6 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
     status = "REPLACEMENT_ISSUED";
     after.sellable -= 1;
     sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });
-
     if (input.itemCondition === "DAMAGED") {
       after.quarantine += 1;
       sideEffects.push({
@@ -143,6 +131,17 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
         detail: { destination: "SELLABLE", quantity: 1 },
       });
     }
+  } else if (input.amountCents >= 50_000) {
+    selected = {
+      decision: "MANUAL_REVIEW",
+      ruleId: "RULE-HIGH-VALUE-REVIEW",
+      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
+    };
+    status = "PENDING_REVIEW";
+    sideEffects.push({
+      type: "REVIEW_QUEUE",
+      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
+    });
   } else {
     selected = {
       decision: "REFUND",
@@ -156,19 +155,12 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       detail: { amountCents: input.amountCents },
     });
 
-    if (input.itemCondition === "DAMAGED") {
-      after.quarantine += 1;
-      sideEffects.push({
-        type: "INVENTORY_MOVE",
-        detail: { destination: "QUARANTINE", quantity: 1 },
-      });
-    } else {
-      after.sellable += 1;
-      sideEffects.push({
-        type: "INVENTORY_MOVE",
-        detail: { destination: "SELLABLE", quantity: 1 },
-      });
-    }
+    // Candidate 01's second defect: damaged refunds are restored to sellable.
+    after.sellable += 1;
+    sideEffects.push({
+      type: "INVENTORY_MOVE",
+      detail: { destination: "SELLABLE", quantity: 1 },
+    });
   }
 
   const result: WorkflowResult = {
