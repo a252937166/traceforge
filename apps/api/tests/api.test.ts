@@ -6,7 +6,11 @@ import { CodexRepairAdapter } from "../src/codex-adapter.js";
 import { ArtifactStore } from "../src/store.js";
 
 const store = new ArtifactStore(":memory:");
-const { app } = createApp({ store, codexAdapter: new CodexRepairAdapter({ env: {} }) });
+const { app, migrationStore } = createApp({
+  store,
+  codexAdapter: new CodexRepairAdapter({ env: {} }),
+  env: { TRACEFORGE_ENABLE_GPT56: "0", TRACEFORGE_ENABLE_CODEX: "0" },
+});
 let server: Server;
 let baseUrl: string;
 
@@ -20,6 +24,7 @@ before(async () => {
 
 after(async () => {
   await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  migrationStore.close();
   store.close();
 });
 
@@ -29,7 +34,12 @@ test("health and scenarios are available", async () => {
   assert.equal(health.status, "ok");
   assert.equal(health.codexConfigured, false);
   assert.equal(health.codexStatus.mode, "disabled");
-  assert.equal(scenarioResponse.data.length, 4);
+  assert.equal(scenarioResponse.data.length, 6);
+  assert.deepEqual(
+    scenarioResponse.data.map((scenario: { stage: string }) => scenario.stage),
+    ["observed", "observed", "counterexample", "boundary", "boundary", "held-out"],
+  );
+  assert.equal(scenarioResponse.data.at(-1).visibility, "hidden");
 });
 
 test("CORS allows local frontend origins and rejects untrusted browser origins", async () => {
@@ -66,7 +76,10 @@ test("demo response matches the frontend contract and proof can be retrieved", a
   const response = await fetch(`${baseUrl}/api/demo/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ scenarioId: "damaged-small-refund", candidateVersion: "buggy" }),
+    body: JSON.stringify({
+      scenarioId: "observed-standard-damaged-4500",
+      candidateVersion: "seeded",
+    }),
   });
   const run = await response.json();
   assert.equal(response.status, 201);
@@ -84,15 +97,32 @@ test("demo response matches the frontend contract and proof can be retrieved", a
   assert.match(saved.data.digest, /^sha256:[a-f0-9]{64}$/);
 });
 
-test("reference fixed candidate passes without claiming an AI repair", async () => {
+test("generated full-module candidate passes without claiming this local run invoked AI", async () => {
   const response = await fetch(`${baseUrl}/api/demo/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ scenarioId: "damaged-small-refund", candidateVersion: "fixed" }),
+    body: JSON.stringify({
+      scenarioId: "observed-standard-damaged-4500",
+      candidateVersion: "generated",
+    }),
   });
   const run = await response.json();
+  assert.equal(response.status, 201);
   assert.equal(run.status, "PASSED");
+  assert.equal(run.proofBundle.candidateVersion, "generated");
+  assert.equal(
+    run.proofBundle.implementations.candidate,
+    "replacement.return-workflow.generated-candidate",
+  );
   assert.equal(run.proofBundle.limitations.some((item: string) => item.includes("No OpenAI or Codex")), true);
+});
+
+test("replacement versions expose only seeded and generated candidates", async () => {
+  const versions = await fetch(`${baseUrl}/api/replacement/versions`).then((response) => response.json());
+  assert.deepEqual(
+    versions.data.map((version: { id: string }) => version.id),
+    ["seeded", "generated"],
+  );
 });
 
 test("Codex adapter exposes an honest unconfigured boundary", async () => {

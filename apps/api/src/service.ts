@@ -50,7 +50,7 @@ export class TraceForgeService {
   capture(
     system: SystemName,
     rawInput: unknown,
-    candidateVersion: CandidateVersion = "buggy",
+    candidateVersion: CandidateVersion = "seeded",
     scenarioId?: string,
   ): WorkflowTrace {
     const input = validateWorkflowInput(rawInput);
@@ -192,7 +192,7 @@ export class TraceForgeService {
     input?: ReturnWorkflowInput;
     candidateVersion?: CandidateVersion;
   }): DemoRunResponse {
-    const candidateVersion = options.candidateVersion ?? "buggy";
+    const candidateVersion = options.candidateVersion ?? "seeded";
     const scenario = options.scenarioId ? findScenario(options.scenarioId) : undefined;
     if (options.scenarioId && !scenario) {
       throw new Error(`unknown scenarioId: ${options.scenarioId}`);
@@ -332,7 +332,7 @@ export class TraceForgeService {
     };
   }
 
-  runSuite(candidateVersion: CandidateVersion = "buggy") {
+  runSuite(candidateVersion: CandidateVersion = "seeded") {
     const runs = scenarios.map((scenario) =>
       this.runDemo({ scenarioId: scenario.id, candidateVersion }),
     );

@@ -4,9 +4,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Usage } from "@openai/codex-sdk";
-import type { DemoRunResponse, ProofBundle } from "./types.js";
+import type { ProofBundle, VerificationStatus } from "./types.js";
 
-export const GENERATED_REPAIR_PATH = "apps/api/src/candidates/generated-repair.ts";
+export const GENERATED_CANDIDATE_PATH =
+  "apps/api/src/candidates/generated-return-workflow.ts";
+/** @deprecated Use GENERATED_CANDIDATE_PATH. */
+export const GENERATED_REPAIR_PATH = GENERATED_CANDIDATE_PATH;
+export const CODEX_REPAIR_MODEL = "gpt-5.6-sol" as const;
 const PROOF_INPUT_PATH = ".traceforge/proof-input.json";
 
 export interface CodexRepairAdapterStatus {
@@ -31,11 +35,32 @@ export interface ChangeValidation {
   requiredFileChanged: boolean;
 }
 
-export interface GeneratedRepairProvenanceValidation {
+export interface GeneratedSuiteRunEvidence {
+  scenarioId: string;
+  runId: string;
+  status: VerificationStatus;
+  implementationId: string;
+  proofId: string;
+  proofDigest: string;
+  mismatchCount: number;
+  proofPersisted: boolean;
+}
+
+export interface GeneratedCandidateSuiteEvidence {
+  sourceProofDigest: string;
+  candidateVersion: "generated";
+  status: VerificationStatus;
+  expectedScenarioIds: string[];
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+  };
+  runs: GeneratedSuiteRunEvidence[];
+}
+
+export interface GeneratedSuiteValidation {
   passed: boolean;
-  evidenceId: string | null;
-  status: string | null;
-  sourceProofDigest: string | null;
   problems: string[];
 }
 
@@ -66,8 +91,8 @@ export interface CodexRepairResult {
     install?: CommandEvidence;
     apiTests?: CommandEvidence;
     generatedCandidate?: CommandEvidence;
-    run?: DemoRunResponse;
-    provenance?: GeneratedRepairProvenanceValidation;
+    suite?: GeneratedCandidateSuiteEvidence;
+    suiteValidation?: GeneratedSuiteValidation;
   };
   worktree: {
     path: string;
@@ -99,23 +124,19 @@ function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
 export function validateChangedFiles(
   files: string[],
-  allowed: string[] = [GENERATED_REPAIR_PATH],
+  allowed: string[] = [GENERATED_CANDIDATE_PATH],
 ): ChangeValidation {
   const changed = [...new Set(files.map(normalizePath).filter(Boolean))].sort();
   const normalizedAllowed = [...new Set(allowed.map(normalizePath))].sort();
   const unexpected = changed.filter((file) => !normalizedAllowed.includes(file));
   return {
-    passed: unexpected.length === 0 && changed.includes(GENERATED_REPAIR_PATH),
+    passed: unexpected.length === 0 && changed.includes(GENERATED_CANDIDATE_PATH),
     allowed: normalizedAllowed,
     changed,
     unexpected,
-    requiredFileChanged: changed.includes(GENERATED_REPAIR_PATH),
+    requiredFileChanged: changed.includes(GENERATED_CANDIDATE_PATH),
   };
 }
 
@@ -147,71 +168,94 @@ export function buildCodexStatus(
       ? "The Codex SDK dependency is unavailable; no repair can run."
       : !enabled
         ? "The Codex SDK is installed but execution is disabled. Set TRACEFORGE_ENABLE_CODEX=1 explicitly to allow an isolated repair run."
-        : "Codex execution is enabled. Each repair runs in a retained detached worktree, may edit only generated-repair.ts, and never auto-applies, commits, pushes, or deploys.",
+        : `Codex execution is enabled with ${CODEX_REPAIR_MODEL}. Each repair runs in a retained detached worktree, may edit only generated-return-workflow.ts, and never auto-applies, commits, pushes, or deploys.`,
     integrationContract: {
       input: "An existing FAILED ProofBundle retrieved by proofId.",
-      output: "Codex thread/usage, whitelisted diff, offline install, API tests, and generated-candidate verification evidence.",
+      output: "Codex thread/usage, whitelisted full-module diff, offline install, API tests, and a fresh six-scenario verification suite.",
       sideEffects: "Creates a detached .traceforge/worktrees/* directory that is deliberately retained for review.",
     },
     turnTimeoutMs,
   };
 }
 
-export function parseGeneratedVerificationRun(stdout: string): DemoRunResponse {
+export function parseGeneratedVerificationSuite(
+  stdout: string,
+): GeneratedCandidateSuiteEvidence {
   for (const line of stdout.split(/\r?\n/).reverse()) {
     const trimmed = line.trim();
     if (!trimmed.startsWith("{")) continue;
     try {
-      const parsed = JSON.parse(trimmed) as { run?: DemoRunResponse };
-      if (parsed.run?.runId && parsed.run.proofBundle?.digest) return parsed.run;
+      const parsed = JSON.parse(trimmed) as { suite?: GeneratedCandidateSuiteEvidence };
+      if (
+        parsed.suite?.candidateVersion === "generated" &&
+        Array.isArray(parsed.suite.runs)
+      ) {
+        return parsed.suite;
+      }
     } catch {
       // pnpm may print non-JSON status lines; keep scanning toward the start.
     }
   }
-  throw new Error("verify-generated did not emit a complete DemoRunResponse");
+  throw new Error("verify-generated did not emit complete six-scenario suite evidence");
 }
 
-export function validateGeneratedRepairProvenance(
-  run: DemoRunResponse,
+export function validateGeneratedSuite(
+  suite: GeneratedCandidateSuiteEvidence,
   expectedSourceProofDigest: string,
-): GeneratedRepairProvenanceValidation {
-  const rawRun = asRecord(run);
-  const proofBundle = asRecord(rawRun.proofBundle);
-  const traces = asRecord(rawRun.traces);
-  const replacement = asRecord(traces.replacement);
-  const evidence = Array.isArray(replacement.evidence) ? replacement.evidence : [];
-  const configurationEvidence = evidence
-    .map(asRecord)
-    .find((entry) => entry.type === "repair.configuration");
-  const payload = asRecord(configurationEvidence?.payload);
-  const metadata = asRecord(payload.metadata);
-  const status = typeof metadata.status === "string" ? metadata.status : null;
-  const sourceProofDigest =
-    typeof metadata.sourceProofDigest === "string" ? metadata.sourceProofDigest : null;
-  const evidenceId =
-    typeof configurationEvidence?.evidenceId === "string" ? configurationEvidence.evidenceId : null;
+): GeneratedSuiteValidation {
   const problems: string[] = [];
 
-  if (proofBundle.candidateVersion !== "generated") {
-    problems.push("verification run is not for the generated candidate");
-  }
-  if (!configurationEvidence) {
-    problems.push("repair.configuration evidence is missing");
-  }
-  if (status !== "codex-generated") {
-    problems.push("generated repair metadata.status is not codex-generated");
+  if (suite.candidateVersion !== "generated") {
+    problems.push("verification suite is not for the generated candidate");
   }
   if (!expectedSourceProofDigest) {
     problems.push("expected source proof digest is missing");
-  } else if (sourceProofDigest !== expectedSourceProofDigest) {
-    problems.push("generated repair sourceProofDigest does not match the failed proof");
+  } else if (suite.sourceProofDigest !== expectedSourceProofDigest) {
+    problems.push("suite sourceProofDigest does not match the failed proof");
+  }
+  if (suite.expectedScenarioIds.length !== 6 || suite.runs.length !== 6) {
+    problems.push("verification suite must contain all six champion scenarios");
+  }
+  const expectedIds = new Set(suite.expectedScenarioIds);
+  const actualIds = new Set(suite.runs.map((run) => run.scenarioId));
+  if (
+    expectedIds.size !== suite.expectedScenarioIds.length ||
+    actualIds.size !== suite.runs.length ||
+    [...expectedIds].some((id) => !actualIds.has(id))
+  ) {
+    problems.push("verification suite scenario identities are missing or duplicated");
+  }
+  if (
+    suite.status !== "PASSED" ||
+    suite.summary.total !== 6 ||
+    suite.summary.passed !== 6 ||
+    suite.summary.failed !== 0
+  ) {
+    problems.push("verification suite summary is not 6/6 passed");
+  }
+  if (
+    suite.runs.some(
+      (run) =>
+        run.status !== "PASSED" ||
+        run.implementationId !== "replacement.return-workflow.generated-candidate" ||
+        run.mismatchCount !== 0 ||
+        !run.proofPersisted ||
+        !/^proof_/.test(run.proofId) ||
+        !/^sha256:[a-f0-9]{64}$/.test(run.proofDigest),
+    )
+  ) {
+    problems.push("one or more scenario runs lacks a fresh passing generated-candidate proof");
+  }
+  if (
+    new Set(suite.runs.map((run) => run.runId)).size !== suite.runs.length ||
+    new Set(suite.runs.map((run) => run.proofId)).size !== suite.runs.length ||
+    new Set(suite.runs.map((run) => run.proofDigest)).size !== suite.runs.length
+  ) {
+    problems.push("fresh run, proof, and digest identities must be unique per scenario");
   }
 
   return {
     passed: problems.length === 0,
-    evidenceId,
-    status,
-    sourceProofDigest,
     problems,
   };
 }
@@ -306,6 +350,29 @@ export function buildChildEnvironment(
   return environment;
 }
 
+export interface CodexClientOptions {
+  env: Record<string, string>;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+/**
+ * Builds a fail-closed SDK environment. Stale ambient OpenAI/Codex keys are
+ * never considered. Without TraceForge's explicit key, the Codex SDK reuses
+ * the operator's existing ChatGPT login from CODEX_HOME.
+ */
+export function buildCodexClientOptions(
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+): CodexClientOptions {
+  const apiKey = sourceEnv.TRACEFORGE_CODEX_API_KEY;
+  const baseUrl = sourceEnv.TRACEFORGE_CODEX_BASE_URL;
+  return {
+    env: buildChildEnvironment(sourceEnv),
+    ...(apiKey ? { apiKey } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
+  };
+}
+
 export function runCommand(
   command: string,
   args: string[],
@@ -374,7 +441,7 @@ const outputSchema = {
   properties: {
     summary: { type: "string" },
     diagnosis: { type: "string" },
-    changedFile: { type: "string", enum: [GENERATED_REPAIR_PATH] },
+    changedFile: { type: "string", enum: [GENERATED_CANDIDATE_PATH] },
     verificationIntent: { type: "string" },
   },
   required: ["summary", "diagnosis", "changedFile", "verificationIntent"],
@@ -382,14 +449,16 @@ const outputSchema = {
 } as const;
 
 function repairPrompt(proof: ProofBundle): string {
-  return `You are the implementation repairer for a bounded TraceForge demonstration.
+  return `You are the implementation repairer for a bounded TraceForge workflow migration.
 
-Read the failed proof at ${PROOF_INPUT_PATH}. Infer the smallest repair from its deterministic inventory mismatches.
+Read the failed proof at ${PROOF_INPUT_PATH}, the scenario corpus, and the independent legacy implementation. Repair the generated candidate as a complete workflow module, not as a configuration toggle.
 
 Hard constraints:
-- The only repository file you may edit is ${GENERATED_REPAIR_PATH}.
-- Inside that file, do not alter GENERATED_REPAIR_BASELINE, its type definitions, or exports other than generatedRepair.
-- Update generatedRepair so the generated candidate conforms to the proof. Mark metadata.status as codex-generated, set metadata.sourceProofDigest to ${proof.digest}, and write a concise factual summary.
+- The only repository file you may edit is ${GENERATED_CANDIDATE_PATH}.
+- Do not change executeSeededReturnWorkflow. Repair executeGeneratedReturnWorkflow's complete decision tree and side effects.
+- Preserve the high-value priority rule at the exact 50,000-cent boundary, including VIP returns. Manual review must not move inventory or money.
+- Preserve VIP replacement below that boundary and condition-aware inventory disposition: damaged units go to quarantine and never become sellable.
+- The host will verify both observed traces, the GPT-selected 100,000-cent counterexample, 49,999/50,000 boundary cases, and the held-out VIP-at-50,000 case.
 - Do not edit tests, package files, lockfiles, proof-input.json, or any other file.
 - Do not use network access, commit, push, merge, deploy, or create another worktree.
 - Do not run a package manager, install dependencies, typecheck, test, build, or create node_modules, dist, coverage, SQLite, environment, or other ignored artifacts.
@@ -464,14 +533,9 @@ export class CodexRepairAdapter {
       await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");
 
       const sdk = await import("@openai/codex-sdk");
-      const codexApiKey = this.env.CODEX_API_KEY ?? this.env.OPENAI_API_KEY;
-      const codexBaseUrl = this.env.OPENAI_BASE_URL;
-      const codex = new sdk.Codex({
-        env: buildChildEnvironment(this.env),
-        ...(codexApiKey ? { apiKey: codexApiKey } : {}),
-        ...(codexBaseUrl ? { baseUrl: codexBaseUrl } : {}),
-      });
+      const codex = new sdk.Codex(buildCodexClientOptions(this.env));
       const thread = codex.startThread({
+        model: CODEX_REPAIR_MODEL,
         workingDirectory: worktreePath,
         sandboxMode: "workspace-write",
         approvalPolicy: "never",
@@ -498,7 +562,7 @@ export class CodexRepairAdapter {
       usage = turn.usage;
       if (!threadId) throw new Error("Codex completed without a thread id");
       const structuredOutput = JSON.parse(turn.finalResponse) as CodexRepairResult["structuredOutput"];
-      if (structuredOutput.changedFile !== GENERATED_REPAIR_PATH) {
+      if (structuredOutput.changedFile !== GENERATED_CANDIDATE_PATH) {
         throw new Error(`Codex reported an unexpected changed file: ${structuredOutput.changedFile}`);
       }
 
@@ -506,7 +570,7 @@ export class CodexRepairAdapter {
       const whitelist = validateChangedFiles(changedFiles);
       const diffResult = await runCommand(
         "git",
-        ["diff", "--no-ext-diff", "--", GENERATED_REPAIR_PATH],
+        ["diff", "--no-ext-diff", "--", GENERATED_CANDIDATE_PATH],
         worktreePath,
       );
       commands.push(diffResult);
@@ -556,16 +620,16 @@ export class CodexRepairAdapter {
         );
         commands.push(apiTests, generatedCandidate);
       }
-      let generatedRun: DemoRunResponse | undefined;
-      let provenance: GeneratedRepairProvenanceValidation | undefined;
+      let generatedSuite: GeneratedCandidateSuiteEvidence | undefined;
+      let suiteValidation: GeneratedSuiteValidation | undefined;
       if (generatedCandidate) {
         try {
-          generatedRun = parseGeneratedVerificationRun(generatedCandidate.stdout);
-          provenance = validateGeneratedRepairProvenance(generatedRun, proof.digest);
-          if (!provenance.passed) {
+          generatedSuite = parseGeneratedVerificationSuite(generatedCandidate.stdout);
+          suiteValidation = validateGeneratedSuite(generatedSuite, proof.digest);
+          if (!suiteValidation.passed) {
             generatedCandidate.stderr = [
               generatedCandidate.stderr,
-              `generated repair provenance failed: ${provenance.problems.join("; ")}`,
+              `generated candidate suite failed: ${suiteValidation.problems.join("; ")}`,
             ]
               .filter(Boolean)
               .join("\n");
@@ -583,9 +647,8 @@ export class CodexRepairAdapter {
         install.exitCode === 0 &&
         apiTests?.exitCode === 0 &&
         generatedCandidate?.exitCode === 0 &&
-        generatedRun?.status === "PASSED" &&
-        generatedRun.proofBundle.mismatches.length === 0 &&
-        provenance?.passed === true;
+        generatedSuite?.status === "PASSED" &&
+        suiteValidation?.passed === true;
       return {
         codexExecuted: true,
         threadId,
@@ -599,8 +662,8 @@ export class CodexRepairAdapter {
           install,
           ...(apiTests ? { apiTests } : {}),
           ...(generatedCandidate ? { generatedCandidate } : {}),
-          ...(generatedRun ? { run: generatedRun } : {}),
-          ...(provenance ? { provenance } : {}),
+          ...(generatedSuite ? { suite: generatedSuite } : {}),
+          ...(suiteValidation ? { suiteValidation } : {}),
         },
         worktree,
       };
@@ -610,7 +673,7 @@ export class CodexRepairAdapter {
           changedFiles = await changedFilesIn(worktree.path);
           const diffResult = await runCommand(
             "git",
-            ["diff", "--no-ext-diff", "--", GENERATED_REPAIR_PATH],
+            ["diff", "--no-ext-diff", "--", GENERATED_CANDIDATE_PATH],
             worktree.path,
           );
           diff = diffResult.stdout;

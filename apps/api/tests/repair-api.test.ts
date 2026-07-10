@@ -5,7 +5,7 @@ import { createApp } from "../src/app.js";
 import {
   buildCodexStatus,
   CodexRepairAdapter,
-  GENERATED_REPAIR_PATH,
+  GENERATED_CANDIDATE_PATH,
   validateChangedFiles,
   type CodexRepairResult,
 } from "../src/codex-adapter.js";
@@ -40,17 +40,17 @@ function fakeRepairResult(status: "PASSED" | "FAILED"): CodexRepairResult {
       output_tokens: 40,
       reasoning_output_tokens: 10,
     },
-    changedFiles: [GENERATED_REPAIR_PATH],
-    diff: "- damagedRefundDestination: SELLABLE\n+ damagedRefundDestination: QUARANTINE",
+    changedFiles: [GENERATED_CANDIDATE_PATH],
+    diff: "- if (input.amountCents < 50_000) refund();\n+ if (input.amountCents >= 50_000) review();",
     structuredOutput: {
       summary: "Changed damaged returns to quarantine.",
       diagnosis: "The candidate restored a damaged item to sellable inventory.",
-      changedFile: GENERATED_REPAIR_PATH,
+      changedFile: GENERATED_CANDIDATE_PATH,
       verificationIntent: "Rerun the generated candidate against the failed proof.",
     },
     verification: {
       status,
-      whitelist: validateChangedFiles([GENERATED_REPAIR_PATH]),
+      whitelist: validateChangedFiles([GENERATED_CANDIDATE_PATH]),
     },
     worktree: {
       path: "/tmp/traceforge-contract-worktree",
@@ -117,7 +117,10 @@ test("repair returns 404 for an unknown proof without invoking Codex", async () 
 
 test("repair returns 409 for a passing proof without invoking Codex", async () => {
   await withRepairApi(fakeRepairResult("PASSED"), async ({ baseUrl, service, adapter }) => {
-    const passingRun = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion: "fixed" });
+    const passingRun = service.runDemo({
+      scenarioId: "observed-standard-damaged-4500",
+      candidateVersion: "generated",
+    });
     const response = await postRepair(baseUrl, { proofId: passingRun.proofBundle.proofId });
     const body = await response.json();
     assert.equal(response.status, 409);
@@ -129,14 +132,17 @@ test("repair returns 409 for a passing proof without invoking Codex", async () =
 test("repair returns the typed fake adapter result with HTTP 200 after a failed proof", async () => {
   const result = fakeRepairResult("PASSED");
   await withRepairApi(result, async ({ baseUrl, service, adapter }) => {
-    const failedRun = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion: "buggy" });
+    const failedRun = service.runDemo({
+      scenarioId: "observed-standard-damaged-4500",
+      candidateVersion: "seeded",
+    });
     const response = await postRepair(baseUrl, { proofId: failedRun.proofBundle.proofId });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.data.codexExecuted, true);
     assert.equal(body.data.threadId, result.threadId);
     assert.equal(body.data.verification.status, "PASSED");
-    assert.deepEqual(body.data.changedFiles, [GENERATED_REPAIR_PATH]);
+    assert.deepEqual(body.data.changedFiles, [GENERATED_CANDIDATE_PATH]);
     assert.equal(adapter.calls.length, 1);
     assert.equal(adapter.calls[0]?.proofId, failedRun.proofBundle.proofId);
   });
@@ -145,7 +151,10 @@ test("repair returns the typed fake adapter result with HTTP 200 after a failed 
 test("repair returns the typed fake adapter result with HTTP 422 when verification fails", async () => {
   const result = fakeRepairResult("FAILED");
   await withRepairApi(result, async ({ baseUrl, service, adapter }) => {
-    const failedRun = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion: "buggy" });
+    const failedRun = service.runDemo({
+      scenarioId: "observed-standard-damaged-4500",
+      candidateVersion: "seeded",
+    });
     const response = await postRepair(baseUrl, { proofId: failedRun.proofBundle.proofId });
     const body = await response.json();
     assert.equal(response.status, 422);

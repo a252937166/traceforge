@@ -1,13 +1,19 @@
 export type SystemName = "legacy" | "replacement";
-export type CandidateVersion = "buggy" | "fixed" | "generated";
+/**
+ * Public candidate identities used by the champion workflow.
+ *
+ * `seeded` is the deliberately incomplete first implementation. `generated`
+ * is the complete, Codex-editable implementation. Historical `buggy` and
+ * `fixed` labels are intentionally not part of this contract.
+ */
+export type CandidateVersion = "seeded" | "generated";
 export type CustomerTier = "STANDARD" | "VIP";
 export type ItemCondition = "SELLABLE" | "DAMAGED";
 export type Decision = "REFUND" | "REPLACEMENT" | "MANUAL_REVIEW";
 export type VerificationStatus = "PASSED" | "FAILED";
 export type ImplementationId =
   | "legacy.return-workflow.v1"
-  | "replacement.return-workflow.v0-mutated"
-  | "replacement.return-workflow.v1-reference"
+  | "replacement.return-workflow.seeded-candidate"
   | "replacement.return-workflow.generated-candidate";
 
 export interface ReturnWorkflowInput {
@@ -45,6 +51,12 @@ export interface WorkflowResult {
     type: "REFUND_LEDGER" | "INVENTORY_MOVE" | "REVIEW_QUEUE" | "SHIPMENT";
     detail: Record<string, string | number>;
   }>;
+}
+
+export interface WorkflowExecution {
+  implementationId: ImplementationId;
+  result: WorkflowResult;
+  events: WorkflowEvent[];
 }
 
 export interface WorkflowEvent {
@@ -154,6 +166,8 @@ export interface Scenario {
   id: string;
   title: string;
   description: string;
+  stage: "observed" | "counterexample" | "boundary" | "held-out";
+  visibility: "visible" | "hidden";
   input: ReturnWorkflowInput;
 }
 

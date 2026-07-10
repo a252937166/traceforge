@@ -15,7 +15,8 @@
     "acceptance:repeat": "node scripts/acceptance-repeat.mjs",
     "acceptance:all": "pnpm check && pnpm acceptance:api -- --mode baseline && pnpm acceptance:api -- --mode mutation && pnpm acceptance:ui && pnpm acceptance:repeat -- --runs 10",
     "release:package": "node scripts/package-release.mjs",
-    "capture:showcase": "node scripts/capture-showcase.mjs"
+    "capture:showcase": "node scripts/capture-showcase.mjs",
+    "proof:verify": "pnpm --filter @traceforge/api proof:verify"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
