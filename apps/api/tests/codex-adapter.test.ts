@@ -58,6 +58,10 @@ test("child processes receive only operational environment variables and explici
       CODEX_API_KEY: "must-not-be-inherited",
       DATABASE_URL: "must-not-be-inherited",
       GITHUB_TOKEN: "must-not-be-inherited",
+      HTTPS_PROXY: "http://127.0.0.1:58591",
+      HTTP_PROXY: "http://user:secret@proxy.example:8080",
+      ALL_PROXY: "socks5://localhost:1080",
+      NO_PROXY: "127.0.0.1,localhost",
     },
     { TRACEFORGE_ENABLE_CODEX: "0" },
   );
@@ -70,6 +74,10 @@ test("child processes receive only operational environment variables and explici
   assert.equal(environment.CODEX_API_KEY, undefined);
   assert.equal(environment.DATABASE_URL, undefined);
   assert.equal(environment.GITHUB_TOKEN, undefined);
+  assert.equal(environment.HTTPS_PROXY, "http://127.0.0.1:58591");
+  assert.equal(environment.ALL_PROXY, "socks5://localhost:1080");
+  assert.equal(environment.NO_PROXY, "127.0.0.1,localhost");
+  assert.equal(environment.HTTP_PROXY, undefined);
 });
 
 test("generated verification parser returns the fresh full demo run", () => {

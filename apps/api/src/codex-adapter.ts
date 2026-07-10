@@ -256,6 +256,28 @@ const SAFE_CHILD_ENV_KEYS = [
   "USERPROFILE",
 ] as const;
 
+const LOOPBACK_PROXY_ENV_KEYS = [
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+] as const;
+
+function isCredentialFreeLoopbackProxy(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const allowedProtocol = ["http:", "https:", "socks:", "socks4:", "socks5:"].includes(
+      url.protocol,
+    );
+    const loopbackHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
+    return allowedProtocol && loopbackHost && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 export function buildChildEnvironment(
   sourceEnv: NodeJS.ProcessEnv = process.env,
   overrides: NodeJS.ProcessEnv = {},
@@ -265,6 +287,16 @@ export function buildChildEnvironment(
     PATH: [executableDirectory, sourceEnv.PATH].filter(Boolean).join(delimiter),
   };
   for (const key of SAFE_CHILD_ENV_KEYS) {
+    const value = sourceEnv[key];
+    if (typeof value === "string") environment[key] = value;
+  }
+  for (const key of LOOPBACK_PROXY_ENV_KEYS) {
+    const value = sourceEnv[key];
+    if (typeof value === "string" && isCredentialFreeLoopbackProxy(value)) {
+      environment[key] = value;
+    }
+  }
+  for (const key of ["NO_PROXY", "no_proxy"] as const) {
     const value = sourceEnv[key];
     if (typeof value === "string") environment[key] = value;
   }
