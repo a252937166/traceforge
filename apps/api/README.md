@@ -14,7 +14,9 @@ npm test
 npm run dev
 ```
 
-The API listens on `http://localhost:8787` by default. Set `PORT` or `TRACEFORGE_DB` to override the port or SQLite artifact path.
+The API uses port `8787` by default. With Codex disabled it binds to `0.0.0.0`; with `TRACEFORGE_ENABLE_CODEX=1` it binds to `127.0.0.1` to keep the expensive repair surface local. Set `HOST` to make an explicit override, or `PORT` / `TRACEFORGE_DB` to override the port / SQLite artifact path.
+
+Browser CORS is restricted by default to `localhost` and `127.0.0.1` on ports `5173`, `5174`, and `4173`. Add exact origins with the comma-separated `TRACEFORGE_ALLOWED_ORIGINS` variable. Requests without an `Origin` header, such as server-to-server calls and curl, remain allowed.
 
 ## Frontend contract
 
@@ -47,14 +49,20 @@ Returns a stable top-level shape:
 
 - `GET /api/health` — service, SQLite, and Codex adapter status.
 - `GET /api/scenarios` — four deterministic demo scenarios.
-- `GET /api/replacement/versions` — honest labels for the mutated and reference-fixed candidates.
+- `GET /api/replacement/versions` — honest labels for mutated, reference-fixed, and generated candidates.
 - `POST /api/traces/capture` — capture one legacy or replacement trace; legacy capture also returns a contract.
 - `POST /api/demo/run` — full capture → contract → dual run → differential proof flow.
 - `POST /api/verifications` — wrapped `{ data }` form of the same verifier for programmatic clients.
 - `POST /api/verifications/suite` — verify all controlled scenarios.
 - `GET /api/traces/:id`, `GET /api/contracts/:id`, `GET /api/proofs/:id` — retrieve persisted artifacts.
-- `GET /api/adapters/codex` — explicit not-configured status and future integration contract.
-- `POST /api/adapters/codex/repair` — returns `501` until a real authenticated Codex integration exists.
+- `GET /api/adapters/codex` — distinguishes SDK installation from explicit execution enablement.
+- `POST /api/adapters/codex/repair` — accepts `{ "proofId": "proof_..." }`; disabled by default and returns `501` unless `TRACEFORGE_ENABLE_CODEX=1`.
+
+## Real Codex repair boundary
+
+When explicitly enabled, the repair endpoint requires `Content-Type: application/json` and starts a real Codex SDK thread in a new detached `.traceforge/worktrees/*` worktree. The thread runs with `workspace-write`, approval policy `never`, tool-network access disabled, and a default five-minute turn timeout. Override the timeout with `TRACEFORGE_CODEX_TIMEOUT_MS` between 10,000 and 1,800,000 milliseconds.
+
+Only `apps/api/src/candidates/generated-repair.ts` may change. The host verifies the Git whitelist, performs `pnpm install --offline --frozen-lockfile`, runs all API tests, then runs `verify:generated`. A successful response contains `verification.run`, the complete fresh `DemoRunResponse` and proof seal produced inside that worktree. The worktree is retained; the adapter never applies, commits, pushes, merges, or deploys the repair.
 
 ## Truthfulness boundary
 

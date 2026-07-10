@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  executeGeneratedReplacementWorkflow,
   executeLegacyWorkflow,
   executeReplacementWorkflow,
   executeWorkflow,
   scenarios,
 } from "../src/domain.js";
+import { GENERATED_REPAIR_BASELINE } from "../src/candidates/generated-repair.js";
 import { sha256Digest } from "../src/digest.js";
 import { TraceForgeService } from "../src/service.js";
 import { ArtifactStore } from "../src/store.js";
@@ -34,6 +36,36 @@ test("legacy and replacement use independent implementation identities and mutat
   assert.notEqual(legacy.implementationId, buggyReplacement.implementationId);
   assert.deepEqual(legacy.result.inventoryAfter, fixedReplacement.result.inventoryAfter);
   assert.notDeepEqual(legacy.result.inventoryAfter, buggyReplacement.result.inventoryAfter);
+});
+
+test("the immutable generated baseline fails before a real repair is produced", () => {
+  const input = scenarios.find((scenario) => scenario.id === "damaged-small-refund")?.input;
+  assert.ok(input);
+  const legacy = executeLegacyWorkflow(input);
+  const generatedBaseline = executeGeneratedReplacementWorkflow(input, GENERATED_REPAIR_BASELINE);
+
+  assert.equal(generatedBaseline.implementationId, "replacement.return-workflow.generated-candidate");
+  assert.equal(GENERATED_REPAIR_BASELINE.metadata.status, "unconfigured");
+  assert.notDeepEqual(legacy.result.inventoryAfter, generatedBaseline.result.inventoryAfter);
+  assert.deepEqual(generatedBaseline.result.inventoryAfter, {
+    sku: input.sku,
+    sellable: 11,
+    quarantine: 0,
+  });
+});
+
+test("generated candidate traces seal the exact repair configuration as evidence", () => {
+  const store = new ArtifactStore(":memory:");
+  const service = new TraceForgeService(store);
+  const run = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion: "generated" });
+  const configurationEvidence = run.traces.replacement.evidence.find(
+    (entry) => entry.type === "repair.configuration",
+  );
+
+  assert.ok(configurationEvidence);
+  assert.match(configurationEvidence.digest, /^sha256:[a-f0-9]{64}$/);
+  assert.deepEqual(configurationEvidence.payload, GENERATED_REPAIR_BASELINE);
+  store.close();
 });
 
 test("differential verifier catches the mutation and fixed candidate passes", () => {

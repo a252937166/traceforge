@@ -277,7 +277,7 @@ export class TraceForgeService {
       contractId: contract.contractId,
       assertions,
       mismatches,
-      mutationDetected: candidateVersion === "buggy" && mismatches.length > 0,
+      mutationDetected: mismatches.length > 0,
       limitations: [
         "The proof covers only this concrete input and the deterministic assertions listed here.",
         "No OpenAI or Codex call is represented by this local run.",

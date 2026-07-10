@@ -12,9 +12,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
     "test": "node --test --import tsx tests/*.test.ts",
-    "test:watch": "node --test --watch --import tsx tests/*.test.ts"
+    "test:watch": "node --test --watch --import tsx tests/*.test.ts",
+    "verify:generated": "tsx scripts/verify-generated.ts"
   },
   "dependencies": {
+    "@openai/codex-sdk": "0.144.1",
     "cors": "^2.8.5",
     "express": "^5.1.0"
   },

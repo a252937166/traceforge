@@ -22,7 +22,7 @@ test("runtime contracts and proof bundles validate against the published schemas
   const store = new ArtifactStore(":memory:");
   const service = new TraceForgeService(store);
 
-  for (const candidateVersion of ["buggy", "fixed"] as const) {
+  for (const candidateVersion of ["buggy", "fixed", "generated"] as const) {
     const run = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion });
     assert.equal(
       validateContract(run.contract),

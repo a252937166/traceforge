@@ -1,5 +1,5 @@
 export type SystemName = "legacy" | "replacement";
-export type CandidateVersion = "buggy" | "fixed";
+export type CandidateVersion = "buggy" | "fixed" | "generated";
 export type CustomerTier = "STANDARD" | "VIP";
 export type ItemCondition = "SELLABLE" | "DAMAGED";
 export type Decision = "REFUND" | "REPLACEMENT" | "MANUAL_REVIEW";
@@ -7,7 +7,8 @@ export type VerificationStatus = "PASSED" | "FAILED";
 export type ImplementationId =
   | "legacy.return-workflow.v1"
   | "replacement.return-workflow.v0-mutated"
-  | "replacement.return-workflow.v1-reference";
+  | "replacement.return-workflow.v1-reference"
+  | "replacement.return-workflow.generated-candidate";
 
 export interface ReturnWorkflowInput {
   returnId: string;

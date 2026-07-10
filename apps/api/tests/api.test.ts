@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { Server } from "node:http";
 import { createApp } from "../src/app.js";
+import { CodexRepairAdapter } from "../src/codex-adapter.js";
 import { ArtifactStore } from "../src/store.js";
 
 const store = new ArtifactStore(":memory:");
-const { app } = createApp({ store });
+const { app } = createApp({ store, codexAdapter: new CodexRepairAdapter({ env: {} }) });
 let server: Server;
 let baseUrl: string;
 
@@ -27,7 +28,24 @@ test("health and scenarios are available", async () => {
   const scenarioResponse = await fetch(`${baseUrl}/api/scenarios`).then((response) => response.json());
   assert.equal(health.status, "ok");
   assert.equal(health.codexConfigured, false);
+  assert.equal(health.codexStatus.mode, "disabled");
   assert.equal(scenarioResponse.data.length, 4);
+});
+
+test("CORS allows local frontend origins and rejects untrusted browser origins", async () => {
+  const allowedResponse = await fetch(`${baseUrl}/api/health`, {
+    headers: { origin: "http://localhost:5173" },
+  });
+  const rejectedResponse = await fetch(`${baseUrl}/api/health`, {
+    headers: { origin: "https://evil.example" },
+  });
+  const rejected = await rejectedResponse.json();
+
+  assert.equal(allowedResponse.status, 200);
+  assert.equal(allowedResponse.headers.get("access-control-allow-origin"), "http://localhost:5173");
+  assert.equal(rejectedResponse.status, 403);
+  assert.equal(rejected.error.code, "CORS_ORIGIN_DENIED");
+  assert.equal(rejectedResponse.headers.get("access-control-allow-origin"), null);
 });
 
 test("demo response matches the frontend contract and proof can be retrieved", async () => {
@@ -65,7 +83,23 @@ test("reference fixed candidate passes without claiming an AI repair", async () 
 
 test("Codex adapter exposes an honest unconfigured boundary", async () => {
   const status = await fetch(`${baseUrl}/api/adapters/codex`).then((response) => response.json());
-  const repairResponse = await fetch(`${baseUrl}/api/adapters/codex/repair`, { method: "POST" });
+  const repairResponse = await fetch(`${baseUrl}/api/adapters/codex/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ proofId: "proof_unused_while_disabled" }),
+  });
+  assert.equal(status.data.installed, true);
+  assert.equal(status.data.enabled, false);
   assert.equal(status.data.configured, false);
   assert.equal(repairResponse.status, 501);
+});
+
+test("Codex repair rejects requests without JSON content type before any execution", async () => {
+  const response = await fetch(`${baseUrl}/api/adapters/codex/repair`, {
+    method: "POST",
+    body: "proofId=proof_123",
+  });
+  const body = await response.json();
+  assert.equal(response.status, 415);
+  assert.equal(body.error.code, "JSON_CONTENT_TYPE_REQUIRED");
 });

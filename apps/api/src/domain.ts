@@ -8,6 +8,10 @@ import type {
   WorkflowEvent,
   WorkflowResult,
 } from "./types.js";
+import {
+  generatedRepair,
+  type GeneratedRepairConfig,
+} from "./candidates/generated-repair.js";
 
 export interface WorkflowExecution {
   implementationId: ImplementationId;
@@ -257,6 +261,7 @@ export function executeLegacyWorkflow(rawInput: unknown): WorkflowExecution {
 export function executeReplacementWorkflow(
   rawInput: unknown,
   candidateVersion: CandidateVersion = "buggy",
+  generatedConfig: GeneratedRepairConfig = generatedRepair,
 ): WorkflowExecution {
   const context = prepareExecution(rawInput);
   const { input, before, selected } = context;
@@ -264,6 +269,15 @@ export function executeReplacementWorkflow(
   const sideEffects: WorkflowResult["sideEffects"] = [];
   let status: WorkflowResult["returnRecord"]["status"];
   let refundCents = 0;
+
+  if (candidateVersion === "generated") {
+    context.events.push({
+      type: "repair.configuration",
+      title: "Generated repair configuration loaded",
+      detail: `${generatedConfig.metadata.status} · ${generatedConfig.damagedRefundDestination}`,
+      payload: generatedConfig,
+    });
+  }
 
   if (selected.decision === "MANUAL_REVIEW") {
     status = "PENDING_REVIEW";
@@ -286,7 +300,13 @@ export function executeReplacementWorkflow(
     status = "REFUNDED";
     refundCents = input.amountCents;
     sideEffects.push({ type: "REFUND_LEDGER", detail: { amountCents: input.amountCents } });
-    if (input.itemCondition === "DAMAGED" && candidateVersion === "fixed") {
+    const damagedDestination =
+      candidateVersion === "fixed"
+        ? "QUARANTINE"
+        : candidateVersion === "generated"
+          ? generatedConfig.damagedRefundDestination
+          : "SELLABLE";
+    if (input.itemCondition === "DAMAGED" && damagedDestination === "QUARANTINE") {
       after.quarantine += 1;
       sideEffects.push({ type: "INVENTORY_MOVE", detail: { destination: "QUARANTINE", quantity: 1 } });
     } else {
@@ -299,8 +319,17 @@ export function executeReplacementWorkflow(
   const implementationId: ImplementationId =
     candidateVersion === "buggy"
       ? "replacement.return-workflow.v0-mutated"
-      : "replacement.return-workflow.v1-reference";
+      : candidateVersion === "fixed"
+        ? "replacement.return-workflow.v1-reference"
+        : "replacement.return-workflow.generated-candidate";
   return finishExecution(context, implementationId, status, refundCents, after, sideEffects);
+}
+
+export function executeGeneratedReplacementWorkflow(
+  rawInput: unknown,
+  config: GeneratedRepairConfig = generatedRepair,
+): WorkflowExecution {
+  return executeReplacementWorkflow(rawInput, "generated", config);
 }
 
 /** Compatibility dispatcher; no business behavior lives in this function. */
