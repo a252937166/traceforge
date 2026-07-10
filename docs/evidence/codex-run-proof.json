@@ -1,0 +1,95 @@
+{
+  "capturedAt": "2026-07-10T15:46:19Z",
+  "codexExecuted": true,
+  "threadId": "019f4cb1-4193-7ee3-a4d2-5f7852c18329",
+  "changedFiles": [
+    "apps/api/src/candidates/generated-repair.ts"
+  ],
+  "structuredOutput": {
+    "summary": "Updated generatedRepair to route damaged refunds to quarantine and recorded the required proof metadata.",
+    "diagnosis": "The failed candidate incorrectly returned damaged inventory to sellable stock instead of quarantine.",
+    "changedFile": "apps/api/src/candidates/generated-repair.ts",
+    "verificationIntent": "Confirmed via read-only Git diff/status that only the permitted file changed and git diff --check passed; host acceptance checks remain pending."
+  },
+  "diff": "diff --git a/apps/api/src/candidates/generated-repair.ts b/apps/api/src/candidates/generated-repair.ts\nindex 91f75e6..3eb0532 100644\n--- a/apps/api/src/candidates/generated-repair.ts\n+++ b/apps/api/src/candidates/generated-repair.ts\n@@ -24,10 +24,10 @@ export const GENERATED_REPAIR_BASELINE: GeneratedRepairConfig = Object.freeze({\n  * Its default deliberately preserves the failing candidate behavior.\n  */\n export const generatedRepair: GeneratedRepairConfig = {\n-  damagedRefundDestination: \"SELLABLE\",\n+  damagedRefundDestination: \"QUARANTINE\",\n   metadata: {\n-    status: \"unconfigured\",\n-    sourceProofDigest: null,\n-    summary: \"No repair has been generated. The controlled inventory mutation remains active.\",\n+    status: \"codex-generated\",\n+    sourceProofDigest: \"sha256:3b1c97ce524318559cfd1d9f79e8b7308a079c44ae5e8b474a90c21eb5b6ffb5\",\n+    summary: \"Route damaged refunds to quarantine to preserve inventory side effects.\",\n   },\n };\n",
+  "verification": {
+    "status": "PASSED",
+    "whitelist": {
+      "passed": true,
+      "allowed": [
+        "apps/api/src/candidates/generated-repair.ts"
+      ],
+      "changed": [
+        "apps/api/src/candidates/generated-repair.ts"
+      ],
+      "unexpected": [],
+      "requiredFileChanged": true
+    },
+    "provenance": {
+      "passed": true,
+      "evidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_005",
+      "status": "codex-generated",
+      "sourceProofDigest": "sha256:3b1c97ce524318559cfd1d9f79e8b7308a079c44ae5e8b474a90c21eb5b6ffb5",
+      "problems": []
+    },
+    "run": {
+      "runId": "run_185a9fe7-36de-4a24-a7b7-9d1fb31db622",
+      "status": "PASSED",
+      "proofId": "proof_5cde5f57-75b4-49bd-98dd-d926fcd356e9",
+      "proofDigest": "sha256:7a0c39939e0a6889a56eb038f14840391f6f5170293d4e9f647acdf3aef25eac",
+      "mismatchCount": 0,
+      "candidateVersion": "generated",
+      "assertions": [
+        {
+          "assertionId": "assert_001",
+          "label": "Decision is preserved",
+          "status": "PASSED",
+          "expected": "REFUND",
+          "actual": "REFUND",
+          "legacyEvidenceId": "ev_trace_10a39678-e8eb-4697-a634-a39a786f0eba_005",
+          "candidateEvidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_006"
+        },
+        {
+          "assertionId": "assert_002",
+          "label": "Return status is preserved",
+          "status": "PASSED",
+          "expected": "REFUNDED",
+          "actual": "REFUNDED",
+          "legacyEvidenceId": "ev_trace_10a39678-e8eb-4697-a634-a39a786f0eba_005",
+          "candidateEvidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_006"
+        },
+        {
+          "assertionId": "assert_003",
+          "label": "Refund amount is preserved",
+          "status": "PASSED",
+          "expected": 4500,
+          "actual": 4500,
+          "legacyEvidenceId": "ev_trace_10a39678-e8eb-4697-a634-a39a786f0eba_005",
+          "candidateEvidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_006"
+        },
+        {
+          "assertionId": "assert_004",
+          "label": "Sellable inventory side effect matches",
+          "status": "PASSED",
+          "expected": 10,
+          "actual": 10,
+          "legacyEvidenceId": "ev_trace_10a39678-e8eb-4697-a634-a39a786f0eba_006",
+          "candidateEvidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_007"
+        },
+        {
+          "assertionId": "assert_005",
+          "label": "Quarantine inventory side effect matches",
+          "status": "PASSED",
+          "expected": 1,
+          "actual": 1,
+          "legacyEvidenceId": "ev_trace_10a39678-e8eb-4697-a634-a39a786f0eba_006",
+          "candidateEvidenceId": "ev_trace_2188caaf-91f7-44e9-b3be-35d30100aea3_007"
+        }
+      ]
+    }
+  },
+  "worktree": {
+    "baseCommit": "7c6bae15cc794ccf4546de77aa56abba3dca37b2",
+    "retained": true
+  }
+}

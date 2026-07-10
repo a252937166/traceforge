@@ -44,3 +44,25 @@ The effective repair changed `damagedRefundDestination` from `SELLABLE` to `QUAR
 ## Promotion boundary
 
 The verified patch remains in the retained worktree. TraceForge did not apply it to `main`, commit it, push it, open a pull request, or deploy it. The checked-in generated candidate intentionally remains unconfigured so future demonstrations must execute the repair path rather than inherit a pre-repaired file.
+
+## Release-validation run — verified after boundary hardening
+
+The submission build repeated the entire product path after adding proof-digest provenance checks, a credential-minimized child environment, ignored-path tamper detection, and host-owned acceptance. The final recording produced:
+
+- Source failed run: `run_ac6da7f9-42c7-4c14-b5b8-08ff0c0acbb5`.
+- Source failed proof: `proof_bdb39dce-74e5-4534-8789-519e98b248ac`.
+- Source proof digest: `sha256:3b1c97ce524318559cfd1d9f79e8b7308a079c44ae5e8b474a90c21eb5b6ffb5`.
+- SDK thread: `019f4cb1-4193-7ee3-a4d2-5f7852c18329`.
+- Retained worktree: `.traceforge/worktrees/repair-1783698109772-fed51e82`.
+- Base commit: `7c6bae15cc794ccf4546de77aa56abba3dca37b2`.
+- Changed files: `apps/api/src/candidates/generated-repair.ts` only.
+- Whitelist: passed; required file changed; no unexpected files.
+- Provenance: `codex-generated`; source digest matched the failed proof; no provenance problems.
+- Fresh run: `run_185a9fe7-36de-4a24-a7b7-9d1fb31db622`.
+- Fresh proof: `proof_5cde5f57-75b4-49bd-98dd-d926fcd356e9`.
+- Fresh proof digest: `sha256:7a0c39939e0a6889a56eb038f14840391f6f5170293d4e9f647acdf3aef25eac`.
+- Verification: `PASSED`; five assertions; zero mismatches; HTTP `200`.
+
+Two operational preflight failures also failed closed during recording. A stale API key produced HTTP `401` and left the candidate unsealed. A repair turn that attempted to install dependencies would have created ignored artifacts, so the repair prompt was tightened to prohibit install/build/test activity; only the host may create the clean verification environment. The final run used the existing ChatGPT Codex login, an unauthenticated loopback proxy passed through a strict allowlist, and host-only installation and tests.
+
+A sanitized machine-readable extract of the final response is published beside this record as [codex-run-proof.json](codex-run-proof.json); it contains no credentials or absolute worktree path.
