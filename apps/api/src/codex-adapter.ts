@@ -392,7 +392,8 @@ Hard constraints:
 - Update generatedRepair so the generated candidate conforms to the proof. Mark metadata.status as codex-generated, set metadata.sourceProofDigest to ${proof.digest}, and write a concise factual summary.
 - Do not edit tests, package files, lockfiles, proof-input.json, or any other file.
 - Do not use network access, commit, push, merge, deploy, or create another worktree.
-- You may inspect local files and run local checks, but the host will independently verify the diff and tests afterward.
+- Do not run a package manager, install dependencies, typecheck, test, build, or create node_modules, dist, coverage, SQLite, environment, or other ignored artifacts.
+- You may inspect local files and use read-only Git diff/status checks. The host alone installs dependencies and runs every acceptance check after your turn.
 
 When finished, return only the requested structured JSON summary.`;
 }
