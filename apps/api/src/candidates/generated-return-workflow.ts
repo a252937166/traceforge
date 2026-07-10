@@ -104,9 +104,20 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
   let status: WorkflowResult["returnRecord"]["status"];
   let refundCents = 0;
 
-  // Candidate 01 deliberately over-generalizes the observed VIP trace. The
-  // hidden high-value counterexample will prove this priority is wrong.
-  if (input.customerTier === "VIP") {
+  // The review threshold has priority over every automatic disposition,
+  // including the VIP replacement policy.
+  if (input.amountCents >= 50_000) {
+    selected = {
+      decision: "MANUAL_REVIEW",
+      ruleId: "RULE-HIGH-VALUE-REVIEW",
+      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
+    };
+    status = "PENDING_REVIEW";
+    sideEffects.push({
+      type: "REVIEW_QUEUE",
+      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
+    });
+  } else if (input.customerTier === "VIP") {
     selected = {
       decision: "REPLACEMENT",
       ruleId: "RULE-VIP-REPLACEMENT",
@@ -131,17 +142,6 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
         detail: { destination: "SELLABLE", quantity: 1 },
       });
     }
-  } else if (input.amountCents >= 50_000) {
-    selected = {
-      decision: "MANUAL_REVIEW",
-      ruleId: "RULE-HIGH-VALUE-REVIEW",
-      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
-    };
-    status = "PENDING_REVIEW";
-    sideEffects.push({
-      type: "REVIEW_QUEUE",
-      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
-    });
   } else {
     selected = {
       decision: "REFUND",
@@ -155,12 +155,19 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       detail: { amountCents: input.amountCents },
     });
 
-    // Candidate 01's second defect: damaged refunds are restored to sellable.
-    after.sellable += 1;
-    sideEffects.push({
-      type: "INVENTORY_MOVE",
-      detail: { destination: "SELLABLE", quantity: 1 },
-    });
+    if (input.itemCondition === "DAMAGED") {
+      after.quarantine += 1;
+      sideEffects.push({
+        type: "INVENTORY_MOVE",
+        detail: { destination: "QUARANTINE", quantity: 1 },
+      });
+    } else {
+      after.sellable += 1;
+      sideEffects.push({
+        type: "INVENTORY_MOVE",
+        detail: { destination: "SELLABLE", quantity: 1 },
+      });
+    }
   }
 
   const result: WorkflowResult = {

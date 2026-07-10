@@ -104,16 +104,34 @@ test("deterministic-only migration emits real stages and a downloadable recomput
   });
 });
 
-test("recorded replay fails closed until a real full-module Codex recording is verified", async () => {
+test("recorded replay exposes real GPT-5.6 and full-module Codex evidence", async () => {
   await withApi(async (baseUrl) => {
     const created = await start(baseUrl, "recorded-replay");
     const body = await created.json();
     const job = await terminalJob(baseUrl, body.data.id);
-    assert.equal(job.status, "failed");
-    assert.equal(job.error.code, "RECORDED_CODEX_BUILD_NOT_VERIFIED");
+    assert.equal(job.status, "passed");
     assert.equal(job.recordedAt, "2026-07-10T16:29:39.000Z");
-    const proof = await fetch(`${baseUrl}/api/migrations/${job.id}/proof`);
-    assert.equal(proof.status, 404);
+    assert.equal(job.modelId, "gpt-5.6-sol");
+
+    const proofResponse = await fetch(`${baseUrl}/api/migrations/${job.id}/proof`);
+    assert.equal(proofResponse.status, 200);
+    const proof = (await proofResponse.json()).data;
+    assert.equal(proof.status, "PASSED");
+    assert.equal(proof.modelInvocations.length, 4);
+    assert.equal(proof.candidate.codexThreadId, "019f4cf0-07d2-71b0-9608-7d66aa611e1f");
+    assert.equal(proof.coverage.passed, 6);
+
+    const events = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/events?format=json`)).json()).data.events;
+    assert.equal(events.some((event: { type: string }) => event.type === "hypothesis.falsified"), true);
+    assert.equal(events.some((event: { type: string }) => event.type === "counterexample.updated"), true);
+    assert.equal(events.some((event: { type: string }) => event.type === "candidate.updated"), true);
+
+    const artifacts = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/artifacts`)).json()).data.artifacts;
+    const diff = artifacts.find(({ filename }: { filename: string }) => filename === "candidate.diff");
+    assert.ok(diff);
+    const diffBody = await (await fetch(`${baseUrl}${diff.href}`)).text();
+    assert.match(diffBody, /input\.amountCents >= 50_000/);
+    assert.match(diffBody, /destination: "QUARANTINE"/);
   });
 });
 
