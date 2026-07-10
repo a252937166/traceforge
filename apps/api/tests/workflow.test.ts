@@ -7,7 +7,10 @@ import {
   executeWorkflow,
   scenarios,
 } from "../src/domain.js";
-import { GENERATED_REPAIR_BASELINE } from "../src/candidates/generated-repair.js";
+import {
+  GENERATED_REPAIR_BASELINE,
+  generatedRepair,
+} from "../src/candidates/generated-repair.js";
 import { sha256Digest } from "../src/digest.js";
 import { TraceForgeService } from "../src/service.js";
 import { ArtifactStore } from "../src/store.js";
@@ -54,7 +57,7 @@ test("the immutable generated baseline fails before a real repair is produced", 
   });
 });
 
-test("generated candidate traces seal the exact repair configuration as evidence", () => {
+test("generated candidate traces seal the active repair configuration as evidence", () => {
   const store = new ArtifactStore(":memory:");
   const service = new TraceForgeService(store);
   const run = service.runDemo({ scenarioId: "damaged-small-refund", candidateVersion: "generated" });
@@ -64,7 +67,7 @@ test("generated candidate traces seal the exact repair configuration as evidence
 
   assert.ok(configurationEvidence);
   assert.match(configurationEvidence.digest, /^sha256:[a-f0-9]{64}$/);
-  assert.deepEqual(configurationEvidence.payload, GENERATED_REPAIR_BASELINE);
+  assert.deepEqual(configurationEvidence.payload, generatedRepair);
   store.close();
 });
 
