@@ -9,14 +9,14 @@ The legacy oracle and replacement candidate are separate exported implementation
 Requires Node.js 22.5+ for `node:sqlite`.
 
 ```bash
-npm install
-npm test
-npm run dev
+pnpm install --frozen-lockfile
+pnpm --filter @traceforge/api test
+pnpm --filter @traceforge/api dev
 ```
 
 The API uses port `8787` by default. With Codex disabled it binds to `0.0.0.0`; with `TRACEFORGE_ENABLE_CODEX=1` it binds to `127.0.0.1` to keep the expensive repair surface local. Set `HOST` to make an explicit override, or `PORT` / `TRACEFORGE_DB` to override the port / SQLite artifact path.
 
-Browser CORS is restricted by default to `localhost` and `127.0.0.1` on ports `5173`, `5174`, and `4173`. Add exact origins with the comma-separated `TRACEFORGE_ALLOWED_ORIGINS` variable. Requests without an `Origin` header, such as server-to-server calls and curl, remain allowed.
+Browser CORS is restricted by default to exact HTTP origins for `localhost` and `127.0.0.1`: the portless local origins plus ports `5173`, `5174`, and `4173`. Add other exact origins with the comma-separated `TRACEFORGE_ALLOWED_ORIGINS` variable; arbitrary local ports and wildcard origins are not enabled. Requests without an `Origin` header, such as server-to-server calls and curl, remain allowed.
 
 ## Frontend contract
 

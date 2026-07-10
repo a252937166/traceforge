@@ -31,6 +31,14 @@ export interface ChangeValidation {
   requiredFileChanged: boolean;
 }
 
+export interface GeneratedRepairProvenanceValidation {
+  passed: boolean;
+  evidenceId: string | null;
+  status: string | null;
+  sourceProofDigest: string | null;
+  problems: string[];
+}
+
 export interface CommandEvidence {
   command: string;
   args: string[];
@@ -59,6 +67,7 @@ export interface CodexRepairResult {
     apiTests?: CommandEvidence;
     generatedCandidate?: CommandEvidence;
     run?: DemoRunResponse;
+    provenance?: GeneratedRepairProvenanceValidation;
   };
   worktree: {
     path: string;
@@ -88,6 +97,10 @@ export class CodexRepairFailure extends Error {
 
 function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 export function validateChangedFiles(
@@ -158,18 +171,107 @@ export function parseGeneratedVerificationRun(stdout: string): DemoRunResponse {
   throw new Error("verify-generated did not emit a complete DemoRunResponse");
 }
 
+export function validateGeneratedRepairProvenance(
+  run: DemoRunResponse,
+  expectedSourceProofDigest: string,
+): GeneratedRepairProvenanceValidation {
+  const rawRun = asRecord(run);
+  const proofBundle = asRecord(rawRun.proofBundle);
+  const traces = asRecord(rawRun.traces);
+  const replacement = asRecord(traces.replacement);
+  const evidence = Array.isArray(replacement.evidence) ? replacement.evidence : [];
+  const configurationEvidence = evidence
+    .map(asRecord)
+    .find((entry) => entry.type === "repair.configuration");
+  const payload = asRecord(configurationEvidence?.payload);
+  const metadata = asRecord(payload.metadata);
+  const status = typeof metadata.status === "string" ? metadata.status : null;
+  const sourceProofDigest =
+    typeof metadata.sourceProofDigest === "string" ? metadata.sourceProofDigest : null;
+  const evidenceId =
+    typeof configurationEvidence?.evidenceId === "string" ? configurationEvidence.evidenceId : null;
+  const problems: string[] = [];
+
+  if (proofBundle.candidateVersion !== "generated") {
+    problems.push("verification run is not for the generated candidate");
+  }
+  if (!configurationEvidence) {
+    problems.push("repair.configuration evidence is missing");
+  }
+  if (status !== "codex-generated") {
+    problems.push("generated repair metadata.status is not codex-generated");
+  }
+  if (!expectedSourceProofDigest) {
+    problems.push("expected source proof digest is missing");
+  } else if (sourceProofDigest !== expectedSourceProofDigest) {
+    problems.push("generated repair sourceProofDigest does not match the failed proof");
+  }
+
+  return {
+    passed: problems.length === 0,
+    evidenceId,
+    status,
+    sourceProofDigest,
+    problems,
+  };
+}
+
 function clampOutput(value: string, limit = 200_000): string {
   if (value.length <= limit) return value;
   return `${value.slice(0, limit)}\n...[truncated ${value.length - limit} characters]`;
 }
 
-function childEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+const SAFE_CHILD_ENV_KEYS = [
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TZ",
+  "TERM",
+  "COLORTERM",
+  "NO_COLOR",
+  "FORCE_COLOR",
+  "CI",
+  "CODEX_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_DATA_HOME",
+  "PNPM_HOME",
+  "COREPACK_HOME",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS",
+  "SYSTEMROOT",
+  "WINDIR",
+  "COMSPEC",
+  "PATHEXT",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "USERPROFILE",
+] as const;
+
+export function buildChildEnvironment(
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+  overrides: NodeJS.ProcessEnv = {},
+): Record<string, string> {
   const executableDirectory = dirname(process.execPath);
-  return {
-    ...process.env,
-    PATH: `${executableDirectory}${delimiter}${process.env.PATH ?? ""}`,
-    ...overrides,
+  const environment: Record<string, string> = {
+    PATH: [executableDirectory, sourceEnv.PATH].filter(Boolean).join(delimiter),
   };
+  for (const key of SAFE_CHILD_ENV_KEYS) {
+    const value = sourceEnv[key];
+    if (typeof value === "string") environment[key] = value;
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (typeof value === "string") environment[key] = value;
+  }
+  return environment;
 }
 
 export function runCommand(
@@ -181,7 +283,7 @@ export function runCommand(
   return new Promise((resolveCommand) => {
     const child = spawn(command, args, {
       cwd,
-      env: childEnvironment(envOverrides),
+      env: buildChildEnvironment(process.env, { PWD: cwd, ...envOverrides }),
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -208,18 +310,29 @@ export function runCommand(
   });
 }
 
-async function changedFilesIn(worktree: string): Promise<string[]> {
-  const [tracked, staged, untracked] = await Promise.all([
+export async function changedFilesIn(worktree: string): Promise<string[]> {
+  const [tracked, staged, untracked, ignored] = await Promise.all([
     runCommand("git", ["diff", "--name-only"], worktree),
     runCommand("git", ["diff", "--cached", "--name-only"], worktree),
     runCommand("git", ["ls-files", "--others", "--exclude-standard"], worktree),
+    runCommand(
+      "git",
+      ["status", "--porcelain=v1", "--ignored=matching", "--untracked-files=all", "-z"],
+      worktree,
+    ),
   ]);
-  const commandFailure = [tracked, staged, untracked].find((result) => result.exitCode !== 0);
+  const commandFailure = [tracked, staged, untracked, ignored].find((result) => result.exitCode !== 0);
   if (commandFailure) {
     throw new Error(`failed to inspect worktree changes: ${commandFailure.stderr || commandFailure.stdout}`);
   }
+  const ignoredPaths = ignored.stdout
+    .split("\0")
+    .filter((entry) => entry.startsWith("!! "))
+    .map((entry) => normalizePath(entry.slice(3)))
+    .filter((path) => path !== ".traceforge/" && path !== PROOF_INPUT_PATH);
   return [tracked.stdout, staged.stdout, untracked.stdout]
     .flatMap((output) => output.split(/\r?\n/))
+    .concat(ignoredPaths)
     .map(normalizePath)
     .filter((path) => path && path !== PROOF_INPUT_PATH);
 }
@@ -318,10 +431,13 @@ export class CodexRepairAdapter {
       await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");
 
       const sdk = await import("@openai/codex-sdk");
-      const codexEnvironment = Object.fromEntries(
-        Object.entries(childEnvironment()).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-      );
-      const codex = new sdk.Codex({ env: codexEnvironment });
+      const codexApiKey = this.env.CODEX_API_KEY ?? this.env.OPENAI_API_KEY;
+      const codexBaseUrl = this.env.OPENAI_BASE_URL;
+      const codex = new sdk.Codex({
+        env: buildChildEnvironment(this.env),
+        ...(codexApiKey ? { apiKey: codexApiKey } : {}),
+        ...(codexBaseUrl ? { baseUrl: codexBaseUrl } : {}),
+      });
       const thread = codex.startThread({
         workingDirectory: worktreePath,
         sandboxMode: "workspace-write",
@@ -379,7 +495,10 @@ export class CodexRepairAdapter {
         };
       }
 
-      const verificationEnvironment = { TRACEFORGE_ENABLE_CODEX: "0" };
+      const verificationEnvironment = {
+        TRACEFORGE_ENABLE_CODEX: "0",
+        TRACEFORGE_SOURCE_PROOF_DIGEST: proof.digest,
+      };
       const install = await runCommand(
         "pnpm",
         ["install", "--offline", "--frozen-lockfile"],
@@ -405,9 +524,19 @@ export class CodexRepairAdapter {
         commands.push(apiTests, generatedCandidate);
       }
       let generatedRun: DemoRunResponse | undefined;
-      if (generatedCandidate?.exitCode === 0) {
+      let provenance: GeneratedRepairProvenanceValidation | undefined;
+      if (generatedCandidate) {
         try {
           generatedRun = parseGeneratedVerificationRun(generatedCandidate.stdout);
+          provenance = validateGeneratedRepairProvenance(generatedRun, proof.digest);
+          if (!provenance.passed) {
+            generatedCandidate.stderr = [
+              generatedCandidate.stderr,
+              `generated repair provenance failed: ${provenance.problems.join("; ")}`,
+            ]
+              .filter(Boolean)
+              .join("\n");
+          }
         } catch (error) {
           generatedCandidate.stderr = [
             generatedCandidate.stderr,
@@ -422,7 +551,8 @@ export class CodexRepairAdapter {
         apiTests?.exitCode === 0 &&
         generatedCandidate?.exitCode === 0 &&
         generatedRun?.status === "PASSED" &&
-        generatedRun.proofBundle.mismatches.length === 0;
+        generatedRun.proofBundle.mismatches.length === 0 &&
+        provenance?.passed === true;
       return {
         codexExecuted: true,
         threadId,
@@ -437,6 +567,7 @@ export class CodexRepairAdapter {
           ...(apiTests ? { apiTests } : {}),
           ...(generatedCandidate ? { generatedCandidate } : {}),
           ...(generatedRun ? { run: generatedRun } : {}),
+          ...(provenance ? { provenance } : {}),
         },
         worktree,
       };

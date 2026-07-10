@@ -1,0 +1,20 @@
+[Unit]
+Description=TraceForge behavioral migration proof demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=traceforge
+Group=traceforge
+WorkingDirectory=/opt/traceforge
+EnvironmentFile=/etc/traceforge/traceforge.env
+ExecStart=/usr/local/bin/node /opt/traceforge/dist/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

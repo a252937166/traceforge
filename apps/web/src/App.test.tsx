@@ -134,6 +134,28 @@ describe('TraceForge workbench', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/api/demo/run')
   })
 
+  it.each([
+    ['evidence/events', { events: [] }],
+    ['rules', { rules: [] }],
+  ])('rejects a live runner response with no real %s', async (_missing, override) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ ...demoRun('buggy'), ...override }, 201),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await startProof()
+
+    expect(await screen.findByText('Sample data')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Sample replay complete — start live runner to seal proof',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Live runner')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back to the labelled reference patch only when Codex returns 501', async () => {
     const fetchMock = vi
       .fn()
@@ -243,6 +265,30 @@ describe('TraceForge workbench', () => {
 
     expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
     expect(screen.getByText(/failed integrity validation/i)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an otherwise valid Codex proof when live evidence and rules are absent', async () => {
+    const generatedRun = {
+      ...demoRun('generated', {
+        runId: 'run_generated_without_evidence',
+        proofId: 'proof_generated_without_evidence',
+      }),
+      events: [],
+      rules: [],
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_before_empty_generated' }), 201))
+      .mockResolvedValueOnce(jsonResponse(successfulCodexResponse(generatedRun)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await startProof()
+
+    expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
+    expect(screen.getByText(/live evidence\/events is missing/i)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
     expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)

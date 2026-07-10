@@ -33,16 +33,30 @@ test("health and scenarios are available", async () => {
 });
 
 test("CORS allows local frontend origins and rejects untrusted browser origins", async () => {
-  const allowedResponse = await fetch(`${baseUrl}/api/health`, {
-    headers: { origin: "http://localhost:5173" },
+  const expectedLocalOrigins = [
+    "http://localhost",
+    "http://localhost:5173",
+    "http://127.0.0.1",
+    "http://127.0.0.1:4173",
+  ];
+  for (const origin of expectedLocalOrigins) {
+    const allowedResponse = await fetch(`${baseUrl}/api/health`, {
+      headers: { origin },
+    });
+    assert.equal(allowedResponse.status, 200);
+    assert.equal(allowedResponse.headers.get("access-control-allow-origin"), origin);
+  }
+
+  const unexpectedLocalPortResponse = await fetch(`${baseUrl}/api/health`, {
+    headers: { origin: "http://127.0.0.1:9999" },
   });
   const rejectedResponse = await fetch(`${baseUrl}/api/health`, {
     headers: { origin: "https://evil.example" },
   });
   const rejected = await rejectedResponse.json();
 
-  assert.equal(allowedResponse.status, 200);
-  assert.equal(allowedResponse.headers.get("access-control-allow-origin"), "http://localhost:5173");
+  assert.equal(unexpectedLocalPortResponse.status, 403);
+  assert.equal(unexpectedLocalPortResponse.headers.get("access-control-allow-origin"), null);
   assert.equal(rejectedResponse.status, 403);
   assert.equal(rejected.error.code, "CORS_ORIGIN_DENIED");
   assert.equal(rejectedResponse.headers.get("access-control-allow-origin"), null);

@@ -173,10 +173,19 @@ function stringArray(value: unknown): string[] {
     : []
 }
 
+function firstNonEmptyArray(...values: unknown[]): unknown[] {
+  for (const value of values) {
+    if (Array.isArray(value) && value.length > 0) return value
+  }
+  return []
+}
+
 function validateLiveProof(raw: unknown, expectedCandidate: CandidateVersion): LiveProofValidation {
   const root = asRecord(raw)
   const envelope = asRecord(root.data ?? root.result ?? root)
   const proofBundle = asRecord(envelope.proofBundle ?? envelope.proof_bundle)
+  const evidence = firstNonEmptyArray(envelope.evidence, envelope.events)
+  const rules = firstNonEmptyArray(envelope.rules, envelope.contracts, envelope.behaviorRules)
   const runId = stringValue(envelope.runId ?? envelope.run_id, '')
   const bundleRunId = stringValue(proofBundle.runId ?? proofBundle.run_id, '')
   const proofId = stringValue(proofBundle.proofId ?? proofBundle.proof_id, '')
@@ -200,6 +209,19 @@ function validateLiveProof(raw: unknown, expectedCandidate: CandidateVersion): L
     problems.push('proofBundle.assertions is missing')
   }
   if (!Array.isArray(proofBundle.mismatches)) problems.push('proofBundle.mismatches is missing')
+  if (evidence.length === 0) {
+    problems.push('live evidence/events is missing')
+  } else if (evidence.some((entry) => !stringValue(asRecord(entry).id ?? asRecord(entry).evidenceId, ''))) {
+    problems.push('live evidence/events contains an item without an evidence ID')
+  }
+  if (rules.length === 0) {
+    problems.push('live rules is missing')
+  } else if (rules.some((entry) => {
+    const rule = asRecord(entry)
+    return !stringValue(rule.id ?? rule.ruleId, '') || !stringValue(rule.statement ?? rule.rule, '')
+  })) {
+    problems.push('live rules contains an incomplete rule')
+  }
 
   return problems.length
     ? { ok: false, reason: problems.join('; ') }
@@ -207,7 +229,7 @@ function validateLiveProof(raw: unknown, expectedCandidate: CandidateVersion): L
 }
 
 function normalizeEvidence(value: unknown): EvidenceItem[] {
-  if (!Array.isArray(value) || value.length === 0) return sampleRun.evidence
+  if (!Array.isArray(value) || value.length === 0) return []
 
   return value.map((entry, index) => {
     const item = asRecord(entry)
@@ -232,7 +254,7 @@ function normalizeEvidence(value: unknown): EvidenceItem[] {
 }
 
 function normalizeRules(value: unknown): BehaviorRule[] {
-  if (!Array.isArray(value) || value.length === 0) return sampleRun.rules
+  if (!Array.isArray(value) || value.length === 0) return []
 
   return value.map((entry, index) => {
     const item = asRecord(entry)
@@ -325,8 +347,8 @@ export function normalizeLiveRun(raw: unknown): ProofRun {
         mismatches.length,
       ),
     },
-    evidence: normalizeEvidence(envelope.evidence ?? envelope.events ?? envelope.proofs),
-    rules: normalizeRules(envelope.rules ?? envelope.contracts ?? envelope.behaviorRules),
+    evidence: normalizeEvidence(firstNonEmptyArray(envelope.evidence, envelope.events)),
+    rules: normalizeRules(firstNonEmptyArray(envelope.rules, envelope.contracts, envelope.behaviorRules)),
   }
 }
 

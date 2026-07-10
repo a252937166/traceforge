@@ -35,6 +35,19 @@ describe('normalizeLiveRun', () => {
     expect(result.codexExecuted).toBe(false)
   })
 
+  it('never backfills missing live evidence or rules with fixture content', () => {
+    const result = normalizeLiveRun({
+      runId: 'run_missing_live_material',
+      source: 'deterministic-local-demo',
+      events: [],
+      rules: [],
+    })
+
+    expect(result.source).toBe('live')
+    expect(result.evidence).toEqual([])
+    expect(result.rules).toEqual([])
+  })
+
   it('derives failed proof counts and real evidence IDs from the API response shape', () => {
     const result = normalizeLiveRun({
       runId: 'run_backend_01',
