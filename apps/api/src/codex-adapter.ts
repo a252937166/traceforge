@@ -42,6 +42,9 @@ export interface GeneratedSuiteRunEvidence {
   implementationId: string;
   proofId: string;
   proofDigest: string;
+  legacyTraceId: string;
+  candidateTraceId: string;
+  assertionCount: number;
   mismatchCount: number;
   proofPersisted: boolean;
 }
@@ -240,6 +243,9 @@ export function validateGeneratedSuite(
         run.implementationId !== "replacement.return-workflow.generated-candidate" ||
         run.mismatchCount !== 0 ||
         !run.proofPersisted ||
+        !/^trace_/.test(run.legacyTraceId) ||
+        !/^trace_/.test(run.candidateTraceId) ||
+        run.assertionCount !== 5 ||
         !/^proof_/.test(run.proofId) ||
         !/^sha256:[a-f0-9]{64}$/.test(run.proofDigest),
     )
@@ -509,7 +515,8 @@ export class CodexRepairAdapter {
       if (repo.exitCode !== 0) throw new Error(`not a Git repository: ${repo.stderr || repo.stdout}`);
       const repoRoot = repo.stdout.trim();
 
-      const head = await runCommand("git", ["rev-parse", "HEAD"], repoRoot);
+      const requestedBase = this.env.TRACEFORGE_CODEX_BASE_COMMIT?.trim() || "HEAD";
+      const head = await runCommand("git", ["rev-parse", requestedBase], repoRoot);
       commands.push(head);
       if (head.exitCode !== 0) throw new Error(`cannot resolve HEAD: ${head.stderr || head.stdout}`);
       const baseCommit = head.stdout.trim();

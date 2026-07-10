@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BehaviorArchaeologyAdapter } from "./behavior-archaeology.js";
+import {
+  CodexRepairAdapter,
+  GENERATED_CANDIDATE_PATH,
+  type CodexRepairResult,
+  type GeneratedCandidateSuiteEvidence,
+} from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
-import { findScenario, scenarios } from "./domain.js";
+import { findScenario, scenarios, validateWorkflowInput } from "./domain.js";
 import { MigrationStore } from "./migration-store.js";
 import type {
   MigrationArtifact,
@@ -11,6 +18,7 @@ import type {
   MigrationEventOrigin,
   MigrationEventStatus,
   MigrationJob,
+  ModelInvocationEvidence,
   MigrationProofBundle,
   MigrationScenarioProof,
   MigrationStage,
@@ -19,9 +27,53 @@ import type {
 import { recordedArchaeology, recordedModelInvocations, RECORDED_AT } from "./recorded-archaeology.js";
 import { recordedCodexBuild } from "./recorded-codex-build.js";
 import { TraceForgeService } from "./service.js";
-import type { CandidateVersion } from "./types.js";
+import type { CandidateVersion, ReturnWorkflowInput, WorkflowTrace } from "./types.js";
 
 type EventPayload = Record<string, unknown>;
+
+type ArchaeologistOutput = {
+  role: "trace_archaeologist";
+  hypotheses: Array<{
+    ruleId: string;
+    statement: string;
+    confidence: number;
+    evidenceIds: string[];
+    competingRuleIds: string[];
+  }>;
+  invariants: Array<{ invariantId: string; statement: string; evidenceIds: string[] }>;
+  unknowns: Array<{ unknownId: string; question: string; blocking: boolean; relatedRuleIds: string[] }>;
+};
+
+type HunterOutput = {
+  role: "counterexample_hunter";
+  scenario: { scenarioId: string; input: ReturnWorkflowInput };
+  distinguishes: Array<{ ruleId: string; fromRuleId: string; reason: string }>;
+  expectedInformationGain: string;
+  basedOnEvidenceIds: string[];
+};
+
+type CriticOutput = {
+  role: "contract_critic";
+  findings: Array<{
+    findingId: string;
+    type: string;
+    severity: "BLOCKING" | "WARNING";
+    claim: string;
+    ruleIds: string[];
+    evidenceIds: string[];
+    requiredAction: string;
+  }>;
+  revisedRules: Array<{
+    ruleId: string;
+    statement: string;
+    priority: number;
+    evidenceIds: string[];
+    confidence: number;
+  }>;
+  disposition: "NEEDS_COUNTEREXAMPLE" | "READY_FOR_BUILD" | "STOP_UNSUPPORTED";
+};
+
+type CandidateEvidence = { threadId?: string; diff: string; sourceDigest?: string };
 
 export class MigrationRunner {
   readonly archaeology: BehaviorArchaeologyAdapter;
@@ -30,6 +82,7 @@ export class MigrationRunner {
     readonly service: TraceForgeService,
     readonly store: MigrationStore,
     env: NodeJS.ProcessEnv = process.env,
+    readonly codex = new CodexRepairAdapter({ env }),
   ) {
     this.archaeology = new BehaviorArchaeologyAdapter(env);
   }
@@ -128,8 +181,14 @@ export class MigrationRunner {
     }
 
     this.stageStarted(job, "verify", "Run the independent differential suite");
-    const proof = await this.buildProof(job, "generated", []);
-    await this.issueArtifacts(job, proof, "");
+    const proof = await this.buildProof(
+      job,
+      "generated",
+      [],
+      { diff: "" },
+      recordedArchaeology.contract,
+    );
+    await this.issueArtifacts(job, proof, "", [], recordedArchaeology.contract);
     this.emit(job, "verify", "proof.completed", proof.status === "PASSED" ? "passed" : "failed", "Host proof completed", `${proof.coverage.passed}/${proof.coverage.total} scenarios passed.`, {
       proof,
     });
@@ -217,8 +276,18 @@ export class MigrationRunner {
     this.stagePassed(job, "build", "Host accepted the whitelisted candidate diff", origin);
 
     this.stageStarted(job, "verify", "Replay fresh observed + counterexample + boundary + held-out proof", origin);
-    const proof = await this.buildProof(job, "generated", recordedModelInvocations);
-    const artifacts = await this.issueArtifacts(job, proof, recordedCodexBuild.diff);
+    const proof = await this.buildProof(job, "generated", recordedModelInvocations, {
+      threadId: recordedCodexBuild.threadId,
+      diff: recordedCodexBuild.diff,
+      sourceDigest: recordedCodexBuild.sourceDigest,
+    }, recordedArchaeology.contract);
+    const artifacts = await this.issueArtifacts(
+      job,
+      proof,
+      recordedCodexBuild.diff,
+      [...recordedCodexBuild.commands],
+      recordedArchaeology.contract,
+    );
     const diff = artifacts.find(({ kind }) => kind === "diff");
     if (diff) {
       this.emit(job, "build", "artifact.ready", "passed", "Candidate diff ready", diff.filename, {
@@ -236,16 +305,384 @@ export class MigrationRunner {
   private async runLiveAi(job: MigrationJob): Promise<void> {
     const adapterStatus = this.archaeology.status();
     if (!adapterStatus.configured) throw new Error("GPT56_ADAPTER_NOT_CONFIGURED");
-    throw new Error("LIVE_AI_PIPELINE_NOT_YET_CONNECTED");
+    if (!this.codex.status().configured) throw new Error("CODEX_ADAPTER_NOT_CONFIGURED");
+
+    this.stageStarted(job, "observe", "Capture two operator-observed legacy traces");
+    const observedTraces = scenarios
+      .filter(({ stage }) => stage === "observed")
+      .map((scenario) => this.service.capture("legacy", scenario.input, "seeded", scenario.id));
+    for (const trace of observedTraces) {
+      this.emit(job, "observe", "evidence.recorded", "passed", `Legacy trace ${trace.scenarioId}`, this.traceSummary(trace), {
+        evidence: this.traceEvidencePayload(trace),
+      });
+    }
+    this.stagePassed(job, "observe", `${observedTraces.length} fresh SQLite-backed traces captured`);
+
+    const invocations: ModelInvocationEvidence[] = [];
+    this.stageStarted(job, "infer", "GPT-5.6 Sol compares competing explanations");
+    const archaeologist = await this.archaeology.run<ArchaeologistOutput>({
+      role: "trace-archaeologist",
+      prompt: this.archaeologistPrompt(observedTraces),
+      inputTraceIds: observedTraces.map(({ traceId }) => traceId),
+      inputEvidenceDigests: this.evidenceDigests(observedTraces),
+      allowedEvidenceIds: this.evidenceIds(observedTraces),
+      signal: AbortSignal.timeout(300_000),
+    });
+    invocations.push(archaeologist.invocation);
+    for (const hypothesis of archaeologist.output.hypotheses) {
+      this.emit(job, "infer", "hypothesis.proposed", "passed", "GPT-5.6 hypothesis", hypothesis.statement, {
+        hypothesis: {
+          id: hypothesis.ruleId,
+          revision: 1,
+          statement: hypothesis.statement,
+          status: "proposed",
+          confidence: hypothesis.confidence,
+          evidenceIds: hypothesis.evidenceIds,
+        },
+        invocation: archaeologist.invocation,
+      });
+    }
+    this.stagePassed(job, "infer", `${archaeologist.output.unknowns.filter(({ blocking }) => blocking).length} blocking unknowns preserved`);
+
+    this.stageStarted(job, "challenge", "GPT-5.6 proposes inputs; only the host executes them");
+    const firstHunter = await this.archaeology.run<HunterOutput>({
+      role: "counterexample-hunter",
+      prompt: this.hunterPrompt(observedTraces, archaeologist.output, undefined),
+      inputTraceIds: observedTraces.map(({ traceId }) => traceId),
+      inputEvidenceDigests: this.evidenceDigests(observedTraces),
+      allowedEvidenceIds: this.evidenceIds(observedTraces),
+      signal: AbortSignal.timeout(300_000),
+    });
+    invocations.push(firstHunter.invocation);
+    const firstInput = validateWorkflowInput(firstHunter.output.scenario.input);
+    const firstTrace = this.service.capture(
+      "legacy",
+      firstInput,
+      "seeded",
+      `live-${firstHunter.output.scenario.scenarioId}`,
+    );
+    this.emit(job, "challenge", "counterexample.updated", "passed", "First model counterexample executed", this.traceSummary(firstTrace), {
+      counterexample: this.counterexamplePayload(firstHunter.output, firstTrace, "LIVE-CX-01"),
+      invocation: firstHunter.invocation,
+    });
+
+    const tracesAfterFirst = [...observedTraces, firstTrace];
+    const secondHunter = await this.archaeology.run<HunterOutput>({
+      role: "counterexample-hunter",
+      prompt: this.hunterPrompt(tracesAfterFirst, archaeologist.output, firstHunter.output),
+      inputTraceIds: tracesAfterFirst.map(({ traceId }) => traceId),
+      inputEvidenceDigests: this.evidenceDigests(tracesAfterFirst),
+      allowedEvidenceIds: this.evidenceIds(tracesAfterFirst),
+      signal: AbortSignal.timeout(300_000),
+    });
+    invocations.push(secondHunter.invocation);
+    const secondInput = validateWorkflowInput(secondHunter.output.scenario.input);
+    const secondTrace = this.service.capture(
+      "legacy",
+      secondInput,
+      "seeded",
+      `live-${secondHunter.output.scenario.scenarioId}`,
+    );
+    this.emit(job, "challenge", "counterexample.updated", "passed", "High-information counterexample executed", this.traceSummary(secondTrace), {
+      counterexample: this.counterexamplePayload(secondHunter.output, secondTrace, "LIVE-CX-02"),
+      invocation: secondHunter.invocation,
+    });
+    if (secondTrace.result.decision !== "MANUAL_REVIEW") {
+      throw new Error("GPT56_COUNTEREXAMPLE_DID_NOT_REVEAL_PRIORITY_EXCEPTION");
+    }
+
+    const boundaryTraces = this.locateReviewBoundary(firstInput, secondInput.amountCents);
+    const lowerBoundary = boundaryTraces.at(-2);
+    const upperBoundary = boundaryTraces.at(-1);
+    if (!lowerBoundary || !upperBoundary) throw new Error("BOUNDARY_SEARCH_FAILED");
+    this.emit(job, "challenge", "evidence.recorded", "passed", "Host narrowed the exact threshold", `${lowerBoundary.input.amountCents} cents processes automatically; ${upperBoundary.input.amountCents} cents enters review.`, {
+      evidence: {
+        id: "ev_live_boundary_interval",
+        kind: "trace",
+        label: "Host boundary search",
+        detail: `${boundaryTraces.length} deterministic probes; transition ${lowerBoundary.input.amountCents}→${upperBoundary.input.amountCents}`,
+        digest: sha256Digest(boundaryTraces.map(({ traceId, result }) => ({ traceId, decision: result.decision }))),
+      },
+    });
+
+    const challengeTraces = [...tracesAfterFirst, secondTrace, ...boundaryTraces];
+    const critic = await this.archaeology.run<CriticOutput>({
+      role: "contract-critic",
+      prompt: this.criticPrompt(challengeTraces, archaeologist.output),
+      inputTraceIds: challengeTraces.map(({ traceId }) => traceId),
+      inputEvidenceDigests: this.evidenceDigests(challengeTraces),
+      allowedEvidenceIds: this.evidenceIds(challengeTraces),
+      signal: AbortSignal.timeout(300_000),
+    });
+    invocations.push(critic.invocation);
+    if (critic.output.disposition !== "READY_FOR_BUILD") {
+      throw new Error(`GPT56_CONTRACT_${critic.output.disposition}`);
+    }
+    const liveContract = {
+      id: `contract-live-${job.id}`,
+      scope: "Evidence-bounded Web returns workflow",
+      rules: critic.output.revisedRules,
+      findings: critic.output.findings,
+      unknowns: archaeologist.output.unknowns,
+      disposition: critic.output.disposition,
+      criticThreadId: critic.invocation.threadId,
+    };
+    for (const rule of critic.output.revisedRules) {
+      this.emit(job, "challenge", "hypothesis.accepted", "passed", `Contract rule · priority ${rule.priority}`, rule.statement, {
+        hypothesis: {
+          id: rule.ruleId,
+          revision: 2,
+          statement: rule.statement,
+          status: "accepted",
+          confidence: rule.confidence,
+          evidenceIds: rule.evidenceIds,
+        },
+        invocation: critic.invocation,
+      });
+    }
+    this.stagePassed(job, "challenge", "GPT-5.6 contract passed host evidence-reference validation");
+
+    this.stageStarted(job, "build", "Reject Candidate 01, then let Codex repair the complete module");
+    const seededSuite = this.service.runSuite("seeded");
+    const rejectedScenarioIds = seededSuite.runs
+      .filter(({ status }) => status === "FAILED")
+      .map(({ proofBundle }) => proofBundle.scenarioId ?? "custom");
+    this.emit(job, "build", "candidate.updated", "failed", "Candidate 01 rejected", `${rejectedScenarioIds.length} scenarios exposed rule or side-effect defects.`, {
+      candidate: {
+        id: "candidate-live-01",
+        revision: 1,
+        status: "rejected",
+        summary: "Observed-only candidate",
+        changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
+        rejectedByScenarioIds: rejectedScenarioIds,
+      },
+    });
+    const failedProof = seededSuite.runs.find(({ status }) => status === "FAILED")?.proofBundle;
+    if (!failedProof) throw new Error("SEEDED_CANDIDATE_DID_NOT_FAIL");
+    const repair = await this.codex.repair(failedProof);
+    if (repair.verification.status !== "PASSED" || repair.verification.suiteValidation?.passed !== true) {
+      throw new Error("CODEX_CANDIDATE_VERIFICATION_FAILED");
+    }
+    this.emit(job, "build", "candidate.updated", "passed", "Candidate 02 built by Codex", repair.structuredOutput.summary, {
+      candidate: {
+        id: "candidate-live-02",
+        revision: 2,
+        status: "accepted",
+        summary: repair.structuredOutput.summary,
+        modelId: "gpt-5.6-sol",
+        codexThreadId: repair.threadId,
+        changedFiles: repair.changedFiles,
+      },
+      usage: repair.usage,
+      worktree: repair.worktree,
+    });
+    this.stagePassed(job, "build", "One-file allowlist and six-scenario host suite passed");
+
+    this.stageStarted(job, "verify", "Issue a fresh host-owned proof bundle");
+    const repairedSource = await readFile(join(repair.worktree.path, GENERATED_CANDIDATE_PATH), "utf8");
+    const proof = await this.buildProof(job, "generated", invocations, {
+      threadId: repair.threadId,
+      diff: repair.diff,
+      sourceDigest: sha256Digest(repairedSource),
+    }, liveContract, repair.verification.suite);
+    await this.issueArtifacts(job, proof, repair.diff, this.commandLog(repair), liveContract);
+    this.emit(job, "verify", "proof.completed", proof.status === "PASSED" ? "passed" : "failed", "Independent verifier decided", `${proof.coverage.passed}/${proof.coverage.total} scenarios passed.`, {
+      proof,
+    });
+    if (proof.status !== "PASSED") throw new Error("LIVE_AI_PROOF_FAILED");
+    this.stagePassed(job, "verify", "Verification passed · digest available for recomputation");
+    this.complete(job, proof);
+  }
+
+  private archaeologistPrompt(traces: WorkflowTrace[]): string {
+    return `${this.readOnlyModelBoundary()}
+
+Role: Trace Archaeologist.
+Propose the smallest competing hypotheses that explain the supplied traces. Every factual rule must cite existing evidenceIds. Preserve ambiguity as blocking unknowns; do not collapse correlation into a universal rule.
+
+Trace pack:
+${JSON.stringify(this.tracePack(traces))}`;
+  }
+
+  private hunterPrompt(
+    traces: WorkflowTrace[],
+    archaeology: ArchaeologistOutput,
+    previous: HunterOutput | undefined,
+  ): string {
+    const iteration = previous
+      ? `The host already executed the first proposal. Its fresh trace is in the trace pack. The remaining high-value priority exception and whether inventory movement is deferred are unresolved. Choose a materially higher amount than every automatically processed trace, but choose the concrete value yourself.`
+      : "Choose one crossed, minimally redundant input that best separates tier-driven and amount-driven explanations.";
+    return `${this.readOnlyModelBoundary()}
+
+Role: Counterexample Hunter.
+Design exactly one valid workflow input with maximum expected information gain. ${iteration}
+Do not predict or execute the result; the host alone will validate and run it. amountCents must be between 1 and 100000.
+
+Archaeology result:
+${JSON.stringify(archaeology)}
+
+${previous ? `Previous proposal:\n${JSON.stringify(previous)}\n` : ""}Trace pack:
+${JSON.stringify(this.tracePack(traces))}`;
+  }
+
+  private criticPrompt(traces: WorkflowTrace[], archaeology: ArchaeologistOutput): string {
+    return `${this.readOnlyModelBoundary()}
+
+Role: Contract Critic.
+Audit the initial hypotheses against every fresh host trace, including adjacent boundary probes. Reject unsupported universal statements and produce the smallest ordered contract. A lower numeric priority runs first. Mark READY_FOR_BUILD only when the evidence supports the observed priority and exact threshold. Preserve explicit unknowns outside the observed domain.
+
+Initial archaeology:
+${JSON.stringify(archaeology)}
+
+Fresh trace pack:
+${JSON.stringify(this.tracePack(traces))}`;
+  }
+
+  private readOnlyModelBoundary(): string {
+    return "You are a read-only behavior analyst. Use only the supplied trace pack. Never invent evidence IDs, write code, run commands, execute a scenario, or claim verification passed. Return only JSON matching the supplied schema.";
+  }
+
+  private tracePack(traces: WorkflowTrace[]): unknown {
+    return traces.map((trace) => ({
+      traceId: trace.traceId,
+      scenarioId: trace.scenarioId,
+      input: trace.input,
+      result: trace.result,
+      evidence: trace.evidence.map(({ evidenceId, type, digest }) => ({ evidenceId, type, digest })),
+    }));
+  }
+
+  private evidenceIds(traces: WorkflowTrace[]): string[] {
+    return traces.flatMap((trace) => trace.evidence.map(({ evidenceId }) => evidenceId));
+  }
+
+  private evidenceDigests(traces: WorkflowTrace[]): string[] {
+    return traces.flatMap((trace) => trace.evidence.map(({ digest }) => digest));
+  }
+
+  private traceSummary(trace: WorkflowTrace): string {
+    const { input, result } = trace;
+    return `${input.customerTier} · ${input.itemCondition} · ${input.amountCents} cents → ${result.decision}; inventory ${result.inventoryBefore.sellable}/${result.inventoryBefore.quarantine} → ${result.inventoryAfter.sellable}/${result.inventoryAfter.quarantine}`;
+  }
+
+  private traceEvidencePayload(trace: WorkflowTrace): Record<string, unknown> {
+    return {
+      id: trace.traceId,
+      kind: "trace",
+      label: trace.scenarioId ?? trace.traceId,
+      detail: this.traceSummary(trace),
+      digest: sha256Digest(this.tracePack([trace])),
+    };
+  }
+
+  private counterexamplePayload(
+    proposal: HunterOutput,
+    trace: WorkflowTrace,
+    id: string,
+  ): Record<string, unknown> {
+    return {
+      id,
+      title: proposal.scenario.scenarioId,
+      rationale: proposal.expectedInformationGain,
+      status: "confirmed",
+      scenario: trace.input,
+      expectedDiscrimination: proposal.distinguishes.map(({ reason }) => reason).join(" "),
+      observedOutcome: {
+        decision: trace.result.decision,
+        inventoryBefore: trace.result.inventoryBefore,
+        inventoryAfter: trace.result.inventoryAfter,
+        sideEffects: trace.result.sideEffects,
+      },
+      evidenceIds: trace.evidence.map(({ evidenceId }) => evidenceId),
+      targetHypothesisIds: [...new Set(proposal.distinguishes.flatMap(({ ruleId, fromRuleId }) => [ruleId, fromRuleId]))],
+    };
+  }
+
+  private locateReviewBoundary(seed: ReturnWorkflowInput, highAmount: number): WorkflowTrace[] {
+    if (!Number.isInteger(highAmount) || highAmount <= 4_500) {
+      throw new Error("COUNTEREXAMPLE_AMOUNT_CANNOT_BOUND_REVIEW_THRESHOLD");
+    }
+    const probes: WorkflowTrace[] = [];
+    const capture = (amountCents: number) => {
+      const input = validateWorkflowInput({
+        ...seed,
+        returnId: `RET-LIVE-BOUNDARY-${amountCents}-${probes.length}`,
+        sku: "SKU-LIVE-BOUNDARY",
+        customerTier: "STANDARD",
+        itemCondition: "DAMAGED",
+        amountCents,
+        initialInventory: { sellable: 10, quarantine: 0 },
+      });
+      const trace = this.service.capture("legacy", input, "seeded", `live-boundary-${amountCents}`);
+      probes.push(trace);
+      return trace;
+    };
+
+    let lowAmount = Math.min(highAmount - 1, Math.max(4_500, seed.amountCents));
+    let lowTrace = capture(lowAmount);
+    if (lowTrace.result.decision === "MANUAL_REVIEW") {
+      lowAmount = 4_500;
+      lowTrace = capture(lowAmount);
+    }
+    let highTrace = capture(highAmount);
+    if (highTrace.result.decision !== "MANUAL_REVIEW" || lowTrace.result.decision === "MANUAL_REVIEW") {
+      throw new Error("HOST_COULD_NOT_BRACKET_REVIEW_THRESHOLD");
+    }
+
+    while (highAmount - lowAmount > 1 && probes.length < 24) {
+      const midpoint = Math.floor((lowAmount + highAmount) / 2);
+      const trace = capture(midpoint);
+      if (trace.result.decision === "MANUAL_REVIEW") {
+        highAmount = midpoint;
+        highTrace = trace;
+      } else {
+        lowAmount = midpoint;
+        lowTrace = trace;
+      }
+    }
+    if (highAmount - lowAmount !== 1) throw new Error("HOST_BOUNDARY_SEARCH_BUDGET_EXHAUSTED");
+    probes.push(lowTrace, highTrace);
+    return probes;
+  }
+
+  private commandLog(repair: CodexRepairResult): Array<{ command: string; exitCode: number; summary: string }> {
+    return [
+      repair.verification.install,
+      repair.verification.apiTests,
+      repair.verification.generatedCandidate,
+    ]
+      .filter((command): command is NonNullable<typeof command> => Boolean(command))
+      .map((command) => ({
+        command: [command.command, ...command.args].join(" "),
+        exitCode: command.exitCode,
+        summary: command.exitCode === 0 ? "Host command passed." : "Host command failed; inspect the retained worktree.",
+      }));
   }
 
   private async buildProof(
     job: MigrationJob,
     candidateVersion: CandidateVersion,
     modelInvocations: MigrationProofBundle["modelInvocations"],
+    candidateEvidence: CandidateEvidence,
+    contract: { id: string } | Record<string, unknown>,
+    suiteOverride?: GeneratedCandidateSuiteEvidence,
   ): Promise<MigrationProofBundle> {
-    const suite = this.service.runSuite(candidateVersion);
-    const scenarioProofs: MigrationScenarioProof[] = suite.runs.map(({ proofBundle }) => {
+    const suite = suiteOverride ? undefined : this.service.runSuite(candidateVersion);
+    const scenarioProofs: MigrationScenarioProof[] = suiteOverride
+      ? suiteOverride.runs.map((run) => {
+          const scenario = findScenario(run.scenarioId);
+          return {
+            scenarioId: run.scenarioId,
+            partition: scenario?.stage ?? "observed",
+            status: run.status,
+            legacyTraceId: run.legacyTraceId,
+            candidateTraceId: run.candidateTraceId,
+            assertionCount: run.assertionCount,
+            mismatchCount: run.mismatchCount,
+            mismatches: [],
+          };
+        })
+      : (suite?.runs ?? []).map(({ proofBundle }) => {
       const scenario = proofBundle.scenarioId ? findScenario(proofBundle.scenarioId) : undefined;
       return {
         scenarioId: proofBundle.scenarioId ?? "custom",
@@ -260,20 +697,21 @@ export class MigrationRunner {
     });
     const generatedPath = fileURLToPath(new URL("./candidates/generated-return-workflow.ts", import.meta.url));
     const source = await readFile(generatedPath, "utf8");
-    const contractDigest = sha256Digest(recordedArchaeology.contract);
+    const contractId = typeof contract.id === "string" ? contract.id : `contract-${job.id}`;
+    const contractDigest = sha256Digest(contract);
     const body: Omit<MigrationProofBundle, "digest"> = {
       proofId: `migration-proof_${randomUUID()}`,
       migrationId: job.id,
       status: scenarioProofs.every(({ status }) => status === "PASSED") ? "PASSED" : "FAILED",
       claim: "Behavioral conformance for the executed observed, counterexample, boundary, and held-out scenarios only.",
-      contractId: recordedArchaeology.contract.id,
+      contractId,
       contractDigest,
       modelInvocations,
       candidate: {
         implementationId: "replacement.return-workflow.generated-candidate",
-        sourceDigest: sha256Digest(source),
-        diffDigest: sha256Digest(recordedCodexBuild.diff),
-        ...(recordedCodexBuild.threadId ? { codexThreadId: recordedCodexBuild.threadId } : {}),
+        sourceDigest: candidateEvidence.sourceDigest ?? sha256Digest(source),
+        diffDigest: sha256Digest(candidateEvidence.diff),
+        ...(candidateEvidence.threadId ? { codexThreadId: candidateEvidence.threadId } : {}),
       },
       coverage: {
         observed: scenarioProofs.filter(({ partition }) => partition === "observed").length,
@@ -300,6 +738,8 @@ export class MigrationRunner {
     job: MigrationJob,
     proof: MigrationProofBundle,
     diff: string,
+    commands: ReadonlyArray<{ command: string; exitCode: number; summary: string }>,
+    contract: unknown,
   ): Promise<MigrationArtifact[]> {
     const now = new Date().toISOString();
     const artifacts = [
@@ -318,7 +758,7 @@ export class MigrationRunner {
         label: "contract.json",
         filename: "contract.json",
         mimeType: "application/json",
-        body: `${JSON.stringify(recordedArchaeology.contract, null, 2)}\n`,
+        body: `${JSON.stringify(contract, null, 2)}\n`,
         createdAt: now,
       }),
       this.store.putArtifact({
@@ -336,7 +776,7 @@ export class MigrationRunner {
         label: "commands.json",
         filename: "commands.json",
         mimeType: "application/json",
-        body: `${JSON.stringify(recordedCodexBuild.commands, null, 2)}\n`,
+        body: `${JSON.stringify(commands, null, 2)}\n`,
         createdAt: now,
       }),
     ];

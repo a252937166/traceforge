@@ -4,6 +4,7 @@ import { CodexRepairAdapter, CodexRepairFailure } from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
 import { MigrationRunner } from "./migration-runner.js";
 import { MigrationStore } from "./migration-store.js";
+import { recordedCodexBuild } from "./recorded-codex-build.js";
 import { ArtifactStore } from "./store.js";
 import { TraceForgeService } from "./service.js";
 import type { MigrationExecutionMode, MigrationProofBundle } from "./migration-types.js";
@@ -58,10 +59,15 @@ export function createApp(dependencies: AppDependencies = {}) {
   const env = dependencies.env ?? process.env;
   const store = dependencies.store ?? new ArtifactStore();
   const service = dependencies.service ?? new TraceForgeService(store);
-  const codex = dependencies.codexAdapter ?? new CodexRepairAdapter({ env });
+  const codexEnv = {
+    ...env,
+    TRACEFORGE_CODEX_BASE_COMMIT:
+      env.TRACEFORGE_CODEX_BASE_COMMIT ?? recordedCodexBuild.baseCommit,
+  };
+  const codex = dependencies.codexAdapter ?? new CodexRepairAdapter({ env: codexEnv });
   const migrationStore = dependencies.migrationStore
     ?? new MigrationStore(dependencies.store ? ":memory:" : env.TRACEFORGE_DB);
-  const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env);
+  const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env, codex);
   const allowedOrigins = buildAllowedOrigins(env);
   const app = express();
 
