@@ -1,59 +1,82 @@
 import assert from "node:assert/strict";
 import {
-  argument,
+  acquireApi,
+  releaseApi,
   requestJson,
-  runScenario,
-  startApi,
-  stopProcess,
-  validateRun,
+  runRecordedAcceptance,
+  verifyProofDigest,
+  waitForTerminalJob,
   writeArtifact,
-} from "./acceptance-lib.mjs";
+} from "./acceptance-migration-lib.mjs";
 
-const mode = argument("mode", "baseline");
-assert.ok(["baseline", "mutation"].includes(mode), "--mode must be baseline or mutation");
-
-const api = await startApi();
+const api = await acquireApi();
 try {
-  const candidateVersion = mode === "baseline" ? "fixed" : "buggy";
-  const expectedStatus = mode === "baseline" ? "PASSED" : "FAILED";
-  const run = await runScenario(api.baseUrl, candidateVersion);
-  validateRun(run, candidateVersion, expectedStatus);
+  const invalid = await requestJson(`${api.baseUrl}/api/migrations`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ executionMode: "unsupported" }),
+  });
+  assert.equal(invalid.response.status, 400);
+  assert.equal(invalid.body.error.code, "INVALID_EXECUTION_MODE");
 
-  const sellable = run.proofBundle.assertions.find((item) => item.assertionId === "assert_004");
-  const quarantine = run.proofBundle.assertions.find((item) => item.assertionId === "assert_005");
-  assert(sellable && quarantine);
-  assert.equal(sellable.expected, 10);
-  assert.equal(quarantine.expected, 1);
+  const deterministicCreated = await requestJson(`${api.baseUrl}/api/migrations`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ executionMode: "deterministic-only" }),
+  });
+  assert.equal(deterministicCreated.response.status, 202);
+  const deterministicJob = await waitForTerminalJob(api.baseUrl, deterministicCreated.body.data.id);
+  assert.equal(deterministicJob.status, "passed", deterministicJob.error?.message);
+  const deterministicProof = await requestJson(`${api.baseUrl}/api/migrations/${deterministicJob.id}/proof`);
+  assert.equal(deterministicProof.response.status, 200);
+  assert.equal(deterministicProof.body.data.status, "PASSED");
+  assert.equal(deterministicProof.body.data.modelInvocations.length, 0);
 
-  if (mode === "baseline") {
-    assert.equal(run.proofBundle.mismatches.length, 0);
-    assert.equal(sellable.actual, 10);
-    assert.equal(quarantine.actual, 1);
-  } else {
-    assert.equal(run.proofBundle.mutationDetected, true);
-    assert.equal(run.proofBundle.mismatches.length, 2);
-    assert.equal(sellable.actual, 11);
-    assert.equal(quarantine.actual, 0);
-    assert.equal(sellable.status, "FAILED");
-    assert.equal(quarantine.status, "FAILED");
-  }
+  const result = await runRecordedAcceptance(api.baseUrl);
 
-  const proof = await requestJson(`${api.baseUrl}/api/proofs/${run.proofBundle.proofId}`);
-  assert.equal(proof.response.status, 200);
-  assert.deepEqual(proof.body.data, run.proofBundle);
+  const midpoint = result.events[Math.floor(result.events.length / 2)].sequence;
+  const cursorResult = await requestJson(
+    `${api.baseUrl}/api/migrations/${result.job.id}/events?format=json&after=${midpoint}`,
+  );
+  assert.equal(cursorResult.response.status, 200);
+  assert.deepEqual(
+    cursorResult.body.data.events.map((event) => event.sequence),
+    result.events.filter((event) => event.sequence > midpoint).map((event) => event.sequence),
+  );
 
-  for (const trace of [run.traces.legacy, run.traces.replacement]) {
-    const stored = await requestJson(`${api.baseUrl}/api/traces/${trace.traceId}`);
-    assert.equal(stored.response.status, 200);
-    assert.deepEqual(stored.body.data, trace);
-  }
+  const streamResponse = await fetch(`${api.baseUrl}/api/migrations/${result.job.id}/events`, {
+    headers: { accept: "text/event-stream" },
+  });
+  assert.equal(streamResponse.status, 200);
+  assert.match(streamResponse.headers.get("content-type") ?? "", /text\/event-stream/);
+  assert.equal(streamResponse.headers.get("x-accel-buffering"), "no");
+  const streamBody = await streamResponse.text();
+  const streamIds = [...streamBody.matchAll(/^id: (\d+)$/gm)].map((match) => Number(match[1]));
+  assert.deepEqual(streamIds, result.events.map((event) => event.sequence));
+  assert.match(streamBody, /event: hypothesis\.falsified/);
+  assert.match(streamBody, /event: proof\.completed/);
 
-  const missing = await requestJson(`${api.baseUrl}/api/proofs/proof_missing`);
+  const tamperedProof = structuredClone(result.proof);
+  tamperedProof.coverage.passed = 0;
+  await verifyProofDigest(api.baseUrl, tamperedProof, false);
+
+  const missing = await requestJson(`${api.baseUrl}/api/migrations/migration_missing`);
   assert.equal(missing.response.status, 404);
 
-  const artifact = await writeArtifact(`api-${mode}.json`, run);
-  console.log(`ACCEPTANCE API ${mode.toUpperCase()} PASS`);
-  console.log(`run=${run.runId} proof=${run.proofBundle.proofId} artifact=${artifact}`);
+  const artifact = await writeArtifact("migration-api.json", {
+    apiBase: api.baseUrl,
+    externalApi: api.external,
+    migrationId: result.job.id,
+    proofId: result.proof.proofId,
+    deterministicMigrationId: deterministicJob.id,
+    eventCount: result.events.length,
+    coverage: result.proof.coverage,
+    modelInvocations: result.proof.modelInvocations.map(({ role, model, threadId, status }) => ({ role, model, threadId, status })),
+    artifacts: result.downloaded,
+    digestVerification: result.digestVerification,
+  });
+  console.log("ACCEPTANCE API PASS (recorded migration + event replay + recomputable proof)");
+  console.log(`migration=${result.job.id} proof=${result.proof.proofId} artifact=${artifact}`);
 } finally {
-  await stopProcess(api.child);
+  await releaseApi(api);
 }

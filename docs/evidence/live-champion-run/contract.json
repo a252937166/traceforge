@@ -1,0 +1,26 @@
+{
+  "id": "contract-gpt56-recorded-v1",
+  "scope": "Observed Web returns workflow branches only",
+  "rules": [
+    {
+      "id": "R-HIGH-VALUE-HOLD",
+      "priority": 10,
+      "statement": "At or above 50,000 cents, hold for manual review and leave inventory unchanged."
+    },
+    {
+      "id": "R-STANDARD-REFUND",
+      "priority": 20,
+      "statement": "Below the review boundary, observed STANDARD damaged returns refund and enter quarantine."
+    },
+    {
+      "id": "R-VIP-REPLACEMENT",
+      "priority": 30,
+      "statement": "At the observed 12,000-cent branch, a VIP damaged return receives a replacement and enters quarantine."
+    }
+  ],
+  "unknowns": [
+    "Unobserved customer tiers, conditions, and external payment or carrier integrations remain outside the claim.",
+    "The VIP rule is evidence-bounded to the observed normal-value branch plus the held-out high-value test."
+  ],
+  "disposition": "READY_FOR_BUILD"
+}

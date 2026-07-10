@@ -72,8 +72,8 @@ test("CORS allows local frontend origins and rejects untrusted browser origins",
   assert.equal(rejectedResponse.headers.get("access-control-allow-origin"), null);
 });
 
-test("demo response matches the frontend contract and proof can be retrieved", async () => {
-  const response = await fetch(`${baseUrl}/api/demo/run`, {
+test("verification response exposes deterministic evidence and a retrievable proof", async () => {
+  const response = await fetch(`${baseUrl}/api/verifications`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -81,7 +81,7 @@ test("demo response matches the frontend contract and proof can be retrieved", a
       candidateVersion: "seeded",
     }),
   });
-  const run = await response.json();
+  const { data: run } = await response.json();
   assert.equal(response.status, 201);
   assert.equal(run.status, "FAILED");
   assert.equal(run.source, "deterministic-local-demo");
@@ -98,7 +98,7 @@ test("demo response matches the frontend contract and proof can be retrieved", a
 });
 
 test("generated full-module candidate passes without claiming this local run invoked AI", async () => {
-  const response = await fetch(`${baseUrl}/api/demo/run`, {
+  const response = await fetch(`${baseUrl}/api/verifications`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -106,7 +106,7 @@ test("generated full-module candidate passes without claiming this local run inv
       candidateVersion: "generated",
     }),
   });
-  const run = await response.json();
+  const { data: run } = await response.json();
   assert.equal(response.status, 201);
   assert.equal(run.status, "PASSED");
   assert.equal(run.proofBundle.candidateVersion, "generated");

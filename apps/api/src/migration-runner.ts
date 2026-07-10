@@ -24,7 +24,7 @@ import type {
   MigrationStage,
   StartMigrationRequest,
 } from "./migration-types.js";
-import { recordedArchaeology, recordedModelInvocations, RECORDED_AT } from "./recorded-archaeology.js";
+import { recordedArchaeology, recordedModelInvocations } from "./recorded-archaeology.js";
 import { recordedCodexBuild } from "./recorded-codex-build.js";
 import { TraceForgeService } from "./service.js";
 import type { CandidateVersion, ReturnWorkflowInput, WorkflowTrace } from "./types.js";
@@ -75,8 +75,14 @@ type CriticOutput = {
 
 type CandidateEvidence = { threadId?: string; diff: string; sourceDigest?: string };
 
+export function candidateModuleSourceUrl(runtimeModuleUrl = import.meta.url): URL {
+  const extension = runtimeModuleUrl.endsWith(".ts") ? "ts" : "js";
+  return new URL(`./candidates/generated-return-workflow.${extension}`, runtimeModuleUrl);
+}
+
 export class MigrationRunner {
   readonly archaeology: BehaviorArchaeologyAdapter;
+  private readonly modelTimeoutMs: number;
 
   constructor(
     readonly service: TraceForgeService,
@@ -85,6 +91,10 @@ export class MigrationRunner {
     readonly codex = new CodexRepairAdapter({ env }),
   ) {
     this.archaeology = new BehaviorArchaeologyAdapter(env);
+    const requestedTimeout = Number(env.TRACEFORGE_GPT56_TIMEOUT_MS ?? 900_000);
+    this.modelTimeoutMs = Number.isFinite(requestedTimeout)
+      ? Math.min(Math.max(Math.trunc(requestedTimeout), 30_000), 1_800_000)
+      : 900_000;
   }
 
   start(request: StartMigrationRequest): MigrationJob {
@@ -100,7 +110,7 @@ export class MigrationRunner {
       ...(request.executionMode !== "deterministic-only" ? { model: "gpt-5.6-sol" as const, modelId: "gpt-5.6-sol" as const } : {}),
       ...(request.executionMode === "recorded-replay"
         ? {
-            recordedAt: RECORDED_AT,
+            recordedAt: recordedCodexBuild.recordedAt,
             sourceRunId: recordedArchaeology.sourceRunId,
             replayDisclosure: recordedArchaeology.disclosure,
           }
@@ -326,7 +336,7 @@ export class MigrationRunner {
       inputTraceIds: observedTraces.map(({ traceId }) => traceId),
       inputEvidenceDigests: this.evidenceDigests(observedTraces),
       allowedEvidenceIds: this.evidenceIds(observedTraces),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(this.modelTimeoutMs),
     });
     invocations.push(archaeologist.invocation);
     for (const hypothesis of archaeologist.output.hypotheses) {
@@ -351,7 +361,7 @@ export class MigrationRunner {
       inputTraceIds: observedTraces.map(({ traceId }) => traceId),
       inputEvidenceDigests: this.evidenceDigests(observedTraces),
       allowedEvidenceIds: this.evidenceIds(observedTraces),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(this.modelTimeoutMs),
     });
     invocations.push(firstHunter.invocation);
     const firstInput = validateWorkflowInput(firstHunter.output.scenario.input);
@@ -373,7 +383,7 @@ export class MigrationRunner {
       inputTraceIds: tracesAfterFirst.map(({ traceId }) => traceId),
       inputEvidenceDigests: this.evidenceDigests(tracesAfterFirst),
       allowedEvidenceIds: this.evidenceIds(tracesAfterFirst),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(this.modelTimeoutMs),
     });
     invocations.push(secondHunter.invocation);
     const secondInput = validateWorkflowInput(secondHunter.output.scenario.input);
@@ -406,15 +416,47 @@ export class MigrationRunner {
     });
 
     const challengeTraces = [...tracesAfterFirst, secondTrace, ...boundaryTraces];
-    const critic = await this.archaeology.run<CriticOutput>({
+    let critic = await this.archaeology.run<CriticOutput>({
       role: "contract-critic",
       prompt: this.criticPrompt(challengeTraces, archaeologist.output),
       inputTraceIds: challengeTraces.map(({ traceId }) => traceId),
       inputEvidenceDigests: this.evidenceDigests(challengeTraces),
       allowedEvidenceIds: this.evidenceIds(challengeTraces),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(this.modelTimeoutMs),
     });
     invocations.push(critic.invocation);
+    if (critic.output.disposition === "NEEDS_COUNTEREXAMPLE") {
+      const heldOut = scenarios.find(({ stage }) => stage === "held-out");
+      if (!heldOut) throw new Error("HELD_OUT_PRIORITY_SCENARIO_MISSING");
+      const heldOutTrace = this.service.capture("legacy", heldOut.input, "seeded", heldOut.id);
+      challengeTraces.push(heldOutTrace);
+      this.emit(job, "challenge", "counterexample.updated", "passed", "Critic-requested priority check executed", this.traceSummary(heldOutTrace), {
+        counterexample: {
+          id: "LIVE-CX-CRITIC",
+          title: heldOut.title,
+          rationale: critic.output.findings.map(({ requiredAction }) => requiredAction).join(" "),
+          status: "confirmed",
+          scenario: heldOutTrace.input,
+          observedOutcome: {
+            decision: heldOutTrace.result.decision,
+            inventoryBefore: heldOutTrace.result.inventoryBefore,
+            inventoryAfter: heldOutTrace.result.inventoryAfter,
+          },
+          evidenceIds: heldOutTrace.evidence.map(({ evidenceId }) => evidenceId),
+          targetHypothesisIds: critic.output.findings.flatMap(({ ruleIds }) => ruleIds),
+        },
+      });
+      const firstCritique = critic.output;
+      critic = await this.archaeology.run<CriticOutput>({
+        role: "contract-critic",
+        prompt: this.criticPrompt(challengeTraces, archaeologist.output, firstCritique),
+        inputTraceIds: challengeTraces.map(({ traceId }) => traceId),
+        inputEvidenceDigests: this.evidenceDigests(challengeTraces),
+        allowedEvidenceIds: this.evidenceIds(challengeTraces),
+        signal: AbortSignal.timeout(this.modelTimeoutMs),
+      });
+      invocations.push(critic.invocation);
+    }
     if (critic.output.disposition !== "READY_FOR_BUILD") {
       throw new Error(`GPT56_CONTRACT_${critic.output.disposition}`);
     }
@@ -525,7 +567,11 @@ ${previous ? `Previous proposal:\n${JSON.stringify(previous)}\n` : ""}Trace pack
 ${JSON.stringify(this.tracePack(traces))}`;
   }
 
-  private criticPrompt(traces: WorkflowTrace[], archaeology: ArchaeologistOutput): string {
+  private criticPrompt(
+    traces: WorkflowTrace[],
+    archaeology: ArchaeologistOutput,
+    previous?: CriticOutput,
+  ): string {
     return `${this.readOnlyModelBoundary()}
 
 Role: Contract Critic.
@@ -533,6 +579,8 @@ Audit the initial hypotheses against every fresh host trace, including adjacent 
 
 Initial archaeology:
 ${JSON.stringify(archaeology)}
+
+${previous ? `Previous critique requested more evidence:\n${JSON.stringify(previous)}\n` : ""}
 
 Fresh trace pack:
 ${JSON.stringify(this.tracePack(traces))}`;
@@ -695,8 +743,11 @@ ${JSON.stringify(this.tracePack(traces))}`;
         mismatches: proofBundle.mismatches.map(({ path, expected, actual }) => ({ path, expected, actual })),
       };
     });
-    const generatedPath = fileURLToPath(new URL("./candidates/generated-return-workflow.ts", import.meta.url));
-    const source = await readFile(generatedPath, "utf8");
+    let sourceDigest = candidateEvidence.sourceDigest;
+    if (!sourceDigest) {
+      const source = await readFile(fileURLToPath(candidateModuleSourceUrl()), "utf8");
+      sourceDigest = sha256Digest(source);
+    }
     const contractId = typeof contract.id === "string" ? contract.id : `contract-${job.id}`;
     const contractDigest = sha256Digest(contract);
     const body: Omit<MigrationProofBundle, "digest"> = {
@@ -709,7 +760,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
       modelInvocations,
       candidate: {
         implementationId: "replacement.return-workflow.generated-candidate",
-        sourceDigest: candidateEvidence.sourceDigest ?? sha256Digest(source),
+        sourceDigest,
         diffDigest: sha256Digest(candidateEvidence.diff),
         ...(candidateEvidence.threadId ? { codexThreadId: candidateEvidence.threadId } : {}),
       },

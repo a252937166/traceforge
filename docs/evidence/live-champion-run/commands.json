@@ -1,0 +1,17 @@
+[
+  {
+    "command": "pnpm install --offline --frozen-lockfile",
+    "exitCode": 0,
+    "summary": "278 packages reused from the offline store; no network downloads."
+  },
+  {
+    "command": "pnpm --filter @traceforge/api test",
+    "exitCode": 0,
+    "summary": "37/37 host API tests passed outside the Codex writing turn."
+  },
+  {
+    "command": "pnpm --filter @traceforge/api verify:generated",
+    "exitCode": 0,
+    "summary": "6/6 scenarios passed with unique persisted proof IDs and zero mismatches."
+  }
+]

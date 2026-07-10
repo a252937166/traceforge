@@ -7,7 +7,7 @@ if (!filename) {
   process.stderr.write("Usage: pnpm proof:verify <proof.json>\n");
   process.exitCode = 2;
 } else {
-  const absolute = resolve(filename);
+  const absolute = resolve(process.env.INIT_CWD ?? process.cwd(), filename);
   const proof = JSON.parse(await readFile(absolute, "utf8")) as Record<string, unknown>;
   const { digest: claimedDigest, ...body } = proof;
   const computedDigest = sha256Digest(body);

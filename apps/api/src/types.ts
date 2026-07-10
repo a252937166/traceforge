@@ -3,8 +3,8 @@ export type SystemName = "legacy" | "replacement";
  * Public candidate identities used by the champion workflow.
  *
  * `seeded` is the deliberately incomplete first implementation. `generated`
- * is the complete, Codex-editable implementation. Historical `buggy` and
- * `fixed` labels are intentionally not part of this contract.
+ * is the complete, Codex-editable implementation. No other public identity is
+ * accepted by this contract.
  */
 export type CandidateVersion = "seeded" | "generated";
 export type CustomerTier = "STANDARD" | "VIP";

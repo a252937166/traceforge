@@ -1,29 +1,89 @@
 # 100-second demo script
 
-## 0–12 seconds — the fear
+Use **Recorded replay** for the judged video so the entire experiment fits in 100 seconds. Keep its disclosure visible: the inference and build events come from a recorded real run, while the host verifier executes the six-scenario suite again. Do not describe replayed events as live calls.
 
-Show the controlled legacy returns panel and one sentence: “The workflow runs the business, but its rules were never documented.” Start the damaged-return proof run.
+## 0–9 seconds — the migration risk
 
-## 12–30 seconds — evidence, not a transcript
+**Screen:** TraceForge hero and the legacy-workflow problem statement.
 
-TraceForge records the workflow input, decision, side effects, and SQLite inventory before/after state. Point to “Refunded damage never returns to sellable stock,” its evidence IDs, and confidence.
+**Narration:**
 
-## 30–48 seconds — bounded contract
+> Critical workflows survive for years with no trustworthy specification. Rebuilding the screens is easy. Rebuilding the hidden business behavior without guessing is not.
 
-Show the two evidence-linked rules and the explicit coverage boundary. Say “This proof covers the observed branch; TraceForge does not claim universal equivalence.”
+## 9–17 seconds — make the truth mode explicit
 
-## 48–66 seconds — candidate build
+**Screen:** Select **Recorded replay — verified recording, not live**, then click **Start migration**.
 
-Show `CODEX RUNNING`, the isolated-worktree boundary, and the single writable generated-candidate file. Then show the returned thread ID and actual two-line configuration diff.
+**Narration:**
 
-## 66–84 seconds — rejection
+> This is an accelerated replay of a real GPT-5.6 Sol and Codex run. The original model IDs, thread IDs, and timestamp remain attached. No model call is running during playback.
 
-Replay the seeded candidate first: it incorrectly restores damaged inventory to sellable stock. The proof ledger turns orange and shows two mismatched state fields. Make clear that this failure predates the repair.
+## 17–31 seconds — Observe
 
-## 84–96 seconds — repair and independent rerun
+**Screen:** The Observe stage receives two server events.
 
-Codex patches only the generated candidate file. The host runs API tests, resets both partitions, and verifies again. Seal only after a new run ID and proof ID report `PASSED` with zero mismatches; retain the earlier failure and worktree.
+- Standard, damaged, $45 → refund; the unit enters quarantine.
+- VIP, damaged, $120 → replacement; the unit enters quarantine.
 
-## 96–100 seconds — handoff
+Open one evidence event to show its actor, digest, and evidence IDs.
 
-End on the replacement, source diff, and proof bundle: “Show the workflow. Ship the replacement—with evidence.”
+**Narration:**
+
+> TraceForge captures decisions and SQLite side effects, not just clicks. Two traces explain what happened, but they do not prove whether tier, amount, or condition caused it.
+
+## 31–46 seconds — Infer
+
+**Screen:** The Evidence Loom shows four competing hypotheses from the Trace Archaeologist.
+
+**Narration:**
+
+> GPT-5.6 Sol proposes evidence-linked explanations and preserves ambiguity. Every rule must cite an ID from the supplied trace pack; invented evidence is rejected by the host.
+
+## 46–62 seconds — Challenge
+
+**Screen:** Show the crossed-tier counterexample, then the high-value $750 example. Let the two amount-banded hypotheses visibly become falsified. Show the refined rule at the top of the loom.
+
+**Narration:**
+
+> A Counterexample Hunter chooses the next high-information input, but only the host executes it. The high-value return reveals manual review with no money or inventory movement. Deterministic probes then locate the exact $500 boundary, which outranks VIP treatment.
+
+## 62–76 seconds — Build
+
+**Screen:** Candidate history changes from **Candidate 01 rejected** to **Candidate 02 accepted**. Open `candidate.diff` or show the diff preview.
+
+**Narration:**
+
+> The observed-only candidate fails both rule priority and damaged inventory disposition. Codex thread `019f4d12…1919f` repairs the complete workflow module in a detached worktree. It can change one file and cannot test, commit, push, or deploy.
+
+## 76–93 seconds — Verify
+
+**Screen:** The six-row matrix fills from server events: two observed, one counterexample, two boundary, and one held-out VIP scenario. Land on `6/6 PASSED`, zero mismatches.
+
+**Narration:**
+
+> After the writing turn ends, the host resets both SQLite partitions and runs five deterministic assertions per scenario. The held-out VIP-at-$500 check proves the review rule really has priority. Six fresh proofs pass with zero mismatches.
+
+## 93–100 seconds — handoff, not a promise
+
+**Screen:** Download dock with `contract.json`, `evidence.jsonl`, `candidate.diff`, `commands.json`, and `proof.json`. Briefly show the proof digest.
+
+**Narration:**
+
+> The result is code plus a recomputable, evidence-bounded proof—not a universal equivalence claim. TraceForge: modernize undocumented workflows without guessing.
+
+## On-screen facts to keep legible
+
+- Mode: `recorded-replay` and “not live” disclosure.
+- Model: `gpt-5.6-sol`.
+- Codex thread: `019f4d12-9228-78c1-95fc-3a13d8e1919f`.
+- Candidate base: `899ff7ac5f6151b58129559a1d760177a1243136`.
+- Coverage: `2 observed · 1 counterexample · 2 boundary · 1 held-out`.
+- Verdict: `6/6 PASSED · 0 mismatches`.
+- Proof digest: `sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2`.
+
+## Capture notes
+
+- Record at 1440×900 or 1920×1080; keep browser zoom at 100%.
+- Use one uninterrupted run so stage order, server sequence numbers, and artifacts remain visibly connected.
+- Avoid terminal footage until the final digest check; the product surface should carry the story.
+- If a live run is shown as a bonus clip, keep its duration separate and show the `live-ai` label from job creation through completion. A failure must remain visible rather than switching modes.

@@ -2,8 +2,20 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
+import { candidateModuleSourceUrl } from "../src/migration-runner.js";
 import { MigrationStore } from "../src/migration-store.js";
 import { ArtifactStore } from "../src/store.js";
+
+test("candidate evidence resolves the source format actually executed by the runtime", () => {
+  assert.equal(
+    candidateModuleSourceUrl("file:///workspace/apps/api/src/migration-runner.ts").pathname,
+    "/workspace/apps/api/src/candidates/generated-return-workflow.ts",
+  );
+  assert.equal(
+    candidateModuleSourceUrl("file:///opt/traceforge/dist/migration-runner.js").pathname,
+    "/opt/traceforge/dist/candidates/generated-return-workflow.js",
+  );
+});
 
 async function withApi(
   assertion: (baseUrl: string) => Promise<void>,
@@ -110,7 +122,7 @@ test("recorded replay exposes real GPT-5.6 and full-module Codex evidence", asyn
     const body = await created.json();
     const job = await terminalJob(baseUrl, body.data.id);
     assert.equal(job.status, "passed");
-    assert.equal(job.recordedAt, "2026-07-10T16:29:39.000Z");
+    assert.equal(job.recordedAt, "2026-07-10T17:30:31.000Z");
     assert.equal(job.modelId, "gpt-5.6-sol");
 
     const proofResponse = await fetch(`${baseUrl}/api/migrations/${job.id}/proof`);
@@ -118,7 +130,7 @@ test("recorded replay exposes real GPT-5.6 and full-module Codex evidence", asyn
     const proof = (await proofResponse.json()).data;
     assert.equal(proof.status, "PASSED");
     assert.equal(proof.modelInvocations.length, 4);
-    assert.equal(proof.candidate.codexThreadId, "019f4cf0-07d2-71b0-9608-7d66aa611e1f");
+    assert.equal(proof.candidate.codexThreadId, "019f4d12-9228-78c1-95fc-3a13d8e1919f");
     assert.equal(proof.coverage.passed, 6);
 
     const events = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/events?format=json`)).json()).data.events;

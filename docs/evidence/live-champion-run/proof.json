@@ -1,0 +1,181 @@
+{
+  "proofId": "migration-proof_a6997431-bc83-4a07-ade1-a30de3c17dce",
+  "migrationId": "migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0",
+  "status": "PASSED",
+  "claim": "Behavioral conformance for the executed observed, counterexample, boundary, and held-out scenarios only.",
+  "contractId": "contract-gpt56-recorded-v1",
+  "contractDigest": "sha256:f56e3247fa341ed5c957cb90feb0a748c1ed5d3efdb7efbffae5102a3525b2fc",
+  "modelInvocations": [
+    {
+      "role": "trace-archaeologist",
+      "provider": "openai",
+      "model": "gpt-5.6-sol",
+      "authPath": "codex-chatgpt",
+      "threadId": "019f4cf8-e79c-7af0-8a2a-9ade019a5d7b",
+      "startedAt": "2026-07-10T17:06:31.357Z",
+      "completedAt": "2026-07-10T17:06:31.357Z",
+      "usage": {
+        "totalTokens": 23559
+      },
+      "inputTraceIds": [
+        "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
+        "trace_6642d425-3bff-4ffa-a505-ebef7e060e75"
+      ],
+      "inputEvidenceDigests": [],
+      "inputDigest": "sha256:75c092212bb92d990736ac1acae88a9690b1cbfdfe443a6029a00567d283791e",
+      "outputDigest": "sha256:775fe3abab90dfd476e2e8567273c11c849f9601fab0de96934dff5a3320e319",
+      "schemaVersion": "traceforge.behavior-archaeology.v1",
+      "status": "succeeded"
+    },
+    {
+      "role": "counterexample-hunter",
+      "provider": "openai",
+      "model": "gpt-5.6-sol",
+      "authPath": "codex-chatgpt",
+      "threadId": "019f4cf9-f48d-77a1-a6d4-a5c54894e138",
+      "startedAt": "2026-07-10T17:06:31.357Z",
+      "completedAt": "2026-07-10T17:06:31.357Z",
+      "usage": {
+        "totalTokens": 23689
+      },
+      "inputTraceIds": [
+        "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
+        "trace_6642d425-3bff-4ffa-a505-ebef7e060e75"
+      ],
+      "inputEvidenceDigests": [],
+      "inputDigest": "sha256:7b2ab91ced6a646fc6c9f89a44f67d15639748f2fee17e0cde2786eb14dd0647",
+      "outputDigest": "sha256:bd41abf7ffcce06d47fe91d17633c943107bcf15f00cf6f42fa653fdc6f9e3e1",
+      "schemaVersion": "traceforge.behavior-archaeology.v1",
+      "status": "succeeded"
+    },
+    {
+      "role": "counterexample-hunter",
+      "provider": "openai",
+      "model": "gpt-5.6-sol",
+      "authPath": "codex-chatgpt",
+      "threadId": "019f4cfa-af8a-7592-b3d7-1a055683863d",
+      "startedAt": "2026-07-10T17:06:31.357Z",
+      "completedAt": "2026-07-10T17:06:31.357Z",
+      "usage": {
+        "totalTokens": 25769
+      },
+      "inputTraceIds": [
+        "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
+        "trace_6642d425-3bff-4ffa-a505-ebef7e060e75",
+        "trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa"
+      ],
+      "inputEvidenceDigests": [],
+      "inputDigest": "sha256:f7d62a3282afbc5be90d785d072bb8dc7dd3d0ba7f0c8622d69f2b5836dc402c",
+      "outputDigest": "sha256:48b61737f726a7e779960b9fea326c353270a1237f5aa6ef8fba327b13ef7b3b",
+      "schemaVersion": "traceforge.behavior-archaeology.v1",
+      "status": "succeeded"
+    },
+    {
+      "role": "contract-critic",
+      "provider": "openai",
+      "model": "gpt-5.6-sol",
+      "authPath": "codex-chatgpt",
+      "threadId": "019f4cfb-aab9-7e41-a8a2-aa4157748559",
+      "startedAt": "2026-07-10T17:06:31.357Z",
+      "completedAt": "2026-07-10T17:06:31.357Z",
+      "usage": {
+        "totalTokens": 46005
+      },
+      "inputTraceIds": [
+        "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
+        "trace_6642d425-3bff-4ffa-a505-ebef7e060e75",
+        "trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa",
+        "trace_70902b12-bfa8-4481-8f8b-7f379233218c",
+        "trace_5ed95113-3f7d-488b-96cc-27b27010e419",
+        "trace_0968e5d4-d287-4877-857c-b4b74855e913"
+      ],
+      "inputEvidenceDigests": [],
+      "inputDigest": "sha256:47a6d5240e333a9bf36b2cb4819822d206093cd29514d9b4cdf6a05b6ddaa5a3",
+      "outputDigest": "sha256:f56e3247fa341ed5c957cb90feb0a748c1ed5d3efdb7efbffae5102a3525b2fc",
+      "schemaVersion": "traceforge.behavior-archaeology.v1",
+      "status": "succeeded"
+    }
+  ],
+  "candidate": {
+    "implementationId": "replacement.return-workflow.generated-candidate",
+    "sourceDigest": "sha256:33dae444638bf3e7015aa743711358a19e330ca98d1fec8b98d044a106132773",
+    "diffDigest": "sha256:71a28fc581b0a0ce146d596f88b125bc21f7736a7f61b6956144ef757ca7a68c",
+    "codexThreadId": "019f4d12-9228-78c1-95fc-3a13d8e1919f"
+  },
+  "coverage": {
+    "observed": 2,
+    "counterexample": 1,
+    "boundary": 2,
+    "heldOut": 1,
+    "total": 6,
+    "passed": 6
+  },
+  "scenarios": [
+    {
+      "scenarioId": "observed-standard-damaged-4500",
+      "partition": "observed",
+      "status": "PASSED",
+      "legacyTraceId": "trace_5cb4cd5f-9276-419f-bc0c-81d645d68045",
+      "candidateTraceId": "trace_ca2cbfc6-f15f-424d-b396-00db5c3cd6fd",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    },
+    {
+      "scenarioId": "observed-vip-damaged-12000",
+      "partition": "observed",
+      "status": "PASSED",
+      "legacyTraceId": "trace_b7bb4d8c-5768-47b0-bf22-6d8769352408",
+      "candidateTraceId": "trace_615b9738-6cc4-4432-aee0-2157610b37e8",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    },
+    {
+      "scenarioId": "counterexample-standard-damaged-100000",
+      "partition": "counterexample",
+      "status": "PASSED",
+      "legacyTraceId": "trace_d0d6b388-67f4-42bc-828d-4a9cded5dc7e",
+      "candidateTraceId": "trace_e84ba707-e795-4e64-ac8d-cefabe6a5507",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    },
+    {
+      "scenarioId": "boundary-standard-damaged-49999",
+      "partition": "boundary",
+      "status": "PASSED",
+      "legacyTraceId": "trace_432fe4de-8483-4db0-a213-1d853f042a03",
+      "candidateTraceId": "trace_e3ad56a0-5e4f-4414-8a63-de84f6736a9f",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    },
+    {
+      "scenarioId": "boundary-standard-damaged-50000",
+      "partition": "boundary",
+      "status": "PASSED",
+      "legacyTraceId": "trace_4af5e727-aa0b-4e5c-9ca8-94cdb32ed000",
+      "candidateTraceId": "trace_1aff7be5-8db3-4d9f-9327-6449f5983a1b",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    },
+    {
+      "scenarioId": "heldout-vip-damaged-50000",
+      "partition": "held-out",
+      "status": "PASSED",
+      "legacyTraceId": "trace_8602b045-63e2-43cf-a469-5a9b51a36c62",
+      "candidateTraceId": "trace_8ae21902-539c-4dd6-b7d3-aa97b5f83359",
+      "assertionCount": 5,
+      "mismatchCount": 0,
+      "mismatches": []
+    }
+  ],
+  "limitations": [
+    "The claim covers only the six executed Web workflow scenarios listed in this bundle.",
+    "External payment settlement, carrier systems, and workflows outside REST + SQLite are not claimed equivalent."
+  ],
+  "generatedAt": "2026-07-10T17:35:27.557Z",
+  "digest": "sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2"
+}

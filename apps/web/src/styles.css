@@ -438,6 +438,7 @@ pre,
 .workbench-primary,
 .workbench-secondary {
   display: grid;
+  min-width: 0;
   gap: 26px;
 }
 
@@ -446,6 +447,7 @@ pre,
 .candidate-panel,
 .event-console,
 .artifact-dock {
+  min-width: 0;
   border: 1px solid var(--rule);
   background: var(--surface);
 }

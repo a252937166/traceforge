@@ -8,8 +8,6 @@ import type { ProofBundle, VerificationStatus } from "./types.js";
 
 export const GENERATED_CANDIDATE_PATH =
   "apps/api/src/candidates/generated-return-workflow.ts";
-/** @deprecated Use GENERATED_CANDIDATE_PATH. */
-export const GENERATED_REPAIR_PATH = GENERATED_CANDIDATE_PATH;
 export const CODEX_REPAIR_MODEL = "gpt-5.6-sol" as const;
 const PROOF_INPUT_PATH = ".traceforge/proof-input.json";
 

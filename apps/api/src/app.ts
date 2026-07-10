@@ -135,22 +135,6 @@ export function createApp(dependencies: AppDependencies = {}) {
     }
   });
 
-  app.post("/api/demo/run", (request, response, next) => {
-    try {
-      const body = (request.body ?? {}) as {
-        scenarioId?: string;
-        input?: ReturnWorkflowInput;
-        candidateVersion?: CandidateVersion;
-      };
-      if (body.candidateVersion && !isCandidateVersion(body.candidateVersion)) {
-        throw new Error("candidateVersion must be seeded or generated");
-      }
-      response.status(201).json(service.runDemo(body));
-    } catch (error) {
-      next(error);
-    }
-  });
-
   app.post("/api/verifications", (request, response, next) => {
     try {
       const body = (request.body ?? {}) as {
@@ -169,7 +153,7 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.post("/api/verifications/suite", (request, response, next) => {
     try {
-      const version = ((request.body ?? {}) as { candidateVersion?: CandidateVersion }).candidateVersion ?? "buggy";
+      const version = ((request.body ?? {}) as { candidateVersion?: CandidateVersion }).candidateVersion ?? "seeded";
       if (!isCandidateVersion(version)) throw new Error("candidateVersion must be seeded or generated");
       response.status(201).json({ data: service.runSuite(version) });
     } catch (error) {

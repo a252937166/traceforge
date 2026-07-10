@@ -47,6 +47,17 @@ function formatBytes(value?: number): string {
   return `${(value / 1024).toFixed(1)} KB`
 }
 
+function formatScenarioValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (Array.isArray(value)) return value.map(formatScenarioValue).join(' · ')
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => `${key} ${formatScenarioValue(entry)}`)
+      .join(' · ')
+  }
+  return String(value)
+}
+
 function modeDisclosure(mode: ExecutionMode, state: MigrationState): string {
   if (mode === 'recorded-replay') {
     return state.job?.replay
@@ -109,7 +120,7 @@ function HypothesisLoom({ state }: { state: MigrationState }) {
             <p>{counterexample.rationale}</p>
             <dl>
               {Object.entries(counterexample.scenario).map(([key, value]) => (
-                <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>
+                <div key={key}><dt>{key}</dt><dd>{formatScenarioValue(value)}</dd></div>
               ))}
             </dl>
           </article>
@@ -215,7 +226,7 @@ function ArtifactDock({ artifacts }: { artifacts: MigrationArtifact[] }) {
 }
 
 export default function App() {
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('live-ai')
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('recorded-replay')
   const [state, setState] = useState<MigrationState>(() => createMigrationState())
   const [transport, setTransport] = useState<MigrationTransport>('closed')
   const [error, setError] = useState<string>()
@@ -273,7 +284,13 @@ export default function App() {
       subscription.current = subscribeToMigration(job.id, {
         onEvent: (event) => {
           setState((current) => reduceMigrationEvent(current, event))
-          void refreshOutputs(job.id)
+          const terminal = event.type === 'job.completed' || event.type === 'job.failed'
+          void refreshOutputs(job.id).finally(() => {
+            if (terminal) {
+              subscription.current?.()
+              subscription.current = undefined
+            }
+          })
         },
         onTransport: setTransport,
         onError: (streamError) => setError(streamError.message),

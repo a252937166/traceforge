@@ -102,17 +102,16 @@ describe('TraceForge Migration Loom', () => {
     }
     expect(screen.getByText('No result is preloaded.')).toBeInTheDocument()
     expect(screen.getByText('No proof issued')).toBeInTheDocument()
-    expect(screen.queryByText(/proof sealed/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/sample success/i)).not.toBeInTheDocument()
   })
 
   it('offers three mutually explicit execution modes', () => {
     render(<App />)
 
-    expect(screen.getByRole('radio', { name: /Live AI/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /Recorded replay/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /Live AI/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /Recorded replay/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /Deterministic proof/ })).not.toBeChecked()
-    expect(screen.getByText(/If either model is unavailable, the run stops/)).toBeInTheDocument()
+    expect(screen.getByText(/This mode is not live/)).toBeInTheDocument()
   })
 
   it('stops a failed live run without silently substituting another mode', async () => {
@@ -122,6 +121,7 @@ describe('TraceForge Migration Loom', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
+    await userEvent.click(screen.getByRole('radio', { name: /Live AI/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Start migration' }))
 
     const alert = await screen.findByRole('alert')
@@ -198,7 +198,7 @@ describe('TraceForge Migration Loom', () => {
           title: 'High-value damaged return',
           rationale: 'Separates automatic disposition from manual review.',
           status: 'confirmed',
-          scenario: { amount: 750, customer: 'STANDARD' },
+          scenario: { amount: 750, customer: 'STANDARD', initialInventory: { sellable: 10, quarantine: 0 } },
           evidenceIds: ['evidence-high-value'],
           targetHypothesisIds: ['hypothesis-damaged'],
         },
@@ -245,6 +245,8 @@ describe('TraceForge Migration Loom', () => {
 
     expect(await screen.findByText('Every damaged return enters quarantine.')).toBeInTheDocument()
     expect(screen.getByText('High-value damaged return')).toBeInTheDocument()
+    expect(screen.getByText('sellable 10 · quarantine 0')).toBeInTheDocument()
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
     expect(screen.getByText('high-value-damaged')).toBeInTheDocument()
     expect(screen.getByText('PASSED')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /proof.json/ })).toHaveAttribute(

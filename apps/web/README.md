@@ -1,56 +1,36 @@
 # TraceForge web
 
-The TraceForge workbench presents one migration as a proof dossier: four story-stage cards establish the sequence, a permanent three-state comparison keeps the legacy behavior, broken candidate, and repaired candidate visible together, and the proof register shows which evidence the host verifier sealed.
+The Migration Loom is the judge-facing workbench for one TraceForge job. It renders five server-driven stages, evidence-linked hypotheses, falsifying counterexamples, candidate history, a six-scenario differential matrix, append-only events, and downloadable artifacts.
 
-## Run locally
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Vite serves the interface at `http://localhost:5174`. Requests under `/api` proxy to `http://localhost:8787` by default. Override the target when needed:
+## Run
 
 ```bash
-VITE_API_TARGET=http://localhost:3000 pnpm dev
+pnpm --filter @traceforge/web dev
 ```
 
-## Demo contract
+Vite serves `http://localhost:5174` and proxies `/api` to `http://localhost:8787`. Override the API during local QA with:
 
-`Run proof` first posts `candidateVersion: "buggy"` to `/api/demo/run`. When that live run returns a failed `proofBundle.proofId`, the frontend posts the proof ID to `/api/adapters/codex/repair` and permits up to five minutes for the isolated SDK turn.
-
-- A successful Codex response seals only when HTTP `200`, explicit execution, a fresh generated run/proof pair, `PASSED` with zero mismatches, the one-file whitelist, a non-empty diff, and a retained worktree are all present. The UI displays `CODEX EXECUTED`, the short thread ID, the real changed file, and lines from the returned diff.
-- `501` is the only response that triggers the explicitly labelled `fixed` reference fallback.
-- `422`, `502`, timeouts, and malformed successful responses end unresolved and never silently switch to the reference candidate.
-- If the initial runner is offline, sample evidence is displayed, but no repair request is made and no proof can be sealed.
-
-The frontend accepts both a top-level response and `{ data: ... }` / `{ result: ... }` envelopes. The backend's stable response includes:
-
-```json
-{
-  "runId": "run_...",
-  "status": "PASSED",
-  "source": "deterministic-local-demo",
-  "events": [],
-  "rules": [],
-  "proofs": [],
-  "proofBundle": {
-    "proofId": "proof_...",
-    "candidateVersion": "fixed",
-    "assertions": [],
-    "mismatches": []
-  },
-  "traces": {}
-}
+```bash
+VITE_API_TARGET=http://127.0.0.1:8877 pnpm --filter @traceforge/web dev
 ```
 
-The interface credits Codex only when the repair endpoint returns the full integrity evidence above. Reused IDs or malformed `200` responses stay unresolved. If the demo API cannot be reached, the initial runner switches to a conspicuous **Sample data · API fallback** state and uses a deterministic fixture. A fixture replay can never call repair or seal a proof; it ends with guidance to start the live runner.
+## Product behavior
+
+- The public-safe default is `recorded-replay`, labelled with its original timestamp and an explicit “not live” disclosure.
+- `live-ai` and `deterministic-only` are separate user choices with different claims.
+- Progress comes from sequence-numbered SSE events, with JSON polling only as a transport recovery path.
+- Terminal jobs close their event subscription.
+- No successful state is preloaded, and the client does not advance stages with timers.
+- Proof and artifact content comes from the API, not from a bundled fixture.
+
+The layout is responsive at 390px without document-level horizontal overflow, preserves keyboard focus, and respects reduced-motion preferences.
 
 ## Checks
 
 ```bash
-pnpm test
-pnpm build
+pnpm --filter @traceforge/web typecheck
+pnpm --filter @traceforge/web test
+pnpm --filter @traceforge/web build
 ```
 
-The layout includes visible keyboard focus, semantic landmarks and live status text, responsive rearrangement, and reduced-motion behavior.
+The component tests cover all three execution modes, fail-closed live behavior, streamed hypotheses and counterexamples, proof rendering, object-valued scenario fields, artifact links, and the evidence dialog.

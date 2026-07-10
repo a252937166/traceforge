@@ -1,0 +1,31 @@
+{
+  "id": "migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0",
+  "executionMode": "recorded-replay",
+  "scenarioIds": [
+    "observed-standard-damaged-4500",
+    "observed-vip-damaged-12000",
+    "counterexample-standard-damaged-100000",
+    "boundary-standard-damaged-49999",
+    "boundary-standard-damaged-50000",
+    "heldout-vip-damaged-50000"
+  ],
+  "status": "passed",
+  "currentStage": "verify",
+  "streamVersion": 33,
+  "model": "gpt-5.6-sol",
+  "modelId": "gpt-5.6-sol",
+  "recordedAt": "2026-07-10T17:30:31.000Z",
+  "sourceRunId": "migration_57dcf6ff-c7b0-4842-8a66-a74e08565b7b",
+  "replayDisclosure": "Recorded real GPT-5.6 Sol run — replay only; no model call is running now.",
+  "createdAt": "2026-07-10T17:35:27.538Z",
+  "updatedAt": "2026-07-10T17:35:27.558Z",
+  "links": {
+    "self": "/api/migrations/migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0",
+    "events": "/api/migrations/migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0/events",
+    "proof": "/api/migrations/migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0/proof",
+    "artifacts": "/api/migrations/migration_4fb1757b-3d44-4a8d-bcac-c246cf9699e0/artifacts"
+  },
+  "startedAt": "2026-07-10T17:35:27.543Z",
+  "proofId": "migration-proof_a6997431-bc83-4a07-ade1-a30de3c17dce",
+  "completedAt": "2026-07-10T17:35:27.558Z"
+}
