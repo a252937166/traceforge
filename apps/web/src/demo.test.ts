@@ -63,6 +63,7 @@ describe('normalizeLiveRun', () => {
         { proofId: 'a3', status: 'FAILED' },
       ],
       proofBundle: {
+        proofId: 'proof_backend_01',
         candidateVersion: 'buggy',
         generatedAt: '2026-07-10T10:00:00.000Z',
         assertions: [{ status: 'PASSED' }, { status: 'FAILED' }, { status: 'FAILED' }],
@@ -71,6 +72,7 @@ describe('normalizeLiveRun', () => {
     })
 
     expect(result.status).toBe('FAILED')
+    expect(result.proofId).toBe('proof_backend_01')
     expect(result.candidateVersion).toBe('buggy')
     expect(result.stats).toEqual({
       scenariosPassed: 0,

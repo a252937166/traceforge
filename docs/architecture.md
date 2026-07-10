@@ -1,6 +1,6 @@
 # TraceForge architecture
 
-## Product claim
+## Target product claim
 
 TraceForge compiles observed workflow behavior into a replacement application and a reviewable proof bundle. Its guarantee is deliberately bounded:
 
@@ -8,7 +8,9 @@ TraceForge compiles observed workflow behavior into a replacement application an
 
 It does not infer that unobserved behavior is equivalent.
 
-## Runtime pipeline
+The current MVP does not yet reconstruct an arbitrary application from browser capture. It exercises a synthetic legacy reference and separately coded candidate in one TypeScript service, records their SQLite-backed state transitions, and proves five concrete outcome fields for one controlled returns scenario.
+
+## Target runtime pipeline
 
 ```text
 operator action
@@ -31,6 +33,24 @@ legacy runner ───────────── differential verifier ─�
 
 ## Separation of powers
 
+## Current executable pipeline
+
+```text
+POST controlled scenario
+        │
+        ├──► in-process legacy reference ──► SQLite rows partitioned as legacy
+        │
+        └──► replacement candidate ────────► SQLite rows partitioned as replacement
+                                                    │
+                                                    ▼
+                           deterministic contract + five field assertions
+                                                    │
+                                                    ▼
+                               evidence-linked proof bundle with SHA-256 digest
+```
+
+The React workbench is a staged visualization of these traces, not a recording of two external user interfaces.
+
 ### 1. Behavior archaeology — planned GPT-5.6 integration
 
 The Responses API Multi-agent beta will be limited to three read-only roles:
@@ -41,32 +61,29 @@ The Responses API Multi-agent beta will be limited to three read-only roles:
 
 The agents cannot write application code or mark verification as passed. Structured output is validated before it enters the behavior contract.
 
-### 2. Candidate builder — planned Codex SDK integration
+### 2. Candidate builder — implemented opt-in Codex SDK adapter
 
-One Codex session receives the reviewed contract and works in an isolated git worktree. It may edit only the replacement application and tests. Its output is a candidate diff, not an accepted fix.
+When explicitly enabled, one Codex SDK thread receives the failed proof and works in a retained detached git worktree. It may edit only `apps/api/src/candidates/generated-repair.ts`. The host enforces the allowlist, performs an offline install, runs API tests, runs the generated-candidate verifier, and returns a candidate diff plus evidence. Nothing is automatically applied, committed, pushed, deployed, or published.
+
+A real local SDK attempt has passed this boundary. Its evidence is in [evidence/codex-repair-run.md](evidence/codex-repair-run.md). The exact underlying model name was not exposed by the recorded result, so the repository does not label that turn as GPT-5.6.
 
 ### 3. Differential verifier — implemented first
 
-The verifier resets the fixture, executes the same scenario against both systems, and compares:
+The verifier resets the fixture, executes the same scenario against both in-process workflow paths, and compares:
 
-- HTTP status and normalized response fields;
-- return disposition and refund amount;
-- inventory bucket deltas;
-- approval records and audit events;
-- declared invariants.
+- decision;
+- return status;
+- refund amount in cents;
+- final sellable quantity;
+- final quarantine quantity.
 
-It runs outside the code-writing session. A failure remains failed until a new candidate passes a fresh reset-and-run cycle.
+It is implemented in the same API service but runs outside the code-writing session. A failure remains failed until a new candidate passes a fresh reset-and-run cycle with new run and proof IDs.
 
 ## Evidence model
 
-Every conclusion points to an immutable `evidenceId` with:
+Captured events receive random `evidenceId` values and stable content digests. Current event types include implementation selection, input capture, state before/after, applied rule, recorded decision, side effects, repair configuration, and database round-trip. Proof bundles link assertion rows back to legacy and candidate evidence IDs.
 
-- source type (`ui`, `http`, `entity-before`, `entity-after`, `assertion`);
-- scenario and step IDs;
-- timestamp and content digest;
-- redacted payload or local artifact reference.
-
-Rules include confidence, supporting evidence, counterevidence, and a coverage boundary. Unknowns are first-class contract entries rather than guessed defaults.
+The SQLite artifact store currently permits replacement by ID; append-only enforcement and signed proof bundles remain future work. Rules currently contain confidence and supporting evidence IDs. Counterevidence, structured uncertainty, and redaction before model calls are planned rather than shipped.
 
 ## Current implementation versus planned capability
 
@@ -76,8 +93,9 @@ Rules include confidence, supporting evidence, counterevidence, and a coverage b
 | SQLite state reset and deterministic scenarios | In this MVP |
 | Evidence IDs and proof bundle | In this MVP |
 | Seeded mutation caught by external verifier | In this MVP |
-| GPT-5.6 rule extraction | Planned adapter; requires official access |
-| Codex SDK candidate generation | Planned adapter; never simulated as live |
+| GPT-5.6 rule extraction | Not implemented; deterministic extractor is clearly labelled |
+| Codex SDK candidate repair | Opt-in adapter implemented; one real local passing run evidenced |
+| One-file allowlist and retained worktree | Implemented |
+| Automatic apply, push, PR, or deploy | Deliberately not implemented |
 | Browser capture of an arbitrary third-party app | Stretch |
 | General proof for arbitrary software | Explicitly out of scope |
-

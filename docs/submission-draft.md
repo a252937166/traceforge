@@ -12,7 +12,7 @@ Show the workflow. Ship the replacement—with evidence.
 
 ## Short description
 
-TraceForge observes a legacy business workflow, turns runtime evidence into a bounded behavior contract, uses Codex to build or repair a replacement, and independently verifies both systems against the same scenarios.
+TraceForge executes a controlled legacy workflow and replacement candidate, turns runtime evidence into a bounded behavior contract, can use an opt-in Codex SDK turn to repair one candidate file, and independently verifies the fresh result.
 
 ## Inspiration
 
@@ -20,14 +20,14 @@ Teams keep critical workflows alive because the real rules live in UI behavior, 
 
 ## What it does
 
-TraceForge captures UI, HTTP, and entity-state evidence; associates each inferred rule with its sources and uncertainty; gives a reviewed contract to one Codex code-writing agent; and then runs the original and candidate side by side. Deterministic assertions verify business state, while the proof bundle preserves both failures and successful reruns.
+The current MVP executes a synthetic legacy reference and separately coded candidate against the same damaged-return scenario. It records workflow events and SQLite before/after state, derives a deterministic evidence-linked contract, and compares five business fields. An opt-in Codex SDK endpoint can edit one whitelisted generated-candidate file in a retained worktree. The host then runs tests and a fresh verification before the proof console can seal the result. The earlier failed proof remains evidence.
 
 ## How it was built
 
-- GPT-5.6 Responses Multi-agent for read-only rule discovery and counterexample generation, when officially available.
-- Codex SDK as the single candidate-code writer in an isolated worktree.
+- Planned, not active: GPT-5.6 Responses Multi-agent for read-only rule archaeology and counterexample generation.
+- Codex SDK as the single candidate-code writer in a retained worktree, restricted to one file and disabled by default.
 - TypeScript services with SQLite fixtures and deterministic differential verification.
-- React proof console for synchronized replay and evidence drill-down.
+- React proof console for staged trace, mismatch, repair, and proof visualization.
 
 Any capability not active in the submitted build will be removed or labeled as planned before submission.
 
@@ -40,9 +40,9 @@ The hardest problem is not generating code. It is separating observed facts from
 - Evidence-linked rules rather than free-form summaries.
 - A mutation test that proves the verifier can catch a business-side-effect regression.
 - Explicit coverage boundaries and unresolved unknowns.
-- A reproducible end-to-end returns workflow rather than a prerecorded chat.
+- A real Codex SDK repair attempt whose first host-verification failure was preserved and whose retry produced a fresh zero-mismatch proof.
+- A reproducible API proof loop with a separately tested React presentation; browser-to-live-API E2E remains pending.
 
 ## What is next
 
 Add browser-extension capture, signed proof bundles, additional database adapters, and maintainer-approved pull-request publication.
-

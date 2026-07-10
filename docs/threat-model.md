@@ -4,19 +4,19 @@
 
 ### Prompt injection in captured software
 
-DOM text, logs, comments, and API payloads are untrusted evidence. They are quoted data, never agent instructions. Read-only archaeology tools cannot change files, execute shell commands, or access credentials.
+Future DOM text, logs, comments, and API payloads must be treated as untrusted evidence and quoted as data rather than instructions. Arbitrary browser capture and the read-only archaeology agents are not implemented in this milestone.
 
 ### Sensitive business data
 
-Capture uses field allowlists and redaction before model calls. Raw database snapshots stay local by default. Proof bundles contain digests and minimal excerpts rather than whole tables.
+The synthetic MVP contains no production business data. Field allowlists, redaction before model calls, and retention controls are release blockers before connecting a real system; they are not yet implemented.
 
 ### Self-certifying code
 
-The writer cannot edit the verifier, approve its own patch, or change expected legacy outcomes. Verification runs from a clean fixture and produces append-only evidence.
+The Codex writer can edit only `apps/api/src/candidates/generated-repair.ts` in a detached worktree. The host enforces the allowlist and runs the tests and fresh verification. Evidence carries IDs and digests, but the current SQLite store is not append-only.
 
 ### False equivalence claims
 
-Every proof bundle lists scenarios executed, contract rules exercised, uncovered rules, and unresolved unknowns. The UI uses “covered scenarios passed,” never “the systems are identical.”
+Every proof bundle identifies the executed scenario, assertions, mismatches, limitations, and evidence links. The UI uses covered-scenario language, never “the systems are identical.”
 
 ### Unsafe external effects
 
@@ -25,4 +25,3 @@ The MVP operates on a synthetic returns application. Future integrations require
 ## Demo integrity
 
 The seeded mutation is visible in source control and is not presented as a surprise production bug. Its purpose is to demonstrate that the verifier can reject an incorrect candidate. Live model activity, deterministic fixtures, and prerecorded sequences must be visually distinguished.
-

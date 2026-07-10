@@ -17,7 +17,12 @@ VITE_API_TARGET=http://localhost:3000 npm run dev
 
 ## Demo contract
 
-`Run proof` sends two `POST` requests to `/api/demo/run`. It first runs `candidateVersion: "buggy"` to verify that the deliberate mutation is detected, then runs `candidateVersion: "fixed"` after the repair phase. Both calls use `scenarioId: "damaged-small-refund"`. The UI seals a proof only when the fixed response is live, `PASSED`, and reports zero mismatches.
+`Run proof` first posts `candidateVersion: "buggy"` to `/api/demo/run`. When that live run returns a failed `proofBundle.proofId`, the frontend posts the proof ID to `/api/adapters/codex/repair` and permits up to five minutes for the isolated SDK turn.
+
+- A successful Codex response seals only when HTTP `200`, explicit execution, a fresh generated run/proof pair, `PASSED` with zero mismatches, the one-file whitelist, a non-empty diff, and a retained worktree are all present. The UI displays `CODEX EXECUTED`, the short thread ID, the real changed file, and lines from the returned diff.
+- `501` is the only response that triggers the explicitly labelled `fixed` reference fallback.
+- `422`, `502`, timeouts, and malformed successful responses end unresolved and never silently switch to the reference candidate.
+- If the initial runner is offline, sample evidence is displayed, but no repair request is made and no proof can be sealed.
 
 The frontend accepts both a top-level response and `{ data: ... }` / `{ result: ... }` envelopes. The backend's stable response includes:
 
@@ -30,6 +35,7 @@ The frontend accepts both a top-level response and `{ data: ... }` / `{ result: 
   "rules": [],
   "proofs": [],
   "proofBundle": {
+    "proofId": "proof_...",
     "candidateVersion": "fixed",
     "assertions": [],
     "mismatches": []
@@ -38,7 +44,7 @@ The frontend accepts both a top-level response and `{ data: ... }` / `{ result: 
 }
 ```
 
-The interface credits Codex only when the API explicitly returns `codexExecuted: true` (or `patch.generatedBy: "codex"`). If the API cannot be reached, it switches to a conspicuous **Sample data · API fallback** state and uses a deterministic fixture. A fixture replay can never seal a proof; it ends with guidance to start the live runner.
+The interface credits Codex only when the repair endpoint returns the full integrity evidence above. Reused IDs or malformed `200` responses stay unresolved. If the demo API cannot be reached, the initial runner switches to a conspicuous **Sample data · API fallback** state and uses a deterministic fixture. A fixture replay can never call repair or seal a proof; it ends with guidance to start the live runner.
 
 ## Checks
 

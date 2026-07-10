@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import {
   phasePosition,
   phases,
+  requestCodexRepair,
   requestProofRun,
   sampleRun,
   type DataSource,
@@ -17,6 +18,8 @@ const workflow = [
 ]
 
 function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title: string; detail: string }> {
+  const codexPending = run.patchId === 'CODEX-PENDING'
+  const referencePending = run.patchId === 'REF-PENDING'
   const candidateActor = run.codexExecuted
     ? 'Codex produced'
     : run.source === 'live'
@@ -40,10 +43,18 @@ function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title:
     },
     repairing: {
       kicker: 'Pass 03 · Repair',
-      title: `${candidateActor} candidate ${run.patchId}`,
-      detail: run.codexExecuted
-        ? 'One state transition changed by Codex. The verifier remains independent.'
-        : 'A deterministic fixture patch is applied. No model execution is claimed.',
+      title: codexPending
+        ? 'Codex repair running in an isolated worktree'
+        : referencePending
+          ? 'Codex unavailable — loading the reference patch'
+          : `${candidateActor} candidate ${run.patchId}`,
+      detail: codexPending
+        ? 'Only the generated repair file is writable; a fresh independent verification is required.'
+        : referencePending
+          ? 'The fallback is explicitly labelled and is not represented as model-generated.'
+          : run.codexExecuted
+            ? 'One state transition changed by Codex. The verifier remains independent.'
+            : 'A deterministic reference patch is applied. No model execution is claimed.',
     },
     verifying: {
       kicker: 'Pass 04 · Recheck',
@@ -53,19 +64,45 @@ function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title:
     proven: {
       kicker: 'Pass 04 · Sealed',
       title: 'Proof sealed',
-      detail: `${run.stats.scenariosPassed} of ${run.stats.scenariosTotal} covered scenarios conform.`,
+      detail: `${run.codexExecuted ? 'Codex-generated' : 'Reference'} candidate conforms in ${run.stats.scenariosPassed} of ${run.stats.scenariosTotal} covered scenarios.`,
     },
     unresolved: {
       kicker: 'Pass 04 · Not sealed',
       title: run.source === 'sample'
         ? 'Sample replay complete — start live runner to seal proof'
+        : run.fallbackReason
+          ? run.codexExecuted
+            ? 'Codex candidate did not pass verification'
+            : 'Repair could not complete'
         : 'Verification remains unresolved',
       detail: run.source === 'sample'
         ? 'Fixture evidence demonstrates the interface only; it cannot produce a live proof.'
+        : run.fallbackReason
+          ? run.fallbackReason
         : run.candidateVersion === 'buggy'
           ? 'The deliberate mutation was not detected, so no repair was promoted.'
           : `${run.stats.differences} differences remain after the reference patch.`,
     },
+  }
+}
+
+function shortThread(threadId: string): string {
+  return threadId.replace(/^thread[_-]?/i, '').slice(0, 10)
+}
+
+function patchPreview(run: ProofRun): { removed: string; added: string } {
+  if (!run.codexDiff) {
+    return {
+      removed: 'bucket: "sellable"',
+      added: 'bucket: "quarantine"',
+    }
+  }
+  const lines = run.codexDiff.split('\n')
+  const removed = lines.find((line) => line.startsWith('-') && !line.startsWith('---'))
+  const added = lines.find((line) => line.startsWith('+') && !line.startsWith('+++'))
+  return {
+    removed: removed?.slice(1).trim() || 'mutated disposition',
+    added: added?.slice(1).trim() || 'generated disposition repair',
   }
 }
 
@@ -286,7 +323,20 @@ function DifferenceTray({ phase, run }: { phase: RunPhase; run: ProofRun }) {
   const copy = getStatusCopy(run)[phase]
   const showPatch =
     ['repairing', 'verifying', 'proven'].includes(phase) ||
-    (phase === 'unresolved' && run.candidateVersion === 'fixed')
+    (phase === 'unresolved' &&
+      (run.candidateVersion === 'fixed' || run.codexExecuted || Boolean(run.codexThreadId)))
+  const preview = patchPreview(run)
+  const patchOrigin = run.patchId === 'CODEX-PENDING'
+    ? 'CODEX RUNNING'
+    : phase === 'unresolved' && (run.candidateVersion === 'generated' || Boolean(run.codexThreadId))
+      ? 'CODEX FAILED'
+    : run.codexExecuted
+      ? 'CODEX EXECUTED'
+      : run.source === 'live'
+        ? 'REFERENCE PATCH'
+        : 'FIXTURE PATCH'
+  const patchFile = run.codexChangedFiles?.[0] ??
+    (run.candidateVersion === 'fixed' ? 'reference candidate' : 'generated-repair.ts')
   return (
     <section className={`difference-tray phase-${phase}`} aria-live="polite">
       <div className="difference-copy">
@@ -304,14 +354,20 @@ function DifferenceTray({ phase, run }: { phase: RunPhase; run: ProofRun }) {
       {showPatch && (
         <div className="patch-slip">
           <span className="patch-file">
-            {run.patchId} · domain.ts / disposition branch · {run.codexExecuted
-              ? 'CODEX EXECUTED'
-              : run.source === 'live'
-                ? 'REFERENCE PATCH'
-                : 'FIXTURE PATCH'}
+            {run.patchId} · {patchFile} · {patchOrigin}
+            {run.codexThreadId ? ` · THREAD ${shortThread(run.codexThreadId)}` : ''}
           </span>
-          <code><del>bucket: &quot;sellable&quot;</del></code>
-          <code><ins>bucket: &quot;quarantine&quot;</ins></code>
+          {run.patchId === 'CODEX-PENDING' ? (
+            <>
+              <code>isolated worktree · one-file whitelist</code>
+              <code>waiting for fresh verification evidence</code>
+            </>
+          ) : (
+            <>
+              <code><del>{preview.removed}</del></code>
+              <code><ins>{preview.added}</ins></code>
+            </>
+          )}
         </div>
       )}
     </section>
@@ -437,20 +493,103 @@ export default function App() {
 
     setPhase('difference')
     await wait(delay + 180)
+
+    if (buggyResult.source !== 'live') {
+      setPhase('unresolved')
+      setRunCount((count) => count + 1)
+      setIsRunning(false)
+      return
+    }
+
+    if (!buggyResult.proofId) {
+      setRun({
+        ...buggyResult,
+        fallbackReason: 'The failed live run did not return a proofId, so no repair was requested.',
+      })
+      setPhase('unresolved')
+      setRunCount((count) => count + 1)
+      setIsRunning(false)
+      return
+    }
+
+    setRun({
+      ...buggyResult,
+      candidateVersion: 'generated',
+      patchId: 'CODEX-PENDING',
+      fallbackReason: undefined,
+    })
     setPhase('repairing')
     await wait(delay)
-    const fixedResult = await requestProofRun('fixed')
-    setRun(fixedResult)
+    const repairResult = await requestCodexRepair(buggyResult.proofId)
+
+    if (repairResult.kind === 'unavailable') {
+      setRun({
+        ...buggyResult,
+        candidateVersion: 'fixed',
+        patchId: 'REF-PENDING',
+        fallbackReason: repairResult.reason,
+      })
+      const fixedResult = await requestProofRun('fixed')
+      const referenceResult = {
+        ...fixedResult,
+        fallbackReason:
+          fixedResult.source === 'live'
+            ? `Codex adapter unavailable; independently verified reference used. ${repairResult.reason}`
+            : 'Codex adapter unavailable and the live reference verification could not be reached.',
+      }
+      setRun(referenceResult)
+      setPhase('verifying')
+      await wait(delay + 220)
+      setPhase(
+        referenceResult.source === 'live' &&
+          referenceResult.candidateVersion === 'fixed' &&
+          Boolean(referenceResult.proofId) &&
+          referenceResult.status === 'PASSED' &&
+          referenceResult.stats.differences === 0
+          ? 'proven'
+          : 'unresolved',
+      )
+      setRunCount((count) => count + 1)
+      setIsRunning(false)
+      return
+    }
+
+    if (repairResult.kind === 'failed') {
+      const failedRun = repairResult.run ?? {
+        ...buggyResult,
+        candidateVersion: repairResult.codexExecuted || repairResult.threadId ? 'generated' as const : 'buggy' as const,
+        codexExecuted: repairResult.codexExecuted,
+        ...(repairResult.threadId ? { codexThreadId: repairResult.threadId } : {}),
+        patchId: repairResult.threadId ? `CX-${shortThread(repairResult.threadId)}` : 'CODEX-FAILED',
+      }
+      setRun({ ...failedRun, fallbackReason: repairResult.reason })
+      if (repairResult.run) {
+        setPhase('verifying')
+        await wait(delay)
+      }
+      setPhase('unresolved')
+      setRunCount((count) => count + 1)
+      setIsRunning(false)
+      return
+    }
+
+    const freshRun = repairResult.run.runId !== buggyResult.runId
+    if (!freshRun) {
+      setRun({
+        ...repairResult.run,
+        fallbackReason: 'Codex verification reused the failed run ID; a fresh proof was not returned.',
+      })
+      setPhase('unresolved')
+      setRunCount((count) => count + 1)
+      setIsRunning(false)
+      return
+    }
+
+    setRun(repairResult.run)
     setPhase('verifying')
 
     await wait(delay + 220)
-    setPhase(
-      fixedResult.source === 'live' &&
-        fixedResult.status === 'PASSED' &&
-        fixedResult.stats.differences === 0
-        ? 'proven'
-        : 'unresolved',
-    )
+    setPhase('proven')
     setRunCount((count) => count + 1)
     setIsRunning(false)
   }

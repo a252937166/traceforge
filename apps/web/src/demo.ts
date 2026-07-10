@@ -8,7 +8,7 @@ export type RunPhase =
   | 'unresolved'
 
 export type DataSource = 'preview' | 'live' | 'sample'
-export type CandidateVersion = 'buggy' | 'fixed'
+export type CandidateVersion = 'buggy' | 'fixed' | 'generated'
 export type VerificationStatus = 'PASSED' | 'FAILED' | 'UNKNOWN'
 
 export type EvidenceItem = {
@@ -29,12 +29,16 @@ export type BehaviorRule = {
 
 export type ProofRun = {
   runId: string
+  proofId: string
   capturedAt: string
   source: DataSource
   fallbackReason?: string
   status: VerificationStatus
   candidateVersion: CandidateVersion
   codexExecuted: boolean
+  codexThreadId?: string
+  codexChangedFiles?: string[]
+  codexDiff?: string
   patchId: string
   stats: {
     scenariosPassed: number
@@ -45,6 +49,26 @@ export type ProofRun = {
   evidence: EvidenceItem[]
   rules: BehaviorRule[]
 }
+
+export type RepairResult =
+  | {
+      kind: 'codex'
+      run: ProofRun
+      threadId: string
+      changedFiles: string[]
+    }
+  | {
+      kind: 'unavailable'
+      reason: string
+    }
+  | {
+      kind: 'failed'
+      reason: string
+      status: number
+      run?: ProofRun
+      threadId?: string
+      codexExecuted: boolean
+    }
 
 export const phases: RunPhase[] = [
   'ready',
@@ -58,6 +82,7 @@ export const phases: RunPhase[] = [
 
 export const sampleRun: ProofRun = {
   runId: 'TF-RET-1001',
+  proofId: 'proof_fixture_ret_1001',
   capturedAt: '2026-07-10T09:42:18.000Z',
   source: 'preview',
   status: 'UNKNOWN',
@@ -115,6 +140,20 @@ export const sampleRun: ProofRun = {
 
 type UnknownRecord = Record<string, unknown>
 
+type LiveProofValidation =
+  | {
+      ok: true
+      runId: string
+      proofId: string
+      digest: string
+    }
+  | {
+      ok: false
+      reason: string
+    }
+
+const generatedRepairPath = 'apps/api/src/candidates/generated-repair.ts'
+
 function asRecord(value: unknown): UnknownRecord {
   return typeof value === 'object' && value !== null ? (value as UnknownRecord) : {}
 }
@@ -126,6 +165,45 @@ function stringValue(value: unknown, fallback: string): string {
 function numberValue(value: unknown, fallback: number): number {
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? numericValue : fallback
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
+}
+
+function validateLiveProof(raw: unknown, expectedCandidate: CandidateVersion): LiveProofValidation {
+  const root = asRecord(raw)
+  const envelope = asRecord(root.data ?? root.result ?? root)
+  const proofBundle = asRecord(envelope.proofBundle ?? envelope.proof_bundle)
+  const runId = stringValue(envelope.runId ?? envelope.run_id, '')
+  const bundleRunId = stringValue(proofBundle.runId ?? proofBundle.run_id, '')
+  const proofId = stringValue(proofBundle.proofId ?? proofBundle.proof_id, '')
+  const digest = stringValue(proofBundle.digest, '')
+  const status = envelope.status
+  const proofStatus = proofBundle.status
+  const candidateVersion = proofBundle.candidateVersion ?? proofBundle.candidate_version
+  const problems: string[] = []
+
+  if (!runId) problems.push('runId is missing')
+  if (!bundleRunId || bundleRunId !== runId) problems.push('proofBundle.runId does not match runId')
+  if (!proofId) problems.push('proofBundle.proofId is missing')
+  if (!/^sha256:[a-f0-9]{64}$/.test(digest)) problems.push('proofBundle.digest is invalid')
+  if (envelope.source !== 'deterministic-local-demo') problems.push('source is not the live deterministic runner')
+  if (status !== 'PASSED' && status !== 'FAILED') problems.push('status is invalid')
+  if (proofStatus !== status) problems.push('proofBundle.status does not match status')
+  if (candidateVersion !== expectedCandidate) {
+    problems.push(`candidateVersion is not ${expectedCandidate}`)
+  }
+  if (!Array.isArray(proofBundle.assertions) || proofBundle.assertions.length === 0) {
+    problems.push('proofBundle.assertions is missing')
+  }
+  if (!Array.isArray(proofBundle.mismatches)) problems.push('proofBundle.mismatches is missing')
+
+  return problems.length
+    ? { ok: false, reason: problems.join('; ') }
+    : { ok: true, runId, proofId, digest }
 }
 
 function normalizeEvidence(value: unknown): EvidenceItem[] {
@@ -193,7 +271,8 @@ export function normalizeLiveRun(raw: unknown): ProofRun {
   const rawStatus = envelope.status ?? proofBundle.status
   const status: VerificationStatus = rawStatus === 'PASSED' || rawStatus === 'FAILED' ? rawStatus : 'UNKNOWN'
   const rawVersion = proofBundle.candidateVersion ?? envelope.candidateVersion
-  const candidateVersion: CandidateVersion = rawVersion === 'buggy' ? 'buggy' : 'fixed'
+  const candidateVersion: CandidateVersion =
+    rawVersion === 'buggy' || rawVersion === 'generated' ? rawVersion : 'fixed'
   const rawScenarios = envelope.scenarios ?? proof.scenarios
   const scenarioList = Array.isArray(rawScenarios) ? rawScenarios : []
   const scenariosTotal = numberValue(
@@ -207,6 +286,10 @@ export function normalizeLiveRun(raw: unknown): ProofRun {
 
   return {
     runId: stringValue(envelope.runId ?? envelope.run_id ?? envelope.id, sampleRun.runId),
+    proofId: stringValue(
+      proofBundle.proofId ?? proofBundle.proof_id ?? envelope.proofId ?? envelope.proof_id,
+      '',
+    ),
     capturedAt: stringValue(
       envelope.capturedAt ?? envelope.captured_at ?? envelope.startedAt ?? proofBundle.generatedAt,
       new Date().toISOString(),
@@ -221,7 +304,11 @@ export function normalizeLiveRun(raw: unknown): ProofRun {
       patch.generatedBy === 'codex',
     patchId: stringValue(
       patch.id ?? envelope.patchId ?? envelope.patch_id,
-      candidateVersion === 'fixed' ? 'REF-FIXED' : 'BUGGY-BASELINE',
+      candidateVersion === 'fixed'
+        ? 'REF-FIXED'
+        : candidateVersion === 'generated'
+          ? 'GEN-CANDIDATE'
+          : 'BUGGY-BASELINE',
     ),
     stats: {
       scenariosPassed: numberValue(
@@ -243,7 +330,7 @@ export function normalizeLiveRun(raw: unknown): ProofRun {
   }
 }
 
-export async function requestProofRun(candidateVersion: CandidateVersion): Promise<ProofRun> {
+export async function requestProofRun(candidateVersion: 'buggy' | 'fixed'): Promise<ProofRun> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 4_000)
 
@@ -256,7 +343,10 @@ export async function requestProofRun(candidateVersion: CandidateVersion): Promi
     })
 
     if (!response.ok) throw new Error(`Runner returned HTTP ${response.status}`)
-    return normalizeLiveRun(await response.json())
+    const raw = await response.json()
+    const validation = validateLiveProof(raw, candidateVersion)
+    if (!validation.ok) throw new Error(`Runner returned incomplete proof evidence: ${validation.reason}`)
+    return normalizeLiveRun(raw)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The demo runner is unavailable'
     const failedFixture = candidateVersion === 'buggy'
@@ -275,6 +365,154 @@ export async function requestProofRun(candidateVersion: CandidateVersion): Promi
         differences: failedFixture ? 2 : 0,
       },
     }
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+function shortThreadId(threadId: string): string {
+  const compact = threadId.replace(/^thread[_-]?/i, '')
+  return compact.slice(0, 10) || 'unknown'
+}
+
+function responseErrorMessage(raw: unknown, fallback: string): string {
+  const root = asRecord(raw)
+  const error = asRecord(root.error)
+  return stringValue(error.message ?? root.message, fallback)
+}
+
+async function readJsonSafely(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return {}
+  }
+}
+
+export async function requestCodexRepair(proofId: string): Promise<RepairResult> {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 300_000)
+
+  try {
+    const response = await fetch('/api/adapters/codex/repair', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ proofId }),
+      signal: controller.signal,
+    })
+    const raw = await readJsonSafely(response)
+
+    if (response.status === 501) {
+      return {
+        kind: 'unavailable',
+        reason: responseErrorMessage(raw, 'Codex execution is not configured.'),
+      }
+    }
+
+    const root = asRecord(raw)
+    const data = asRecord(root.data)
+    const verification = asRecord(data.verification)
+    const whitelist = asRecord(verification.whitelist)
+    const worktree = asRecord(data.worktree)
+    const verificationRun = verification.run
+    const threadId = stringValue(data.threadId, '')
+    const codexExecuted = data.codexExecuted === true
+    const changedFiles = stringArray(data.changedFiles)
+    const whitelistChangedFiles = stringArray(whitelist.changed)
+    const whitelistUnexpectedFiles = stringArray(whitelist.unexpected)
+    const whitelistAllowedFiles = stringArray(whitelist.allowed)
+    const diff = stringValue(data.diff, '')
+    const liveValidation = validateLiveProof(verificationRun, 'generated')
+    const whitelistPassed =
+      whitelist.passed === true &&
+      whitelist.requiredFileChanged === true &&
+      whitelistUnexpectedFiles.length === 0 &&
+      whitelistAllowedFiles.includes(generatedRepairPath) &&
+      changedFiles.length === 1 &&
+      changedFiles[0] === generatedRepairPath &&
+      whitelistChangedFiles.length === 1 &&
+      whitelistChangedFiles[0] === generatedRepairPath
+    const retainedWorktree = worktree.retained === true && Boolean(stringValue(worktree.path, ''))
+    const integrityProblems = [
+      response.status === 200 ? '' : `HTTP status is ${response.status}, not 200`,
+      codexExecuted ? '' : 'codexExecuted is not true',
+      threadId ? '' : 'threadId is missing',
+      verification.status === 'PASSED' ? '' : 'verification status is not PASSED',
+      liveValidation.ok ? '' : `generated proof is invalid: ${liveValidation.reason}`,
+      liveValidation.ok && liveValidation.proofId === proofId
+        ? 'generated proof reused the failed source proofId'
+        : '',
+      whitelistPassed ? '' : 'one-file whitelist evidence is incomplete',
+      diff ? '' : 'candidate diff is missing',
+      retainedWorktree ? '' : 'retained worktree evidence is missing',
+    ].filter(Boolean)
+
+    if (integrityProblems.length === 0 && liveValidation.ok) {
+      const run = normalizeLiveRun(verificationRun)
+      if (run.status === 'PASSED' && run.stats.differences === 0) {
+        return {
+          kind: 'codex',
+          threadId,
+          changedFiles,
+          run: {
+            ...run,
+            candidateVersion: 'generated',
+            codexExecuted: true,
+            codexThreadId: threadId,
+            codexChangedFiles: changedFiles,
+            codexDiff: diff,
+            patchId: `CX-${shortThreadId(threadId)}`,
+          },
+        }
+      }
+    }
+
+    const error = asRecord(root.error)
+    const evidence = asRecord(error.evidence)
+    const failureThreadId = stringValue(data.threadId ?? evidence.threadId, '') || undefined
+    const failureChangedFilesRaw = data.changedFiles ?? evidence.changedFiles
+    const failureChangedFiles = stringArray(failureChangedFilesRaw)
+    const failureDiff = stringValue(data.diff ?? evidence.diff, '')
+    const failureRunValidation = validateLiveProof(verificationRun, 'generated')
+    const failedRun = failureRunValidation.ok ? normalizeLiveRun(verificationRun) : undefined
+    const mismatchCount = failedRun?.stats.differences
+    const fallbackReason = responseErrorMessage(
+      raw,
+      response.status === 422
+        ? `Codex candidate failed independent verification${mismatchCount === undefined ? '.' : ` with ${mismatchCount} differences.`}`
+        : response.status === 200 && integrityProblems.length
+          ? `Codex success response failed integrity validation: ${integrityProblems.join('; ')}.`
+        : `Codex repair failed with HTTP ${response.status}.`,
+    )
+
+    return {
+      kind: 'failed',
+      status: response.status,
+      reason: fallbackReason,
+      codexExecuted: codexExecuted || evidence.codexExecuted === true,
+      ...(failureThreadId ? { threadId: failureThreadId } : {}),
+      ...(failedRun
+        ? {
+            run: {
+              ...failedRun,
+              candidateVersion: 'generated' as const,
+              codexExecuted: codexExecuted || evidence.codexExecuted === true,
+              ...(failureThreadId ? { codexThreadId: failureThreadId } : {}),
+              ...(failureChangedFiles.length ? { codexChangedFiles: failureChangedFiles } : {}),
+              ...(failureDiff ? { codexDiff: failureDiff } : {}),
+              patchId: failureThreadId ? `CX-${shortThreadId(failureThreadId)}` : 'GEN-FAILED',
+            },
+          }
+        : {}),
+    }
+  } catch (error) {
+    const reason =
+      error instanceof DOMException && error.name === 'AbortError'
+        ? 'Codex repair exceeded the five-minute browser timeout.'
+        : error instanceof Error
+          ? `Codex repair request failed: ${error.message}`
+          : 'Codex repair request failed.'
+    return { kind: 'failed', status: 0, reason, codexExecuted: false }
   } finally {
     window.clearTimeout(timeout)
   }
