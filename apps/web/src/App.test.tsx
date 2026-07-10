@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -103,6 +103,18 @@ describe('TraceForge workbench', () => {
     vi.unstubAllGlobals()
   })
 
+  it('presents the migration as four proof stages and three persistent system states', () => {
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Damaged returns modernization' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Migration proof summary' })).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Original application playback' })).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Replacement application playback' })).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Repaired application playback' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Proof ledger' })).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+  })
+
   it('does not call repair or seal when the demo runner is offline', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('API offline'))
     vi.stubGlobal('fetch', fetchMock)
@@ -168,6 +180,12 @@ describe('TraceForge workbench', () => {
     expect(screen.getByText(/CODEX EXECUTED/)).toHaveTextContent('THREAD abcdef1234')
     expect(screen.getByText('damagedBucket: "sellable"')).toBeInTheDocument()
     expect(screen.getByText('damagedBucket: "quarantine"')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
+    expect(within(screen.getByRole('article', { name: 'Replacement application playback' })).getByText('11')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('article', { name: 'Repaired application playback' }))
+        .getByText('10', { selector: 'strong' }),
+    ).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Run proof again' })).toBeEnabled()
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()

@@ -25,21 +25,22 @@ function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title:
     : run.source === 'live'
       ? 'Reference implementation loaded'
       : 'Seeded fixture loaded'
+
   return {
     ready: {
-      kicker: 'Recorder armed',
+      kicker: 'Dossier ready',
       title: 'Ready to prove this workflow',
-      detail: 'The captured trace is loaded. Start a differential replay when ready.',
+      detail: 'The captured return trace is loaded. Start the replay to expose and repair the seeded divergence.',
     },
     capturing: {
-      kicker: 'Pass 01 · Baseline',
+      kicker: 'Pass 01 · Observe',
       title: 'Replaying the original behavior',
-      detail: 'Sealing UI, API, and entity-state evidence before comparison.',
+      detail: 'The runner is recording decisions and SQLite state before any candidate is evaluated.',
     },
     difference: {
-      kicker: 'Pass 02 · Divergence',
+      kicker: 'Pass 02 · Compare',
       title: 'Difference D-01 isolated',
-      detail: 'The candidate restored a damaged unit to sellable inventory.',
+      detail: 'The replacement restored a damaged unit to sellable inventory instead of quarantine.',
     },
     repairing: {
       kicker: 'Pass 03 · Repair',
@@ -53,18 +54,18 @@ function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title:
         : referencePending
           ? 'The fallback is explicitly labelled and is not represented as model-generated.'
           : run.codexExecuted
-            ? 'One state transition changed by Codex. The verifier remains independent.'
+            ? 'The generated change remains a candidate until the host verifier accepts a fresh proof.'
             : 'A deterministic reference patch is applied. No model execution is claimed.',
     },
     verifying: {
-      kicker: 'Pass 04 · Recheck',
-      title: `Replaying ${run.stats.scenariosTotal} covered scenarios`,
-      detail: 'Deterministic state assertions run before the semantic UI check.',
+      kicker: 'Pass 04 · Verify',
+      title: `Replaying ${run.stats.scenariosTotal} covered scenario`,
+      detail: 'The host compares five business fields after resetting and reading both SQLite partitions.',
     },
     proven: {
       kicker: 'Pass 04 · Sealed',
       title: 'Proof sealed',
-      detail: `${run.codexExecuted ? 'Codex-generated' : 'Reference'} candidate conforms in ${run.stats.scenariosPassed} of ${run.stats.scenariosTotal} covered scenarios.`,
+      detail: `${run.codexExecuted ? 'Codex-generated' : 'Reference'} candidate conforms in ${run.stats.scenariosPassed} of ${run.stats.scenariosTotal} covered scenario.`,
     },
     unresolved: {
       kicker: 'Pass 04 · Not sealed',
@@ -74,14 +75,14 @@ function getStatusCopy(run: ProofRun): Record<RunPhase, { kicker: string; title:
           ? run.codexExecuted
             ? 'Codex candidate did not pass verification'
             : 'Repair could not complete'
-        : 'Verification remains unresolved',
+          : 'Verification remains unresolved',
       detail: run.source === 'sample'
         ? 'Fixture evidence demonstrates the interface only; it cannot produce a live proof.'
         : run.fallbackReason
           ? run.fallbackReason
-        : run.candidateVersion === 'buggy'
-          ? 'The deliberate mutation was not detected, so no repair was promoted.'
-          : `${run.stats.differences} differences remain after the reference patch.`,
+          : run.candidateVersion === 'buggy'
+            ? 'The deliberate mutation was not detected, so no repair was promoted.'
+            : `${run.stats.differences} differences remain after the candidate repair.`,
     },
   }
 }
@@ -150,19 +151,335 @@ function CheckIcon() {
 
 function SourceBadge({ source, reason }: { source: DataSource; reason?: string }) {
   const copy = {
-    preview: ['Demo fixture', 'Run not started'],
-    live: ['Live runner', '/api/demo/run'],
+    preview: ['Demo fixture', 'Not executed'],
+    live: ['Live runner', 'Fresh evidence'],
     sample: ['Sample data', 'API fallback'],
   }[source]
 
   return (
-    <div className={`source-badge source-${source}`} title={reason}>
+    <div
+      className={`source-badge source-${source}`}
+      aria-label={`${copy[0]}. ${copy[1]}${reason ? `. ${reason}` : ''}`}
+    >
       <span className="source-light" />
       <span>
         <strong>{copy[0]}</strong>
         <small>{copy[1]}</small>
       </span>
     </div>
+  )
+}
+
+function MetricCard({
+  step,
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  step: string
+  label: string
+  value: string
+  detail: string
+  tone?: 'neutral' | 'danger' | 'success'
+}) {
+  return (
+    <article className={`metric-card metric-${tone}`}>
+      <div className="metric-label"><span>{step}</span>{label}</div>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
+  )
+}
+
+function StoryStrip({ phase, run, failedRun }: { phase: RunPhase; run: ProofRun; failedRun: ProofRun | null }) {
+  const observedDifferences = failedRun?.stats.differences
+    ?? (phase === 'difference' || phase === 'repairing' || phase === 'unresolved' ? run.stats.differences : 0)
+  const writer = run.patchId === 'CODEX-PENDING'
+    ? 'Running'
+    : run.codexExecuted
+      ? 'Codex'
+      : run.patchId === 'REF-PENDING' || (phase === 'proven' && run.source === 'live')
+        ? 'Reference'
+        : 'Waiting'
+  const proofValue = phase === 'proven' ? 'Sealed' : phase === 'unresolved' ? 'Open' : 'Pending'
+
+  return (
+    <section className="story-strip" aria-label="Migration proof summary">
+      <MetricCard step="01" label="Old system" value="4 steps" detail={`${run.rules.length} evidence-linked rules captured`} />
+      <MetricCard
+        step="02"
+        label="Difference"
+        value={observedDifferences ? `${observedDifferences} found` : 'Awaiting'}
+        detail="Damaged stock disposition is the separating behavior"
+        tone={observedDifferences ? 'danger' : 'neutral'}
+      />
+      <MetricCard step="03" label="Repair writer" value={writer} detail="One file · retained worktree · no auto-apply" />
+      <MetricCard
+        step="04"
+        label="Independent proof"
+        value={proofValue}
+        detail={`${run.stats.assertions} assertions · ${phase === 'proven' ? 0 : run.stats.differences} remaining differences`}
+        tone={phase === 'proven' ? 'success' : phase === 'unresolved' ? 'danger' : 'neutral'}
+      />
+    </section>
+  )
+}
+
+function InventoryValue({ before, after }: { before: string; after: string }) {
+  return (
+    <span className="inventory-value">
+      <span>{before}</span><i aria-hidden="true">→</i><strong>{after}</strong>
+    </span>
+  )
+}
+
+function SystemSnapshot({
+  kind,
+  eyebrow,
+  title,
+  badge,
+  detail,
+  sellable,
+  quarantine,
+  ariaLabel,
+}: {
+  kind: 'legacy' | 'broken' | 'repaired'
+  eyebrow: string
+  title: string
+  badge: string
+  detail: string
+  sellable: [string, string]
+  quarantine: [string, string]
+  ariaLabel: string
+}) {
+  return (
+    <article className={`system-snapshot system-${kind}`} aria-label={ariaLabel}>
+      <div className="snapshot-heading">
+        <span>{eyebrow}</span>
+        <em>{badge}</em>
+      </div>
+      <h3>{title}</h3>
+      <p>{detail}</p>
+      <dl>
+        <div>
+          <dt>Decision</dt>
+          <dd>REFUND</dd>
+        </div>
+        <div>
+          <dt>Return status</dt>
+          <dd>REFUNDED</dd>
+        </div>
+        <div className="inventory-row">
+          <dt>Sellable stock</dt>
+          <dd><InventoryValue before={sellable[0]} after={sellable[1]} /></dd>
+        </div>
+        <div className="inventory-row">
+          <dt>Quarantine</dt>
+          <dd><InventoryValue before={quarantine[0]} after={quarantine[1]} /></dd>
+        </div>
+      </dl>
+    </article>
+  )
+}
+
+function ReplayProgress({ phase }: { phase: RunPhase }) {
+  const position = phase === 'proven' || phase === 'unresolved'
+    ? 100
+    : (phasePosition(phase) / (phases.length - 2)) * 100
+  const style = { '--progress-scale': position / 100 } as CSSProperties
+
+  return (
+    <div
+      className="replay-progress"
+      style={style}
+      role="progressbar"
+      aria-label={`Replay progress: ${Math.round(position)} percent`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(position)}
+    >
+      <span className="progress-fill" />
+      <ol>
+        <li>Observe</li>
+        <li>Compare</li>
+        <li>Repair</li>
+        <li>Verify</li>
+      </ol>
+    </div>
+  )
+}
+
+function DifferenceTray({ phase, run }: { phase: RunPhase; run: ProofRun }) {
+  const copy = getStatusCopy(run)[phase]
+  const bandCopy: Record<RunPhase, { title: string; detail: string }> = {
+    ready: {
+      title: 'No candidate promoted',
+      detail: 'The dossier is staged; the verifier has not evaluated a replacement yet.',
+    },
+    capturing: {
+      title: 'Source trace in progress',
+      detail: 'Legacy decisions and state transitions are being sealed before comparison.',
+    },
+    difference: {
+      title: 'Inventory side effect diverges',
+      detail: 'The failure remains in view so the repair can be judged against a concrete defect.',
+    },
+    repairing: {
+      title: 'Candidate writer engaged',
+      detail: 'The generated diff remains quarantined until the host returns fresh verification evidence.',
+    },
+    verifying: {
+      title: 'Fresh rerun in progress',
+      detail: 'The host is replaying the same scenario against the repaired candidate.',
+    },
+    proven: {
+      title: 'Zero differences remain',
+      detail: 'The failed run is retained beside the fresh conforming result.',
+    },
+    unresolved: {
+      title: 'Candidate remains unpromoted',
+      detail: 'Review the proof register for the evidence that blocked promotion.',
+    },
+  }
+  const showPatch =
+    ['repairing', 'verifying', 'proven'].includes(phase) ||
+    (phase === 'unresolved' &&
+      (run.candidateVersion === 'fixed' || run.codexExecuted || Boolean(run.codexThreadId)))
+  const preview = patchPreview(run)
+  const patchOrigin = run.patchId === 'CODEX-PENDING'
+    ? 'CODEX RUNNING'
+    : phase === 'unresolved' && (run.candidateVersion === 'generated' || Boolean(run.codexThreadId))
+      ? 'CODEX FAILED'
+      : run.codexExecuted
+        ? 'CODEX EXECUTED'
+        : run.source === 'live'
+          ? 'REFERENCE PATCH'
+          : 'FIXTURE PATCH'
+  const patchFile = run.codexChangedFiles?.[0]
+    ?? (run.candidateVersion === 'fixed' ? 'reference candidate' : 'generated-repair.ts')
+
+  return (
+    <section className={`verdict-band phase-${phase}`} aria-live="polite">
+      <div className="verdict-copy">
+        <span className="eyebrow">{copy.kicker}</span>
+        <h2>{bandCopy[phase].title}</h2>
+        <p>{bandCopy[phase].detail}</p>
+      </div>
+
+      {phase === 'difference' && (
+        <div className="delta-comparison">
+          <span><small>Legacy</small>sellable_delta = 0</span>
+          <strong aria-label="does not equal">≠</strong>
+          <span><small>Broken candidate</small>sellable_delta = +1</span>
+        </div>
+      )}
+
+      {showPatch && (
+        <div className="patch-slip">
+          <span className="patch-file">
+            {patchOrigin}{run.codexThreadId ? ` · THREAD ${shortThread(run.codexThreadId)}` : ''}
+          </span>
+          <small>{run.patchId} · {patchFile}</small>
+          {run.patchId === 'CODEX-PENDING' ? (
+            <>
+              <code>isolated worktree · one-file whitelist</code>
+              <code>waiting for fresh verification evidence</code>
+            </>
+          ) : (
+            <>
+              <code><del>{preview.removed}</del></code>
+              <code><ins>{preview.added}</ins></code>
+            </>
+          )}
+        </div>
+      )}
+
+      {!showPatch && phase !== 'difference' && (
+        <div className="claim-boundary">
+          <strong>Bounded claim</strong>
+          <span>One observed branch</span>
+          <span>Five deterministic fields</span>
+          <span>No universal equivalence claim</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PlaybackPanel({ phase, run, failedRun }: { phase: RunPhase; run: ProofRun; failedRun: ProofRun | null }) {
+  const failureVisible = Boolean(failedRun) || ['difference', 'repairing'].includes(phase)
+  const repairVisible = ['verifying', 'proven'].includes(phase)
+    || (phase === 'unresolved' && run.candidateVersion !== 'buggy')
+  const repairPassed = phase === 'proven' || phase === 'verifying'
+  const repairFailed = phase === 'unresolved' && run.stats.differences > 0
+  const repairSellable: [string, string] = repairPassed ? ['10', '10'] : repairFailed ? ['10', '11'] : ['10', '—']
+  const repairQuarantine: [string, string] = repairPassed ? ['0', '1'] : repairFailed ? ['0', '0'] : ['0', '—']
+  const repairBadge = phase === 'proven'
+    ? 'VERIFIED'
+    : phase === 'verifying'
+      ? 'REPLAYING'
+      : phase === 'unresolved'
+        ? 'NOT SEALED'
+        : 'PENDING'
+
+  return (
+    <section className="panel comparison-panel">
+      <header className="panel-title-row">
+        <div>
+          <h2>Migration comparison</h2>
+          <p>One input · three states · the failure remains visible after repair</p>
+        </div>
+        <span className="panel-count">RET-1001 · $45.00</span>
+      </header>
+
+      <div className="scenario-ribbon">
+        <span><small>Customer</small>STANDARD</span>
+        <span><small>Condition</small>DAMAGED</span>
+        <span><small>Expected route</small>QUARANTINE</span>
+        <span><small>Coverage</small>Observed branch only</span>
+      </div>
+
+      <div className="system-triptych">
+        <SystemSnapshot
+          kind="legacy"
+          eyebrow="Original system"
+          title="Legacy behavior"
+          badge={phase === 'ready' ? 'PREVIEW' : 'CAPTURED'}
+          detail="The observed source of truth for this concrete return."
+          sellable={['10', '10']}
+          quarantine={['0', '1']}
+          ariaLabel="Original application playback"
+        />
+        <SystemSnapshot
+          kind="broken"
+          eyebrow="Before repair"
+          title="Broken replacement"
+          badge={failureVisible ? 'D-01 FOUND' : 'SEEDED'}
+          detail="The refund succeeds, but its inventory side effect diverges."
+          sellable={['10', '11']}
+          quarantine={['0', '0']}
+          ariaLabel="Replacement application playback"
+        />
+        <SystemSnapshot
+          kind="repaired"
+          eyebrow="After repair"
+          title={repairVisible ? 'Candidate rerun' : 'Awaiting candidate'}
+          badge={repairBadge}
+          detail={repairPassed
+            ? 'Fresh execution matches all five asserted fields.'
+            : repairFailed
+              ? 'The attempted candidate still differs from the legacy trace.'
+              : 'No change is promoted until a fresh host verification passes.'}
+          sellable={repairSellable}
+          quarantine={repairQuarantine}
+          ariaLabel="Repaired application playback"
+        />
+      </div>
+
+      <ReplayProgress phase={phase} />
+      <DifferenceTray phase={phase} run={run} />
+    </section>
   )
 }
 
@@ -181,221 +498,45 @@ function StepStatus({ phase, index }: { phase: RunPhase; index: number }) {
 
 function WorkflowPanel({ run, phase }: { run: ProofRun; phase: RunPhase }) {
   return (
-    <aside className="side-panel workflow-panel" aria-label="Captured workflow and behavior rules">
-      <div className="panel-heading">
-        <span>01 / Captured workflow</span>
-        <span className="mono">04 steps</span>
-      </div>
+    <section className="panel contract-panel" aria-label="Captured workflow and behavior rules">
+      <header className="panel-title-row">
+        <div>
+          <h2>Behavior contract</h2>
+          <p>Every rule points back to captured evidence</p>
+        </div>
+        <span className="panel-count">{workflow.length} steps · {run.rules.length} rules</span>
+      </header>
 
-      <ol className="trace-list">
-        {workflow.map((step, index) => (
-          <li key={step.id}>
-            <StepStatus phase={phase} index={index} />
-            <span className="trace-copy">
-              <strong>{step.label}</strong>
-              <small>{workflowEvidenceId(run, index, step.evidence)}</small>
-            </span>
-          </li>
-        ))}
-      </ol>
+      <div className="contract-grid">
+        <ol className="workflow-steps">
+          {workflow.map((step, index) => (
+            <li key={step.id}>
+              <StepStatus phase={phase} index={index} />
+              <span>
+                <strong>{step.label}</strong>
+                <small>{workflowEvidenceId(run, index, step.evidence)}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
 
-      <div className="subheading">
-        <span>Behavior contract</span>
-        <span className="rule-count">{run.rules.length} rules</span>
-      </div>
-
-      <div className="rule-list">
-        {run.rules.slice(0, 4).map((rule, index) => {
-          const isCausalRule = index === run.rules.length - 1
-          const isFlagged = isCausalRule && phase === 'difference'
-          return (
-            <article className={`rule ${isFlagged ? 'is-flagged' : ''}`} key={rule.id}>
-              <div className="rule-meta">
-                <span className="mono">{rule.id}</span>
-                <span>{Math.round(rule.confidence * 100)}% confidence</span>
-              </div>
+        <div className="rule-table">
+          <div className="rule-table-head">
+            <span>Rule</span><span>Observed behavior</span><span>Evidence</span>
+          </div>
+          {run.rules.slice(0, 4).map((rule, index) => (
+            <article className={index === run.rules.length - 1 && phase === 'difference' ? 'is-flagged' : ''} key={rule.id}>
+              <span>
+                <strong>{rule.id}</strong>
+                <small>{Math.round(rule.confidence * 100)}% confidence</small>
+              </span>
               <p>{rule.statement}</p>
-              <small>{rule.evidenceIds.join(' + ') || 'Evidence pending'}</small>
+              <code>{rule.evidenceIds.join(' + ') || 'Evidence pending'}</code>
             </article>
-          )
-        })}
+          ))}
+        </div>
       </div>
-    </aside>
-  )
-}
-
-function LegacyWindow({ phase }: { phase: RunPhase }) {
-  const active = phase !== 'ready'
-  return (
-    <article className="app-window legacy-window" aria-label="Original application playback">
-      <div className="window-bar">
-        <span className="window-index">A</span>
-        <span>ORIGINAL · WAREHOUSE CONSOLE 6.4</span>
-        <span className="window-state">{active ? 'PLAYING TRACE' : 'STANDBY'}</span>
-      </div>
-      <div className="legacy-app">
-        <div className="legacy-nav">RETURNS / DAMAGE REVIEW</div>
-        <div className="legacy-row legacy-head">
-          <span>CASE</span><span>CUSTOMER</span><span>VALUE</span>
-        </div>
-        <div className="legacy-row selected">
-          <span>RET-1001</span><span>STANDARD</span><span>$45.00</span>
-        </div>
-        <div className="legacy-form">
-          <label>
-            RESOLUTION
-            <span className="fake-select">REFUND ▾</span>
-          </label>
-          <label>
-            CONDITION
-            <span className="fake-select">DAMAGED ▾</span>
-          </label>
-        </div>
-        <div className="inventory-readout">
-          <span>SELLABLE <strong>10 → 10</strong></span>
-          <span>QUARANTINE <strong>0 → 1</strong></span>
-        </div>
-        <button className="legacy-action" tabIndex={-1}>PROCESS REFUND [F8]</button>
-      </div>
-    </article>
-  )
-}
-
-function CandidateWindow({ phase, run }: { phase: RunPhase; run: ProofRun }) {
-  const hasDifference =
-    ['difference', 'repairing'].includes(phase) || (phase === 'unresolved' && run.stats.differences > 0)
-  const isVerifying = phase === 'verifying'
-  const isProven = phase === 'proven'
-
-  return (
-    <article className="app-window candidate-window" aria-label="Replacement application playback">
-      <div className="window-bar">
-        <span className="window-index">B</span>
-        <span>REPLACEMENT · TRACEFORGE BUILD {run.patchId}</span>
-        <span className="window-state">
-          {hasDifference ? 'DIFF FOUND' : isProven ? 'CONFORMANT' : phase === 'unresolved' ? 'NOT SEALED' : isVerifying ? 'REPLAYING' : 'STANDBY'}
-        </span>
-      </div>
-      <div className="candidate-app">
-        <div className="candidate-title">
-          <span>Damaged return</span>
-          <span className="case-pill">RET-1001</span>
-        </div>
-        <div className="customer-strip">
-          <span className="avatar">ST</span>
-          <span><strong>Standard customer</strong><small>SKU-RED-01 · $45.00 return</small></span>
-        </div>
-        <div className="resolution-row">
-          <span>Resolution</span><strong>Refund to original payment</strong>
-        </div>
-        <div className={`state-change ${hasDifference ? 'has-difference' : ''} ${isProven ? 'is-proven' : ''}`}>
-          <span className="state-label">Inventory after refund</span>
-          <span>Sellable <strong>{hasDifference ? '10 → 11' : '10 → 10'}</strong></span>
-          <span>Quarantine <strong>{hasDifference ? '0 → 0' : '0 → 1'}</strong></span>
-          {hasDifference && <em>Unexpected side effect</em>}
-          {isProven && <em>Matches captured state</em>}
-        </div>
-        <button className="candidate-action" tabIndex={-1}>Complete refund</button>
-      </div>
-    </article>
-  )
-}
-
-function SyncTrack({ phase }: { phase: RunPhase }) {
-  const position = phase === 'proven' || phase === 'unresolved'
-    ? 100
-    : (phasePosition(phase) / (phases.length - 2)) * 100
-  const style = { '--progress': `${position}%` } as CSSProperties
-  return (
-    <div className="sync-track" style={style} aria-label={`Replay progress: ${Math.round(position)} percent`}>
-      <div className="track-line" />
-      <div className="playhead">
-        <span>SYNC</span>
-      </div>
-      {['00:00', '00:08', '00:14', '00:22'].map((time) => (
-        <span className="timecode" key={time}>{time}</span>
-      ))}
-    </div>
-  )
-}
-
-function DifferenceTray({ phase, run }: { phase: RunPhase; run: ProofRun }) {
-  const copy = getStatusCopy(run)[phase]
-  const showPatch =
-    ['repairing', 'verifying', 'proven'].includes(phase) ||
-    (phase === 'unresolved' &&
-      (run.candidateVersion === 'fixed' || run.codexExecuted || Boolean(run.codexThreadId)))
-  const preview = patchPreview(run)
-  const patchOrigin = run.patchId === 'CODEX-PENDING'
-    ? 'CODEX RUNNING'
-    : phase === 'unresolved' && (run.candidateVersion === 'generated' || Boolean(run.codexThreadId))
-      ? 'CODEX FAILED'
-    : run.codexExecuted
-      ? 'CODEX EXECUTED'
-      : run.source === 'live'
-        ? 'REFERENCE PATCH'
-        : 'FIXTURE PATCH'
-  const patchFile = run.codexChangedFiles?.[0] ??
-    (run.candidateVersion === 'fixed' ? 'reference candidate' : 'generated-repair.ts')
-  return (
-    <section className={`difference-tray phase-${phase}`} aria-live="polite">
-      <div className="difference-copy">
-        <span className="eyebrow">{copy.kicker}</span>
-        <h2>{copy.title}</h2>
-        <p>{copy.detail}</p>
-      </div>
-      {phase === 'difference' && (
-        <div className="delta-comparison">
-          <span><small>Original</small>sellable_delta = 0</span>
-          <span className="not-equal">≠</span>
-          <span><small>Candidate</small>sellable_delta = +1</span>
-        </div>
-      )}
-      {showPatch && (
-        <div className="patch-slip">
-          <span className="patch-file">
-            {run.patchId} · {patchFile} · {patchOrigin}
-            {run.codexThreadId ? ` · THREAD ${shortThread(run.codexThreadId)}` : ''}
-          </span>
-          {run.patchId === 'CODEX-PENDING' ? (
-            <>
-              <code>isolated worktree · one-file whitelist</code>
-              <code>waiting for fresh verification evidence</code>
-            </>
-          ) : (
-            <>
-              <code><del>{preview.removed}</del></code>
-              <code><ins>{preview.added}</ins></code>
-            </>
-          )}
-        </div>
-      )}
     </section>
-  )
-}
-
-function PlaybackPanel({ phase, run }: { phase: RunPhase; run: ProofRun }) {
-  return (
-    <main className="playback-panel">
-      <div className="panel-heading playback-heading">
-        <span>02 / Synchronized playback</span>
-        <span className={`sync-status ${phase === 'proven' ? 'is-proven' : ''}`}>
-          <i /> {phase === 'ready'
-            ? 'READY'
-            : phase === 'proven'
-              ? `${run.stats.scenariosPassed} / ${run.stats.scenariosTotal} MATCH`
-              : phase === 'unresolved'
-                ? 'NOT SEALED'
-                : 'CLOCKS LOCKED'}
-        </span>
-      </div>
-      <div className="paired-viewports">
-        <LegacyWindow phase={phase} />
-        <CandidateWindow phase={phase} run={run} />
-        <SyncTrack phase={phase} />
-      </div>
-      <DifferenceTray phase={phase} run={run} />
-    </main>
   )
 }
 
@@ -403,48 +544,73 @@ function EvidenceKind({ kind }: { kind: ProofRun['evidence'][number]['kind'] }) 
   return <span className={`kind kind-${kind}`}>{kind.toUpperCase()}</span>
 }
 
-function displayDigest(digest: string | undefined, source: ProofRun['source']): string {
+function displayDigest(digest: string | undefined, source: ProofRun['source'], compact = true): string {
   if (digest) {
     const clean = digest.startsWith('sha256:') ? digest.slice(7) : digest
-    return `sha256:${clean.slice(0, 10)}…`
+    return compact ? `sha256:${clean.slice(0, 10)}…` : `sha256:${clean}`
   }
   return source === 'live' ? 'DIGEST NOT PROVIDED' : 'FIXTURE HASH'
 }
 
 function ProofLedger({ run, phase }: { run: ProofRun; phase: RunPhase }) {
   const current = phasePosition(phase)
+  const copy = getStatusCopy(run)[phase]
+  const outcomeTitle = phase === 'proven'
+    ? 'Proof sealed'
+    : phase === 'unresolved'
+      ? copy.title
+      : 'Proof not sealed'
+
   return (
-    <aside className="side-panel ledger-panel" aria-label="Proof ledger">
-      <div className="panel-heading">
-        <span>03 / Proof ledger</span>
-        <span className="mono">SHA-256</span>
+    <aside className="panel proof-panel" aria-label="Proof ledger">
+      <header className="panel-title-row compact-title-row">
+        <div>
+          <h2>Proof register</h2>
+          <p>Host-verifiable evidence</p>
+        </div>
+        <span className="panel-count">SHA-256</span>
+      </header>
+
+      <div className={`proof-outcome ${phase === 'proven' ? 'is-proven' : phase === 'unresolved' ? 'is-failed' : ''}`} aria-live="polite">
+        <span className="proof-kicker">{copy.kicker}</span>
+        <h2>{outcomeTitle}</h2>
+        <p>{copy.detail}</p>
+        <div className="proof-numbers">
+          <span><strong>{run.stats.assertions}</strong><small>assertions</small></span>
+          <span><strong>{run.stats.scenariosTotal}</strong><small>scenario</small></span>
+          <span><strong>{run.stats.differences}</strong><small>differences</small></span>
+        </div>
       </div>
 
-      <div className="ledger-run">
-        <span>RUN ID</span>
-        <strong>{run.runId}</strong>
-        <small>{new Date(run.capturedAt).toLocaleTimeString([], { hour12: false })} UTC+8</small>
-      </div>
+      <dl className="run-metadata">
+        <div><dt>Run ID</dt><dd>{run.runId}</dd></div>
+        <div><dt>Proof ID</dt><dd>{run.proofId || 'not issued'}</dd></div>
+        <div><dt>Captured</dt><dd>{new Date(run.capturedAt).toLocaleTimeString([], { hour12: false })} UTC+8</dd></div>
+      </dl>
 
-      <div className="evidence-list">
+      <div className="evidence-register">
+        <div className="register-heading"><span>Evidence</span><span>Seal</span></div>
         {run.evidence.slice(0, 4).map((evidence, index) => {
           const sealed = current > index || phase === 'proven'
-          const looksLikeMismatch =
-            evidence.isMismatch === true || /mismatch|inventory|sellable|quarantine/i.test(`${evidence.label} ${evidence.detail}`)
+          const looksLikeMismatch = evidence.isMismatch === true
+            || /mismatch|inventory|sellable|quarantine/i.test(`${evidence.label} ${evidence.detail}`)
           const flagged = looksLikeMismatch && (phase === 'difference' || phase === 'unresolved')
+
           return (
-            <article className={`evidence-row ${sealed ? 'is-sealed' : ''} ${flagged ? 'is-flagged' : ''}`} key={evidence.id}>
-              <div className="evidence-head">
-                <span className="mono">{evidence.id}</span>
-                <EvidenceKind kind={evidence.kind} />
+            <details className={`evidence-row ${sealed ? 'is-sealed' : ''} ${flagged ? 'is-flagged' : ''}`} key={evidence.id}>
+              <summary>
+                <span className="evidence-symbol">{String(index + 1).padStart(2, '0')}</span>
+                <span className="evidence-copy">
+                  <span><strong>{evidence.label}</strong><EvidenceKind kind={evidence.kind} /></span>
+                  <small>{evidence.id}</small>
+                </span>
+                <em>{sealed ? 'SEALED' : 'PENDING'}</em>
+              </summary>
+              <div className="evidence-detail">
+                <p>{evidence.detail}</p>
+                <code>{displayDigest(evidence.digest, run.source, false)}</code>
               </div>
-              <strong>{evidence.label}</strong>
-              <p>{evidence.detail}</p>
-              <div className="hash-row">
-                <span>{displayDigest(evidence.digest, run.source)}</span>
-                <span>{sealed ? 'SEALED ✓' : 'PENDING'}</span>
-              </div>
-            </article>
+            </details>
           )
         })}
       </div>
@@ -454,28 +620,87 @@ function ProofLedger({ run, phase }: { run: ProofRun; phase: RunPhase }) {
           <span className="seal-mark"><CheckIcon /></span>
           <span>
             <strong>Covered behavior conforms</strong>
-            <small>{run.stats.scenariosPassed}/{run.stats.scenariosTotal} scenarios · {run.stats.assertions} assertions · {run.stats.differences} differences</small>
+            <small>{run.stats.scenariosPassed}/{run.stats.scenariosTotal} scenario · {run.stats.assertions} assertions · {run.stats.differences} differences</small>
           </span>
         </div>
       ) : (
-        <div className="proof-seal" aria-live="polite">
+        <div className="proof-seal">
           <span className="seal-mark">···</span>
-          <span><strong>Proof not sealed</strong><small>Awaiting a passing independent verification</small></span>
+          <span><strong>Awaiting independent verifier</strong><small>No passing proof has been promoted</small></span>
         </div>
       )}
     </aside>
   )
 }
 
+function ActivityPanel({ run, phase, failedRun }: { run: ProofRun; phase: RunPhase; failedRun: ProofRun | null }) {
+  const hasFailure = Boolean(failedRun) || ['difference', 'repairing', 'verifying', 'proven'].includes(phase)
+  const repairStarted = ['repairing', 'verifying', 'proven'].includes(phase)
+    || (phase === 'unresolved' && run.candidateVersion !== 'buggy')
+  const activities = [
+    {
+      icon: '01',
+      title: 'Legacy trace recorded',
+      detail: 'Decision, refund, and SQLite state captured',
+      state: phase === 'ready' ? 'waiting' : 'done',
+    },
+    {
+      icon: 'D1',
+      title: 'Behavioral difference retained',
+      detail: hasFailure ? `${failedRun?.stats.differences ?? run.stats.differences} state fields diverged` : 'Candidate comparison pending',
+      state: hasFailure ? 'danger' : 'waiting',
+    },
+    {
+      icon: 'CX',
+      title: run.codexExecuted ? 'Generated candidate returned' : 'Candidate repair boundary',
+      detail: run.codexThreadId ? `Thread ${shortThread(run.codexThreadId)} · one file changed` : 'One writer · one allowed file · retained worktree',
+      state: repairStarted ? (phase === 'unresolved' ? 'danger' : 'done') : 'waiting',
+    },
+    {
+      icon: '✓',
+      title: 'Host verifier decides',
+      detail: phase === 'proven' ? 'Fresh run and proof IDs · zero mismatches' : 'Writer cannot approve its own candidate',
+      state: phase === 'proven' ? 'done' : phase === 'unresolved' ? 'danger' : 'waiting',
+    },
+  ]
+
+  return (
+    <section className="panel activity-panel" aria-label="Verification activity">
+      <header className="panel-title-row compact-title-row">
+        <div>
+          <h2>Run activity</h2>
+          <p>Separation of powers</p>
+        </div>
+        <span className="panel-count">LIVE</span>
+      </header>
+      <div className="activity-list">
+        {activities.map((activity) => (
+          <article className={`activity-${activity.state}`} key={activity.icon}>
+            <span>{activity.icon}</span>
+            <div><strong>{activity.title}</strong><small>{activity.detail}</small></div>
+          </article>
+        ))}
+      </div>
+      <div className="trust-boundary">
+        <span>Writer</span><strong>Codex worktree</strong>
+        <i aria-hidden="true">≠</i>
+        <span>Verifier</span><strong>Host process</strong>
+      </div>
+    </section>
+  )
+}
+
 export default function App() {
   const [phase, setPhase] = useState<RunPhase>('ready')
   const [run, setRun] = useState<ProofRun>(sampleRun)
+  const [failedRun, setFailedRun] = useState<ProofRun | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [runCount, setRunCount] = useState(0)
 
   const runProof = async () => {
     if (isRunning) return
     setIsRunning(true)
+    setFailedRun(null)
     setPhase('capturing')
 
     const delay = import.meta.env.MODE === 'test' ? 0 : 720
@@ -491,6 +716,7 @@ export default function App() {
       return
     }
 
+    setFailedRun(buggyResult)
     setPhase('difference')
     await wait(delay + 180)
 
@@ -555,14 +781,14 @@ export default function App() {
     }
 
     if (repairResult.kind === 'failed') {
-      const failedRun = repairResult.run ?? {
+      const failedCandidate = repairResult.run ?? {
         ...buggyResult,
         candidateVersion: repairResult.codexExecuted || repairResult.threadId ? 'generated' as const : 'buggy' as const,
         codexExecuted: repairResult.codexExecuted,
         ...(repairResult.threadId ? { codexThreadId: repairResult.threadId } : {}),
         patchId: repairResult.threadId ? `CX-${shortThread(repairResult.threadId)}` : 'CODEX-FAILED',
       }
-      setRun({ ...failedRun, fallbackReason: repairResult.reason })
+      setRun({ ...failedCandidate, fallbackReason: repairResult.reason })
       if (repairResult.run) {
         setPhase('verifying')
         await wait(delay)
@@ -587,7 +813,6 @@ export default function App() {
 
     setRun(repairResult.run)
     setPhase('verifying')
-
     await wait(delay + 220)
     setPhase('proven')
     setRunCount((count) => count + 1)
@@ -596,15 +821,15 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <header className="masthead">
         <a className="brand" href="#main-workbench" aria-label="TraceForge workbench home">
-          <span className="brand-mark"><i />TF</span>
-          <span><strong>TRACEFORGE</strong><small>Migration proof recorder</small></span>
+          <span className="brand-mark">TF</span>
+          <span><strong>TRACEFORGE</strong><small>Behavioral migration proof</small></span>
         </a>
 
         <div className="project-identity">
-          <span className="mono">PROJECT / RET-OPS-17</span>
-          <strong>Damaged returns modernization</strong>
+          <span>PROJECT / RET-OPS-17</span>
+          <h1>Damaged returns modernization</h1>
         </div>
 
         <div className="header-actions">
@@ -616,16 +841,24 @@ export default function App() {
         </div>
       </header>
 
-      <div className="workbench" id="main-workbench">
-        <WorkflowPanel run={run} phase={phase} />
-        <PlaybackPanel phase={phase} run={run} />
-        <ProofLedger run={run} phase={phase} />
-      </div>
+      <main className="page" id="main-workbench">
+        <StoryStrip phase={phase} run={run} failedRun={failedRun} />
+        <div className="dashboard-grid">
+          <div className="primary-stack">
+            <PlaybackPanel phase={phase} run={run} failedRun={failedRun} />
+            <WorkflowPanel run={run} phase={phase} />
+          </div>
+          <div className="secondary-stack">
+            <ProofLedger run={run} phase={phase} />
+            <ActivityPanel run={run} phase={phase} failedRun={failedRun} />
+          </div>
+        </div>
+      </main>
 
       <footer className="statusbar">
-        <span><i className={`status-dot ${phase === 'proven' ? 'is-proven' : ''}`} /> {getStatusCopy(run)[phase].title}</span>
-        <span>Coverage boundary: Web UI · REST · entity state</span>
-        <span className="mono">TRACE {run.runId} / REV 07</span>
+        <span><i className={`status-dot ${phase === 'proven' ? 'is-proven' : ''}`} />{getStatusCopy(run)[phase].title}</span>
+        <span>Coverage: Web UI · REST · SQLite entity state</span>
+        <span>TRACE {run.runId}</span>
       </footer>
     </div>
   )

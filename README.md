@@ -21,7 +21,7 @@ pnpm install
 pnpm dev
 ```
 
-Open <http://localhost:5173>. The API runs on <http://localhost:8787>.
+Open <http://localhost:5174>. The API runs on <http://localhost:8787>.
 
 Run the current typecheck, unit/integration tests, and production builds:
 

@@ -35,3 +35,12 @@ This file records how Codex participated in the project and separates shipped be
 - Do not describe a local diff as a GitHub pull request.
 - Do not call covered-scenario conformance “full equivalence.”
 - Preserve failed verification as part of the proof story.
+
+## 2026-07-10 — proof dossier redesign
+
+- Replaced the miniature blue engineering console with a warm, paper-like migration dossier built around readable evidence rather than decorative chrome.
+- Added a four-stage summary for old-system capture, detected difference, repair writer, and independent proof.
+- Kept legacy behavior, the broken replacement, and the repaired candidate visible together so a green result never erases the red failure that motivated the change.
+- Promoted provenance, proof status, fresh IDs, assertions, and remaining differences to first-level visual information.
+- Turned evidence rows into keyboard-focusable expandable records and added a semantic progress bar, visible focus treatment, reduced-motion handling, and responsive layouts.
+- Verified the live `501` reference-fallback flow in the browser, checked the desktop proof-sealed state, and audited the 390-pixel layout for horizontal overflow and sub-10-pixel visible text.

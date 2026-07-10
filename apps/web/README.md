@@ -1,18 +1,18 @@
 # TraceForge web
 
-The TraceForge workbench presents one migration proof run as a forensic instrument panel: captured workflow and behavior rules on the left, synchronized original/replacement playback in the center, and an evidence ledger on the right.
+The TraceForge workbench presents one migration as a proof dossier: four story-stage cards establish the sequence, a permanent three-state comparison keeps the legacy behavior, broken candidate, and repaired candidate visible together, and the proof register shows which evidence the host verifier sealed.
 
 ## Run locally
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-Vite serves the interface at `http://localhost:5173`. Requests under `/api` proxy to `http://localhost:8787` by default. Override the target when needed:
+Vite serves the interface at `http://localhost:5174`. Requests under `/api` proxy to `http://localhost:8787` by default. Override the target when needed:
 
 ```bash
-VITE_API_TARGET=http://localhost:3000 npm run dev
+VITE_API_TARGET=http://localhost:3000 pnpm dev
 ```
 
 ## Demo contract
@@ -49,8 +49,8 @@ The interface credits Codex only when the repair endpoint returns the full integ
 ## Checks
 
 ```bash
-npm test
-npm run build
+pnpm test
+pnpm build
 ```
 
 The layout includes visible keyboard focus, semantic landmarks and live status text, responsive rearrangement, and reduced-motion behavior.
