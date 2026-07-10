@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceforge.dev/schemas/behavior-contract.json",
+  "title": "TraceForge behavior contract",
+  "type": "object",
+  "required": [
+    "contractId",
+    "sourceTraceId",
+    "scope",
+    "generation",
+    "preconditions",
+    "rules",
+    "invariants",
+    "expectedOutcome",
+    "unknowns",
+    "createdAt"
+  ],
+  "properties": {
+    "contractId": { "type": "string", "pattern": "^contract_" },
+    "sourceTraceId": { "type": "string", "pattern": "^trace_" },
+    "scope": { "type": "string", "minLength": 1 },
+    "generation": {
+      "type": "object",
+      "required": ["method", "openaiUsed"],
+      "properties": {
+        "method": { "const": "deterministic-demo-extractor" },
+        "openaiUsed": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "preconditions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" },
+      "minItems": 1
+    },
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/invariant" },
+      "minItems": 1
+    },
+    "expectedOutcome": { "$ref": "#/$defs/workflowResult" },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "evidenceId": {
+      "type": "string",
+      "pattern": "^ev_trace_"
+    },
+    "inventory": {
+      "type": "object",
+      "required": ["sku", "sellable", "quarantine"],
+      "properties": {
+        "sku": { "type": "string", "minLength": 1 },
+        "sellable": { "type": "integer", "minimum": 0 },
+        "quarantine": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "returnRecord": {
+      "type": "object",
+      "required": ["returnId", "status", "decision", "refundCents"],
+      "properties": {
+        "returnId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["REFUNDED", "REPLACEMENT_ISSUED", "PENDING_REVIEW"] },
+        "decision": { "enum": ["REFUND", "REPLACEMENT", "MANUAL_REVIEW"] },
+        "refundCents": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "sideEffect": {
+      "type": "object",
+      "required": ["type", "detail"],
+      "properties": {
+        "type": { "enum": ["REFUND_LEDGER", "INVENTORY_MOVE", "REVIEW_QUEUE", "SHIPMENT"] },
+        "detail": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "workflowResult": {
+      "type": "object",
+      "required": ["decision", "appliedRuleId", "returnRecord", "inventoryBefore", "inventoryAfter", "sideEffects"],
+      "properties": {
+        "decision": { "enum": ["REFUND", "REPLACEMENT", "MANUAL_REVIEW"] },
+        "appliedRuleId": { "type": "string", "minLength": 1 },
+        "returnRecord": { "$ref": "#/$defs/returnRecord" },
+        "inventoryBefore": { "$ref": "#/$defs/inventory" },
+        "inventoryAfter": { "$ref": "#/$defs/inventory" },
+        "sideEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sideEffect" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "rule": {
+      "type": "object",
+      "required": ["ruleId", "statement", "confidence", "evidenceIds"],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceId" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "invariant": {
+      "type": "object",
+      "required": ["invariantId", "statement", "evidenceIds"],
+      "properties": {
+        "invariantId": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceId" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

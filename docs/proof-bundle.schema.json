@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traceforge.dev/schemas/proof-bundle.json",
+  "title": "TraceForge proof bundle",
+  "type": "object",
+  "required": [
+    "proofId",
+    "runId",
+    "status",
+    "claim",
+    "candidateVersion",
+    "implementations",
+    "legacyTraceId",
+    "candidateTraceId",
+    "contractId",
+    "assertions",
+    "mismatches",
+    "mutationDetected",
+    "limitations",
+    "generatedAt",
+    "digest"
+  ],
+  "properties": {
+    "proofId": { "type": "string", "pattern": "^proof_" },
+    "runId": { "type": "string", "pattern": "^run_" },
+    "status": { "enum": ["PASSED", "FAILED"] },
+    "claim": { "type": "string", "minLength": 1 },
+    "scenarioId": { "type": "string", "minLength": 1 },
+    "candidateVersion": { "enum": ["buggy", "fixed"] },
+    "implementations": {
+      "type": "object",
+      "required": ["legacy", "candidate"],
+      "properties": {
+        "legacy": { "const": "legacy.return-workflow.v1" },
+        "candidate": {
+          "enum": [
+            "replacement.return-workflow.v0-mutated",
+            "replacement.return-workflow.v1-reference"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "legacyTraceId": { "type": "string", "pattern": "^trace_" },
+    "candidateTraceId": { "type": "string", "pattern": "^trace_" },
+    "contractId": { "type": "string", "pattern": "^contract_" },
+    "assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" },
+      "minItems": 1
+    },
+    "mismatches": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/mismatch" }
+    },
+    "mutationDetected": { "type": "boolean" },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  },
+  "$defs": {
+    "evidenceId": {
+      "type": "string",
+      "pattern": "^ev_trace_"
+    },
+    "assertion": {
+      "type": "object",
+      "required": ["assertionId", "label", "status", "expected", "actual", "legacyEvidenceId", "candidateEvidenceId"],
+      "properties": {
+        "assertionId": { "type": "string", "pattern": "^assert_" },
+        "label": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["PASSED", "FAILED"] },
+        "expected": true,
+        "actual": true,
+        "legacyEvidenceId": { "$ref": "#/$defs/evidenceId" },
+        "candidateEvidenceId": { "$ref": "#/$defs/evidenceId" }
+      },
+      "additionalProperties": false
+    },
+    "mismatch": {
+      "type": "object",
+      "required": ["path", "expected", "actual", "severity", "legacyEvidenceId", "candidateEvidenceId", "explanation"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "expected": true,
+        "actual": true,
+        "severity": { "enum": ["critical", "major"] },
+        "legacyEvidenceId": { "$ref": "#/$defs/evidenceId" },
+        "candidateEvidenceId": { "$ref": "#/$defs/evidenceId" },
+        "explanation": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
