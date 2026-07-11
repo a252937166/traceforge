@@ -262,10 +262,10 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
       error.dataset.visible = snapshot.errorCode ? "true" : "false";
       const failedCommand = snapshot.result && commandDiagnostics[snapshot.result.failedCommand];
       const commandDetail = failedCommand
-        ? "\nVerification command exited non-zero\n" + failedCommand.label + "\n" + failedCommand.command + "\nCommand output is not displayed; only its digests are included in the proof."
+        ? "\\nVerification command exited non-zero\\n" + failedCommand.label + "\\n" + failedCommand.command + "\\nCommand output is not displayed; only its digests are included in the proof."
         : "";
       const diagnosticDetail = snapshot.result && snapshot.result.failureCode
-        ? "\nDiagnostic code · " + snapshot.result.failureCode
+        ? "\\nDiagnostic code · " + snapshot.result.failureCode
         : "";
       error.textContent = snapshot.errorCode ? "Diagnostic code · " + snapshot.errorCode + commandDetail + diagnosticDetail : "";
       byId("login").hidden = snapshot.phase !== "needs-auth";

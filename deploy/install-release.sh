@@ -106,7 +106,7 @@ for attempt in $(seq 1 40); do
   fi
   sleep 0.25
 done
-curl -fsS http://127.0.0.1:4034/api/health >/dev/null
+curl -fsS http://127.0.0.1:4034/api/health >"${local_health}"
 systemctl reload nginx
 curl -fsS https://traceforge.axiqo.xyz/api/health >"${public_health}"
 EXPECTED_RELEASE_FILE="${api_current}/release.json" \

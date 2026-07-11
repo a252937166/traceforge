@@ -11,7 +11,7 @@ const { app, migrationStore } = createApp({
   codexAdapter: new CodexRepairAdapter({ env: {} }),
   release: {
     sha: "a".repeat(40),
-    version: "local-runner-v0.1.5",
+    version: "local-runner-v0.1.6",
     builtAt: "2026-07-11T14:30:00.000Z",
   },
   env: { TRACEFORGE_ENABLE_GPT56: "0", TRACEFORGE_ENABLE_CODEX: "0" },
@@ -41,7 +41,7 @@ test("health and scenarios are available", async () => {
   assert.equal(health.codexStatus.mode, "disabled");
   assert.deepEqual(health.release, {
     sha: "a".repeat(40),
-    version: "local-runner-v0.1.5",
+    version: "local-runner-v0.1.6",
     builtAt: "2026-07-11T14:30:00.000Z",
   });
   assert.equal(scenarioResponse.data.length, 5);

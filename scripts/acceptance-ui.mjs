@@ -55,7 +55,7 @@ async function buildAndReadStaticContract() {
     "Replay a verified run",
     "Host-only proof",
     "Build live with my Codex",
-    "local-runner-v0.1.5",
+    "local-runner-v0.1.6",
     "13 focused candidate tests + 6 differential scenarios",
     "42 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
@@ -177,7 +177,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     await runnerDialog.waitFor({ state: "visible" });
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.5/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.6/);
     assert.match(await runnerDialog.innerText(), /13 focused candidate tests \+ 6 differential scenarios/);
     assert.match(await runnerDialog.innerText(), /42 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
@@ -460,7 +460,7 @@ try {
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
   assert.match(health.body.release?.sha ?? "", /^[a-f0-9]{40}$/);
-  assert.equal(health.body.release?.version, "local-runner-v0.1.5");
+  assert.equal(health.body.release?.version, "local-runner-v0.1.6");
 
   const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
 

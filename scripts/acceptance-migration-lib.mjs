@@ -133,7 +133,7 @@ export async function acquireApi(extraEnv = {}) {
     TRACEFORGE_ENABLE_GPT56: "0",
     TRACEFORGE_ENABLE_CODEX: "0",
     TRACEFORGE_RELEASE_SHA: "0".repeat(40),
-    TRACEFORGE_RELEASE_VERSION: "local-runner-v0.1.5",
+    TRACEFORGE_RELEASE_VERSION: "local-runner-v0.1.6",
     TRACEFORGE_RELEASE_BUILT_AT: "2026-07-11T00:00:00.000Z",
     ...extraEnv,
   });

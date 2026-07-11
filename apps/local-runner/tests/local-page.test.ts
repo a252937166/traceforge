@@ -14,3 +14,10 @@ test("failed verification diagnostics use only fixed command labels and commands
   assert.match(page, /42 candidate-safe tests \+ 4 separate replay guards/);
   assert.match(page, /metric-tests/);
 });
+
+test("embedded browser script is syntactically executable", () => {
+  const page = renderLocalPage({ nonce: "test-nonce", csrfToken: "test-csrf" });
+  const script = page.match(/<script nonce="test-nonce">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, "expected the Local Runner inline script");
+  assert.doesNotThrow(() => new Function(script));
+});
