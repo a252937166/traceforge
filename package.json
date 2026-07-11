@@ -17,6 +17,7 @@
     "release:package": "node scripts/package-release.mjs",
     "capture:showcase": "node scripts/capture-showcase.mjs",
     "evidence:extract-invocations": "node scripts/extract-recorded-invocations.mjs",
+    "evidence:export-run": "node scripts/export-migration-run.mjs",
     "proof:verify": "pnpm --filter @traceforge/api proof:verify"
   },
   "devDependencies": {

@@ -76,6 +76,7 @@ test("host materializes an unpredictable covered-domain input only for final ver
   assert.equal(first.input.customerTier, "VIP");
   assert.equal(first.input.itemCondition, "DAMAGED");
   assert.ok(first.input.amountCents > 50_000);
+  assert.ok(first.input.amountCents <= 60_000);
   assert.equal(scenarios.some(({ id }) => id === first.id), false);
 });
 
