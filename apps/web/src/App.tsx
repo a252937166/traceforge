@@ -42,8 +42,8 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.6'
-const localRunnerCommit = '88fd9faa613f0b7280a584a79e209fae800272d9'
+const localRunnerTag = 'local-runner-v0.1.7'
+const localRunnerCommit = 'e2a7bafe88a4a486d650f33faa7fe9a13de45fb4'
 const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
 

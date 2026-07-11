@@ -55,8 +55,8 @@ async function buildAndReadStaticContract() {
     "Replay a verified run",
     "Host-only proof",
     "Build live with my Codex",
-    "local-runner-v0.1.6",
-    "88fd9faa613f0b7280a584a79e209fae800272d9",
+    "local-runner-v0.1.7",
+    "e2a7bafe88a4a486d650f33faa7fe9a13de45fb4",
     "15 focused candidate tests + 7 differential scenarios",
     "56 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
@@ -157,7 +157,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
     const releaseFooter = page.getByRole("contentinfo", { name: "Deployed release identity" });
     await releaseFooter.waitFor({ state: "visible" });
-    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.6/);
+    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.7/);
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
     assert.ok(
@@ -178,8 +178,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
     await runnerDialog.waitFor({ state: "visible" });
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.6/);
-    assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit 88fd9fa/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.7/);
+    assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit e2a7baf/);
     assert.match(await runnerDialog.innerText(), /15 focused candidate tests \+ 7 differential scenarios/);
     assert.match(await runnerDialog.innerText(), /56 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
@@ -462,7 +462,7 @@ try {
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
   assert.match(health.body.release?.sha ?? "", /^[a-f0-9]{40}$/);
-  assert.equal(health.body.release?.version, "local-runner-v0.1.6");
+  assert.equal(health.body.release?.version, "local-runner-v0.1.7");
 
   const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
 

@@ -77,7 +77,7 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
         gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
         release: {
           sha: 'de748868292639c57abea7b8d53e933987bea03e',
-          version: 'local-runner-v0.1.6',
+          version: 'local-runner-v0.1.7',
           builtAt: '2026-07-11T14:30:00.000Z',
         },
       })
@@ -113,7 +113,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.6',
+            version: 'local-runner-v0.1.7',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -234,7 +234,7 @@ describe('TraceForge Migration Loom', () => {
       'href',
       expect.stringContaining('/docs/evidence/live-champion-run'),
     )
-    expect(await screen.findByText('Release de74886 · Local Runner v0.1.6')).toBeInTheDocument()
+    expect(await screen.findByText('Release de74886 · Local Runner v0.1.7')).toBeInTheDocument()
     expect(screen.getByRole('contentinfo', { name: 'Deployed release identity' })).toHaveTextContent('Built')
   })
 
@@ -263,15 +263,15 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('Hosted demo release')
     expect(dialog).toHaveTextContent('de7488682926 · API + web')
     expect(dialog).toHaveTextContent('Local executable release')
-    expect(dialog).toHaveTextContent('88fd9faa613f · local-runner-v0.1.6')
+    expect(dialog).toHaveTextContent('e2a7bafe88a4 · local-runner-v0.1.7')
     expect(dialog).toHaveTextContent('15 focused candidate tests + 7 differential scenarios')
     expect(dialog).toHaveTextContent('56 candidate-safe tests + 4 separate replay guards')
-    expect(dialog).toHaveTextContent('Pinned tag + commit 88fd9fa')
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.6/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Pinned tag + commit e2a7baf')
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.7/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
+      'EXPECTED_SHA="e2a7bafe88a4a486d650f33faa7fe9a13de45fb4" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.7 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
