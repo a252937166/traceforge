@@ -538,7 +538,32 @@ export class MigrationRunner {
       },
     });
 
-    const challengeTraces = [...tracesAfterFirst, secondTrace, ...boundaryTraces];
+    const priorityScenario = scenarios.find(({ id }) => id === "counterexample-vip-damaged-50000");
+    if (!priorityScenario) throw new Error("PRIORITY_COUNTEREXAMPLE_MISSING");
+    const priorityTrace = this.service.capture(
+      "legacy",
+      priorityScenario.input,
+      "seeded",
+      priorityScenario.id,
+    );
+    this.emit(job, "challenge", "counterexample.updated", "passed", "Host priority counterexample executed", this.traceSummary(priorityTrace), {
+      counterexample: {
+        id: "LIVE-CX-PRIORITY",
+        title: priorityScenario.title,
+        rationale: priorityScenario.description,
+        status: "confirmed",
+        scenario: priorityTrace.input,
+        observedOutcome: {
+          decision: priorityTrace.result.decision,
+          inventoryBefore: priorityTrace.result.inventoryBefore,
+          inventoryAfter: priorityTrace.result.inventoryAfter,
+        },
+        evidenceIds: priorityTrace.evidence.map(({ evidenceId }) => evidenceId),
+        targetHypothesisIds: archaeologist.output.hypotheses.map(({ ruleId }) => ruleId),
+      },
+    });
+
+    const challengeTraces = [...tracesAfterFirst, secondTrace, ...boundaryTraces, priorityTrace];
     let critic = await this.archaeology.run<CriticOutput>({
       role: "contract-critic",
       prompt: this.criticPrompt(challengeTraces, archaeologist.output),

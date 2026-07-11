@@ -123,7 +123,7 @@ function passingSuite(repairInputDigest = `sha256:${"f".repeat(64)}`): Generated
   const ids = [
     "observed-standard-damaged-4500",
     "observed-vip-damaged-12000",
-    "counterexample-standard-damaged-100000",
+    "counterexample-vip-damaged-50000",
     "boundary-standard-damaged-49999",
     "boundary-standard-damaged-50000",
     "host-hidden-verifier-only",

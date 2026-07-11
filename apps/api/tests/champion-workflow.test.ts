@@ -39,11 +39,11 @@ test("writer-visible corpus exposes observations, counterexample, and exact boun
         customerTier: "VIP",
       },
       {
-        id: "counterexample-standard-damaged-100000",
+        id: "counterexample-vip-damaged-50000",
         stage: "counterexample",
         visibility: "visible",
-        amountCents: 100_000,
-        customerTier: "STANDARD",
+        amountCents: 50_000,
+        customerTier: "VIP",
       },
       {
         id: "boundary-standard-damaged-49999",
@@ -64,7 +64,7 @@ test("writer-visible corpus exposes observations, counterexample, and exact boun
   assert.equal(scenarios.some(({ stage, visibility }) => stage === "held-out" || visibility === "hidden"), false);
 });
 
-test("host materializes an unpredictable priority cross-product only for final verification", () => {
+test("host materializes an unpredictable covered-domain input only for final verification", () => {
   const first = createHostHiddenScenario("host-secret-a");
   const repeat = createHostHiddenScenario("host-secret-a");
   const second = createHostHiddenScenario("host-secret-b");
@@ -74,7 +74,7 @@ test("host materializes an unpredictable priority cross-product only for final v
   assert.equal(first.stage, "held-out");
   assert.equal(first.visibility, "hidden");
   assert.equal(first.input.customerTier, "VIP");
-  assert.equal(first.input.itemCondition, "SELLABLE");
+  assert.equal(first.input.itemCondition, "DAMAGED");
   assert.ok(first.input.amountCents > 50_000);
   assert.equal(scenarios.some(({ id }) => id === first.id), false);
 });
