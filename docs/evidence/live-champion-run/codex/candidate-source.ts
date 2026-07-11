@@ -104,11 +104,7 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
   let status: WorkflowResult["returnRecord"]["status"];
   let refundCents = 0;
 
-  const isObservedDomain =
-    input.itemCondition === "DAMAGED" &&
-    (input.customerTier === "STANDARD" || input.customerTier === "VIP");
-
-  if (isObservedDomain && input.amountCents >= 50_000) {
+  if (input.amountCents >= 50_000) {
     selected = {
       decision: "MANUAL_REVIEW",
       ruleId: "RULE-HIGH-VALUE-REVIEW",
@@ -119,7 +115,13 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       type: "REVIEW_QUEUE",
       detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
     });
-  } else if (input.itemCondition === "DAMAGED" && input.customerTier === "VIP") {
+  } else if (input.customerTier === "VIP") {
+    if (after.sellable < 1) {
+      throw Object.assign(
+        new Error("replacement cannot be issued without sellable stock"),
+        { code: "INSUFFICIENT_SELLABLE_STOCK" },
+      );
+    }
     selected = {
       decision: "REPLACEMENT",
       ruleId: "RULE-VIP-REPLACEMENT",
@@ -127,13 +129,13 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
     };
     status = "REPLACEMENT_ISSUED";
     after.sellable -= 1;
-    sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });
     after.quarantine += 1;
+    sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });
     sideEffects.push({
       type: "INVENTORY_MOVE",
       detail: { destination: "QUARANTINE", quantity: 1 },
     });
-  } else if (input.itemCondition === "DAMAGED" && input.customerTier === "STANDARD") {
+  } else {
     selected = {
       decision: "REFUND",
       ruleId: "RULE-STANDARD-REFUND",
@@ -151,8 +153,6 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       type: "INVENTORY_MOVE",
       detail: { destination: "QUARANTINE", quantity: 1 },
     });
-  } else {
-    throw new Error("return workflow input is outside the observed contract domain");
   }
 
   const result: WorkflowResult = {

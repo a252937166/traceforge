@@ -1,0 +1,6 @@
+{
+  "summary": "Repaired executeGeneratedReturnWorkflow with the contract-backed priority order and side effects, without changing executeSeededReturnWorkflow.",
+  "diagnosis": "High-value review now runs first; VIP damaged replacements decrement sellable and increment quarantine; STANDARD damaged refunds preserve sellable and increment quarantine. Inputs outside the observed contract domain are rejected.",
+  "changedFile": "apps/api/src/candidates/generated-return-workflow.ts",
+  "verificationIntent": "Confirmed with git diff --check and read-only diff/status that only the permitted file changed. Per constraints, no tests, builds, typechecks, or package-manager commands were run."
+}

@@ -31,7 +31,9 @@ This is a one-terminal-command launch, not a browser-to-Codex connection. There 
 
 ## Verified real run
 
-The complete `local-runner-v0.1.6` path has been executed from a fresh temporary checkout by clicking **Start local build** on the loopback page. The captured `gpt-5.6-sol` turn passed `13/13` focused tests, `6/6` differential scenarios, and `30/30` assertions with zero mismatches; UI-triggered deletion then removed the session, writer, verifier, worktree, and Codex lock. The sanitized [proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.6/README.md) are committed for review.
+The complete `local-runner-v0.1.6` path has been executed from a fresh temporary checkout by clicking **Start local build** on the loopback page. That historical run's captured `gpt-5.6-sol` turn passed `13/13` focused tests, `6/6` differential scenarios, and `30/30` assertions with zero mismatches; UI-triggered deletion then removed the session, writer, verifier, worktree, and Codex lock. The sanitized [proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.6/README.md) remain committed as historical evidence, not as a claim about the updated source profile.
+
+The planned v0.1.7 source profile binds recorded archaeology to live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, with `4` initial unknowns, `4` resolved unknowns, and `0` remaining. Its immutable repair input is `sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8`, based on source commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2`. The updated local gate is `15/15` focused tests plus six visible scenarios and one post-turn verification-only scenario (`7/7`, `35/35`, zero mismatches when passing). A new v0.1.7 real-run artifact must be captured before those planned-release facts are described as a tagged end-to-end run.
 
 ## First-run requirements
 
@@ -73,7 +75,7 @@ Set `TRACEFORGE_LOCAL_CODEX_HOME` only when a different dedicated directory is r
 | Component | May read | May write | Network | Git boundary |
 |---|---|---|---|---|
 | Public website | Public showcase data only | Nothing on the local machine | Public HTTPS only | None |
-| Runner host | Pinned manifest, contract, three failed proofs, six disclosed scenarios, fixture source, and verifier needed to prepare the run | Private session directories, the Runner-owned Codex config, the temporary verifier candidate, dependencies, and final in-memory artifacts | Clone/install, login, and Codex transport require outbound access | Creates a temporary writer repository and a detached verifier worktree, then removes the verifier worktree during cleanup |
+| Runner host | Pinned manifest, contract, four failed proofs, disclosed scenarios, fixture source, and verifier needed to prepare the run | Private session directories, the Runner-owned Codex config, the temporary verifier candidate, dependencies, and final in-memory artifacts | Clone/install, login, and Codex transport require outbound access | Creates a temporary writer repository and a detached verifier worktree, then removes the verifier worktree during cleanup |
 | Build Codex | A minimal writer fixture containing the contract, failed proofs, disclosed scenarios, and incomplete candidate; required runtime/tool roots | Repository write access to `apps/api/src/candidates/generated-return-workflow.ts` only, plus private session `HOME`/`TMPDIR` | Agent/tool command network is disabled; Codex App Server still needs its service transport | Cannot commit, push, merge, deploy, create/check out worktrees, or change the source checkout |
 | Verification App Server | A separate detached verifier checkout and required runtime/tool roots | Repository is read-only; only private session `HOME`/`TMPDIR` are writable to its commands | Disabled | Cannot mutate Git state |
 
@@ -86,14 +88,14 @@ corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champ
 corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts
 ```
 
-The first command is the socket-free candidate gate (`13/13` focused tests). The second emits the six-scenario suite, including one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
+The first command is the socket-free candidate gate (`15/15` focused tests in the planned v0.1.7 profile). The second emits the seven-scenario suite: six visible scenarios plus one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
 
 The localhost confirmation and result views show this comparison explicitly:
 
-- **Local gate:** `13` focused candidate tests plus six differential scenarios.
-- **Source champion gate:** `42` candidate-safe tests plus four separate replay-integrity guards.
+- **Local gate:** `15` focused candidate tests plus seven differential scenarios.
+- **Source champion gate:** `56` candidate-safe tests plus four separate replay-integrity guards.
 
-The local profile removes socket-requiring API harness checks so it can stay network-denied. It still executes the same six business scenarios and `30` deterministic field assertions used for the evidence-bounded conformance claim.
+The local profile removes socket-requiring API harness checks so it can stay network-denied. It still executes the same seven business scenarios and `35` deterministic assertions used for the evidence-bounded conformance claim. Six successful rows compare decision, return status, refund amount, sellable quantity, and quarantine quantity. The exhausted-stock row instead compares failure status, failure code plus message, no return record, unchanged inventory, and zero side effects.
 
 No generated code, diff, proof, token, or Codex history is uploaded to the public TraceForge site.
 
@@ -104,7 +106,7 @@ No generated code, diff, proof, token, or Codex history is uploaded to the publi
 3. If requested, complete the dedicated ChatGPT sign-in.
 4. Confirm that preflight reports Codex CLI `0.144.1`, `gpt-5.6-sol`, and **Ready**.
 5. Press **Start local build**.
-6. Watch the new Codex thread, candidate-policy check, post-turn input creation, candidate-safe tests, and six-scenario differential verification.
+6. Watch the new Codex thread, candidate-policy check, post-turn input creation, candidate-safe tests, and seven-scenario differential verification.
 7. On success, open **Open proof bundle** and **Inspect diff** before deleting the session.
 8. Press **Cancel and delete session**, or stop the terminal with `Ctrl-C`.
 
@@ -117,9 +119,9 @@ While the localhost session is active, the result page exposes:
 - `/api/proof?view=html` as a readable proof view, with `/api/proof?download=1` for `traceforge-local-proof.json`;
 - `/api/diff?view=html` as a readable diff view, with `/api/diff?download=1` for `traceforge-local-codex.diff`.
 
-The proof includes provenance, source-run ID, Runner tag and exact executable commit (`runner.releaseCommit`), permission profiles, Codex model/thread/turn and usage, input digests, candidate/source/diff digests, changed files, command exit codes and output digests, the generated verification nonce digest, test totals, the six-scenario suite, and explicit limitations.
+The proof includes provenance, source-run ID, Runner tag and exact executable commit (`runner.releaseCommit`), permission profiles, Codex model/thread/turn and usage, input digests, candidate/source/diff digests, changed files, command exit codes and output digests, the generated verification nonce digest, test totals, the seven-scenario suite, and explicit limitations. The Runner validates `runner.releaseCommit` against the actual checkout SHA before preparation; it is distinct from the hosted deployment SHA.
 
-Save either browser response before deleting the session if a durable copy is needed. The endpoints are local and become unavailable after deletion. SHA-256 makes the proof recomputable for integrity; it is not a digital signature, trusted timestamp, identity attestation, or proof of universal behavioral equivalence. The claim remains limited to the six executed scenarios and five asserted business fields per scenario.
+Save either browser response before deleting the session if a durable copy is needed. The endpoints are local and become unavailable after deletion. SHA-256 makes the proof recomputable for integrity; it is not a digital signature, trusted timestamp, identity attestation, or proof of universal behavioral equivalence. The claim remains limited to the seven executed scenarios and their five scenario-appropriate assertions.
 
 ## Cleanup
 

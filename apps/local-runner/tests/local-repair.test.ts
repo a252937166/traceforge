@@ -187,7 +187,7 @@ test("local repair turns recorded evidence into a fresh recomputable proof", asy
   assert.equal(result.proof.provenance.build, "live-local-codex");
   assert.equal(result.proof.provenance.verification, "live-local-host");
   assert.equal(result.proof.runner.releaseCommit, releaseCommit);
-  assert.equal(result.proof.verification.suite?.summary.passed, 6);
+  assert.equal(result.proof.verification.suite?.summary.passed, 7);
   assert.equal(result.proof.verification.tests?.candidateSafeTotal, 15);
   assert.equal(result.proof.verification.commands[0]?.executor, "trusted-host");
   assert.deepEqual(

@@ -1,0 +1,131 @@
+{
+  "role": "trace_archaeologist",
+  "hypotheses": [
+    {
+      "ruleId": "RULE-STANDARD-REFUND",
+      "statement": "For the observed input point—STANDARD tier, DAMAGED condition, and 4500 cents—the selected rule produces REFUND and adds one unit to quarantine; behavior outside this point is not established.",
+      "preconditions": [
+        {
+          "field": "amountCents",
+          "op": "eq",
+          "value": 4500
+        },
+        {
+          "field": "customerTier",
+          "op": "eq",
+          "value": "STANDARD"
+        },
+        {
+          "field": "itemCondition",
+          "op": "eq",
+          "value": "DAMAGED"
+        }
+      ],
+      "predicted": {
+        "decision": "REFUND",
+        "inventoryEffect": "QUARANTINE_PLUS_ONE"
+      },
+      "confidence": 1,
+      "evidenceIds": [
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006"
+      ],
+      "competingRuleIds": []
+    },
+    {
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "statement": "For the observed input point—VIP tier, DAMAGED condition, and 12000 cents—the selected rule produces REPLACEMENT and adds one unit to quarantine; the trace also shows sellable inventory decreasing by one, which the inventoryEffect vocabulary cannot represent simultaneously.",
+      "preconditions": [
+        {
+          "field": "amountCents",
+          "op": "eq",
+          "value": 12000
+        },
+        {
+          "field": "customerTier",
+          "op": "eq",
+          "value": "VIP"
+        },
+        {
+          "field": "itemCondition",
+          "op": "eq",
+          "value": "DAMAGED"
+        }
+      ],
+      "predicted": {
+        "decision": "REPLACEMENT",
+        "inventoryEffect": "QUARANTINE_PLUS_ONE"
+      },
+      "confidence": 1,
+      "evidenceIds": [
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_005",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006"
+      ],
+      "competingRuleIds": []
+    }
+  ],
+  "invariants": [
+    {
+      "invariantId": "INV-OBSERVED-DAMAGED-QUARANTINE",
+      "statement": "In both supplied observations, a DAMAGED return increases quarantine inventory by one; the traces do not establish this as universal for every damaged return.",
+      "evidenceIds": [
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_003",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006"
+      ]
+    }
+  ],
+  "unknowns": [
+    {
+      "unknownId": "UNK-DECISION-DRIVER",
+      "question": "Are the different decisions caused by customer tier, amount, their interaction, or another unobserved rule predicate?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-AMOUNT-BOUNDARIES",
+      "question": "Do amount thresholds exist, and if so, what are their boundary values and precedence relative to customer tier?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-CONDITION-GENERALITY",
+      "question": "Do these rules apply to item conditions other than DAMAGED?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-OVERLAP-PRECEDENCE",
+      "question": "Can both rules match one input, and what precedence resolves such an overlap?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-INVENTORY-COMPOSITE-EFFECT",
+      "question": "How should the VIP replacement's simultaneous sellable-minus-one and quarantine-plus-one mutation be represented when predicted.inventoryEffect permits only one effect?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-VIP-REPLACEMENT"
+      ]
+    }
+  ]
+}

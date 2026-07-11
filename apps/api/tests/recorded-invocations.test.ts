@@ -65,6 +65,6 @@ recordedReplayTest("recorded replay invocation metadata matches the redacted evi
   assert.deepEqual(recordedModelInvocations, manifest.invocations.map(asRuntimeEvidence));
   assert.equal(
     recordedModelInvocations.reduce((total, invocation) => total + (invocation.usage.totalTokens ?? 0), 0),
-    115_565,
+    121_673,
   );
 });

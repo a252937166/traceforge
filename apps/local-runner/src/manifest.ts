@@ -1,6 +1,6 @@
-export const LOCAL_RUNNER_VERSION = "0.1.6" as const;
-export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.6" as const;
-export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.4" as const;
+export const LOCAL_RUNNER_VERSION = "0.1.7" as const;
+export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.7" as const;
+export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.7" as const;
 
 export interface LocalRunnerManifest {
   version: "traceforge.local-demo.v1";
@@ -26,14 +26,14 @@ export const LOCAL_RUNNER_MANIFEST: LocalRunnerManifest = Object.freeze({
   releaseTag: LOCAL_RUNNER_RELEASE_TAG,
   fixtureTag: LOCAL_RUNNER_FIXTURE_TAG,
   demoId: "damaged-returns-v1",
-  sourceRunId: "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
-  baseCommit: "7c1dceeaee7f375beb8d2895fda502f2ad74e039",
+  sourceRunId: "migration_efaa0383-628a-4fba-94df-96bfe344bcbe",
+  baseCommit: "eb0e6169974b96bd3bff3b536b38ef5f665127c2",
   model: "gpt-5.6-sol",
-  repairInputDigest: "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
-  contractFileDigest: "sha256:65de86684c52ac71f329d73e1cb34ec87472dc90dcabb859064d90db6a72f592",
-  failedProofsFileDigest: "sha256:29ed01684dd9c9f1fc00790c240433ccd1499c886fafed3d593aa471e29d938d",
-  visibleScenariosFileDigest: "sha256:c71cc5dfb885d395ffe581139a8c944b728acde9533cc60f583baf3d5bd79b5e",
-  baseCandidateDigest: "sha256:200eb9a9aa0ec63f39908d63debb5e3ee59dbf4e03dc35488d770548c6a0a613",
+  repairInputDigest: "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+  contractFileDigest: "sha256:06d540c79f9527226ba3a4833d87828a9ebfec1598fcceeedbcef1cfaf2c824a",
+  failedProofsFileDigest: "sha256:7713ceb157151e8f8a32ed2365db2a827f94418b93853041958a85208c88292b",
+  visibleScenariosFileDigest: "sha256:32bb2700b2d4fa659a01059b9cb928bd889d25e33b5c7208af2eb8fe7c4aec97",
+  baseCandidateDigest: "sha256:05844477fc80904aebf51825c10f20611c8f6a1dc2af117079a17dc60bf2503f",
   allowedWrites: ["apps/api/src/candidates/generated-return-workflow.ts"] as const,
   agentCommandNetwork: false,
 });

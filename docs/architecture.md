@@ -6,7 +6,7 @@ TraceForge converts observed workflow traces into an evidence-bounded behavior c
 
 Its guarantee is intentionally narrow:
 
-> For the six scenarios listed in a proof bundle, the candidate matched the legacy decision, return status, refund amount, sellable quantity, and quarantine quantity observed by the host verifier.
+> For the seven scenarios listed in a proof bundle, the candidate matched the legacy behavior observed by the host verifier: five business-result fields on successful rows, and five failure-and-atomicity facts on the exhausted-stock row.
 
 TraceForge does not infer that unexecuted behavior, external services, or an arbitrary application are equivalent.
 
@@ -34,7 +34,7 @@ TraceForge does not infer that unexecuted behavior, external services, or an arb
                  │
                  ▼
   legacy oracle ───────────── Verify: host differential suite ───────── candidate
-                 │             6 scenarios × 5 assertions               │
+                 │             7 scenarios × 5 assertions               │
                  └────────────────────────┬───────────────────────────────┘
                                           ▼
                      proof + contract + evidence + diff + command log
@@ -55,13 +55,13 @@ The trace pack contains inputs, results, trace IDs, evidence IDs, and digests. T
 
 ### 2. Infer
 
-`BehaviorArchaeologyAdapter` starts a read-only `gpt-5.6-sol` Codex SDK thread with network and Web search disabled. The **Trace Archaeologist** returns schema-constrained hypotheses, invariants, and unknowns.
+`BehaviorArchaeologyAdapter` starts a read-only `gpt-5.6-sol` Codex SDK thread with network and Web search disabled. The **Trace Archaeologist** returns schema-constrained hypotheses, invariants, and unknowns. In the canonical run it identified four blocking unknowns.
 
 The host rejects output that cites an evidence ID outside the supplied trace pack. A plausible sentence without a valid evidence reference cannot enter the contract.
 
 ### 3. Challenge
 
-The **Counterexample Hunter** proposes one valid input at a time but cannot predict, fabricate, or execute its result. The host validates the input, runs it against the legacy oracle, and adds the fresh trace to the next model call.
+The **Counterexample Hunter** proposes one valid input at a time but cannot predict, fabricate, or execute its result. The host validates the input, runs it against the legacy oracle, and adds the fresh trace to the next model call. The host also turns the stock-sufficiency unknown into a visible zero-sellable counterexample; the legacy attempt fails before persistence, with no return record, inventory mutation, or emitted side effect.
 
 After a high-information example reveals manual-review behavior, the host performs deterministic adjacent probes to find the exact `49,999 / 50,000`-cent boundary. It also executes two visible priority checks before the writing turn: `VIP + DAMAGED + 50,000 cents` and `VIP + DAMAGED + 75,000 cents`. The first becomes the final suite's host-derived counterexample; the second bounds the disclosed high-value interval supplied to Codex. The **Contract Critic** then audits every rule and returns one of three dispositions:
 
@@ -69,7 +69,9 @@ After a high-information example reveals manual-review behavior, the host perfor
 - `READY_FOR_BUILD` — the evidence supports an ordered contract;
 - `STOP_UNSUPPORTED` — stop rather than guess.
 
-The implemented contract gives the high-value review boundary priority over customer-tier handling and leaves inventory and money untouched while review is pending.
+The critic must explicitly partition every initial unknown into `resolvedUnknowns` or `remainingUnknowns`, preserving each unknown's blocking metadata and citing evidence for every resolution. The host rejects an incomplete or contradictory partition and forbids `READY_FOR_BUILD` while any in-scope blocking unknown remains. The canonical run moved all `4` initial unknowns into `4` evidence-linked resolutions and left `0` remaining.
+
+The implemented contract gives the high-value review boundary priority over customer-tier handling, requires sellable stock before replacement, and leaves inventory and money untouched while review is pending or a replacement fails.
 
 ### 4. Build
 
@@ -79,7 +81,7 @@ The host first runs the seeded candidate and preserves **every** failed proof. `
 2. all failed candidate proofs;
 3. only scenarios already disclosed before the writing turn.
 
-For the champion run, those inputs were materialized as immutable `.traceforge/behavior-contract.json`, `.traceforge/failed-proofs.json`, and `.traceforge/visible-scenarios.json`. Their aggregate repair-input digest is `sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542`. The visible corpus contained the two observations, the `VIP + DAMAGED + 50,000` counterexample, the two exact STANDARD boundary cases, and the disclosed `VIP + DAMAGED + 75,000` trace. It did not contain the final verification-only scenario.
+For the champion run, those inputs were materialized as immutable `.traceforge/behavior-contract.json`, `.traceforge/failed-proofs.json`, and `.traceforge/visible-scenarios.json`. Their aggregate repair-input digest is `sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8`. The repair input included four failed proofs, including the atomic exhausted-stock failure, plus the disclosed corpus used to bound the repair. It did not contain the final verification-only scenario.
 
 The literal Codex prompt does not embed workflow thresholds, expected decisions, inventory answers, or a final-scenario name. It points to those three JSON artifacts and states the access constraints. The host hashes the inputs before the turn and re-reads and verifies them after the turn; mutation or an extra input file fails the repair.
 
@@ -95,15 +97,15 @@ Codex runs with:
 
 The writable unit is a complete replacement workflow module, not a configuration switch. The host collects tracked, staged, untracked, and relevant ignored-path changes before accepting the diff.
 
-The champion build used Codex thread `019f4fd8-5408-7752-b8fa-f8c6b08b33ef` from base commit `7c1dceeaee7f375beb8d2895fda502f2ad74e039` and changed only the allowed module. The host, not Codex, then performed the offline install and verification.
+The champion build used Codex thread `019f5244-7bef-71f2-8f25-8ed1446a539e` from base commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2` and changed only the allowed module. The host, not Codex, then performed the offline install and verification.
 
 ### 5. Verify
 
 Only after the Codex SDK turn has returned does the host create fresh entropy and materialize the concrete final verification input. The input never exists in the prompt, immutable artifacts, or worktree during the writing turn. Public surfaces call it **verification-only**; the proof schema retains the internal partition value `held-out` for compatibility.
 
-The host then performs an offline frozen install, runs `42/42` candidate-safe API tests, and executes the generated candidate suite. Four replay-only tests are deliberately skipped inside the candidate worktree: replay source-digest enforcement, replay pacing, recorded replay provenance, and invocation-manifest consistency. They are release guards for the repository runtime, not tests the candidate is allowed to inspect or satisfy during its writing turn.
+The host then performs an offline frozen install, runs `56/56` candidate-safe API tests, and executes the generated candidate suite. Four replay-only tests are deliberately skipped inside the candidate worktree: replay source-digest enforcement, replay pacing, recorded replay provenance, and invocation-manifest consistency. They are release guards for the repository runtime, not tests the candidate is allowed to inspect or satisfy during its writing turn.
 
-Each scenario resets the isolated `legacy` and `replacement` SQLite partitions and compares five fields:
+Each scenario resets the isolated `legacy` and `replacement` SQLite partitions. Successful rows compare five fields:
 
 1. decision;
 2. return status;
@@ -111,18 +113,21 @@ Each scenario resets the isolated `legacy` and `replacement` SQLite partitions a
 4. final sellable quantity;
 5. final quarantine quantity.
 
-The six-scenario suite contains:
+The exhausted-stock row has a different five-assertion contract: both executions must fail; code and message must match; no return record may exist; inventory must remain unchanged; and the workflow must emit zero side effects. It is not scored as a successful return with null result fields.
+
+The seven-scenario suite contains six visible rows plus one verification-only row:
 
 | Partition | Scenario |
 |---|---|
 | Observed | standard damaged return at 4,500 cents |
 | Observed | VIP damaged return at 12,000 cents |
 | Counterexample | VIP damaged return at 50,000 cents |
+| Counterexample | VIP damaged return at 12,000 cents with zero sellable stock; atomic failure required |
 | Boundary | standard damaged return at 49,999 cents |
 | Boundary | standard damaged return at 50,000 cents |
-| Verification-only | `host-hidden-831ee69e3cd9`, materialized after the Codex turn |
+| Verification-only | `host-hidden-252b1708e9e9`, materialized after the Codex turn |
 
-The last row names the concrete scenario from this run; it is not a claim that all future verification-only inputs have that identity or value. Every scenario must produce a fresh run ID, proof ID, trace pair, and proof digest. A failed proof remains inspectable, but the migration reaches `passed` only if all six runs pass with zero mismatches. The champion run produced `6/6` passing scenarios, `30/30` field assertions, and zero mismatches.
+The last row names the concrete scenario from this run; it is not a claim that all future verification-only inputs have that identity or value. Every scenario must produce a fresh run ID, proof ID, trace pair, and proof digest. A failed proof remains inspectable, but the migration reaches `passed` only if all seven runs pass with zero mismatches. The champion run produced `7/7` passing scenarios, `35/35` deterministic assertions, and zero mismatches.
 
 ## Three execution modes
 
@@ -134,7 +139,7 @@ Runs fresh GPT-5.6 archaeology, host-owned counterexamples, Codex repair, and ho
 
 ### `recorded-replay`
 
-Replays the captured inference and build events from a real model run, preserving original thread IDs, model ID, source run ID, timestamp, and a visible replay disclosure. No model call occurs during playback. Before emitting the replay, the host reads the candidate source format the current runtime will actually execute (`.ts` in source mode or built `.js` in distribution mode) and compares it with the corresponding recorded executable-source digest. A mismatch stops the job with `RECORDED_CANDIDATE_SOURCE_MISMATCH`; no stale replay or fallback proof is substituted. The current host then executes the six-scenario differential suite and issues fresh artifacts for the replay job.
+Replays the captured inference and build events from a real model run, preserving original thread IDs, model ID, source run ID, timestamp, and a visible replay disclosure. No model call occurs during playback. Before emitting the replay, the host reads the candidate source format the current runtime will actually execute (`.ts` in source mode or built `.js` in distribution mode) and compares it with the corresponding recorded executable-source digest. A mismatch stops the job with `RECORDED_CANDIDATE_SOURCE_MISMATCH`; no stale replay or fallback proof is substituted. The current host then executes the seven-scenario differential suite and issues fresh artifacts for the replay job.
 
 ### `deterministic-only`
 
@@ -156,7 +161,7 @@ POST /api/proofs/verify-digest
 
 `MigrationStore` uses SQLite WAL mode. Event rows are inserted with a `(migration_id, sequence)` primary key; migration artifact rows are inserted with unique IDs. A completed run exposes:
 
-- `contract.json` — ordered rules and explicit unknowns;
+- `contract.json` — ordered rules plus initial, resolved, and remaining unknowns;
 - `evidence.jsonl` — persisted migration events available when the artifact is issued;
 - `candidate.diff` — the accepted module diff, or an explicit no-model marker;
 - `commands.json` — host verification command summaries;
@@ -166,10 +171,10 @@ Downloads include an `X-Content-SHA256` header. The proof's internal digest can 
 
 ## Evidence and provenance
 
-The checked-in [champion evidence directory](evidence/live-champion-run/README.md) is the export of live migration `migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996`, backed by four real GPT-5.6 Sol archaeology threads and the real Codex build thread above. It includes the raw redacted model invocations, immutable Codex input artifacts, accepted source and diff, host command logs, and the proof bundle. Its proof reports `6/6` scenarios passed and digest:
+The checked-in [champion evidence directory](evidence/live-champion-run/README.md) is the export of live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, backed by four real GPT-5.6 Sol archaeology threads and the real Codex build thread above. It includes the raw redacted model invocations, immutable Codex input artifacts, accepted source and diff, host command logs, and the proof bundle. Its proof reports `7/7` scenarios, `35/35` assertions, zero mismatches, and digest:
 
 ```text
-sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241
+sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc
 ```
 
 The proof digest covers its canonical JSON body. Artifact metadata has a separate digest computed by the same canonical digest helper over the artifact body string; these values serve different purposes and are intentionally not conflated.
@@ -181,4 +186,4 @@ The proof digest covers its canonical JSON body. Artifact metadata has a separat
 - The supported state surface is REST plus SQLite; external payment settlement and carrier systems are not executed.
 - SHA-256 detects accidental or visible tampering when a trusted digest is available, but artifacts are not signed and a database administrator can rewrite local storage.
 - Migration jobs are not a multi-tenant production queue and have no rate-limiting or human approval workflow.
-- The six executed scenarios support only the bounded claim in the proof; they do not establish universal behavioral equivalence.
+- The seven executed scenarios support only the bounded claim in the proof; they do not establish universal behavioral equivalence.

@@ -1,0 +1,296 @@
+[
+  {
+    "proofId": "proof_b501bc6e-fb35-4986-96b4-50ad38bd3beb",
+    "runId": "run_07e76f13-7e0e-4e92-90e3-013441b179eb",
+    "status": "FAILED",
+    "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
+    "scenarioId": "observed-standard-damaged-4500",
+    "candidateVersion": "seeded",
+    "implementations": {
+      "legacy": "legacy.return-workflow.v1",
+      "candidate": "replacement.return-workflow.seeded-candidate"
+    },
+    "legacyTraceId": "trace_e75d1035-0eae-4b04-a496-fe9269d1e843",
+    "candidateTraceId": "trace_36ce9484-334a-4998-b1ea-9ee04f706ea4",
+    "contractId": "contract_3c3da53c-7805-4b4f-a9af-10cea478ee2c",
+    "assertions": [
+      {
+        "assertionId": "assert_001",
+        "label": "Decision is preserved",
+        "status": "PASSED",
+        "expected": "REFUND",
+        "actual": "REFUND",
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+      },
+      {
+        "assertionId": "assert_002",
+        "label": "Return status is preserved",
+        "status": "PASSED",
+        "expected": "REFUNDED",
+        "actual": "REFUNDED",
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+      },
+      {
+        "assertionId": "assert_003",
+        "label": "Refund amount is preserved",
+        "status": "PASSED",
+        "expected": 4500,
+        "actual": 4500,
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+      },
+      {
+        "assertionId": "assert_004",
+        "label": "Sellable inventory side effect matches",
+        "status": "FAILED",
+        "expected": 10,
+        "actual": 11,
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007"
+      },
+      {
+        "assertionId": "assert_005",
+        "label": "Quarantine inventory side effect matches",
+        "status": "FAILED",
+        "expected": 1,
+        "actual": 0,
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007"
+      }
+    ],
+    "mismatches": [
+      {
+        "path": "inventoryAfter.sellable",
+        "expected": 10,
+        "actual": 11,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007",
+        "explanation": "Sellable inventory side effect matches: legacy produced 10, candidate produced 11."
+      },
+      {
+        "path": "inventoryAfter.quarantine",
+        "expected": 1,
+        "actual": 0,
+        "severity": "major",
+        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
+        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007",
+        "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
+      }
+    ],
+    "mutationDetected": true,
+    "limitations": [
+      "The proof covers only this concrete input and the deterministic assertions listed here.",
+      "No OpenAI or Codex call is represented by this local run."
+    ],
+    "generatedAt": "2026-07-11T06:23:22.296Z",
+    "digest": "sha256:e2b7bef16aae08b7bf31aa3acb5fa078c15aa1dc75473e8019df1879bb9259e1"
+  },
+  {
+    "proofId": "proof_ff6333f8-d6df-4fa4-9868-b63edd8628a5",
+    "runId": "run_38ece380-b0d3-47d5-adf1-d6342004b836",
+    "status": "FAILED",
+    "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
+    "scenarioId": "observed-vip-damaged-12000",
+    "candidateVersion": "seeded",
+    "implementations": {
+      "legacy": "legacy.return-workflow.v1",
+      "candidate": "replacement.return-workflow.seeded-candidate"
+    },
+    "legacyTraceId": "trace_28711960-3b39-4947-b23f-9004b8056f59",
+    "candidateTraceId": "trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de",
+    "contractId": "contract_25c5bf8f-f3fd-4692-bea4-b43e3c967fe8",
+    "assertions": [
+      {
+        "assertionId": "assert_001",
+        "label": "Decision is preserved",
+        "status": "FAILED",
+        "expected": "REPLACEMENT",
+        "actual": "REFUND",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+      },
+      {
+        "assertionId": "assert_002",
+        "label": "Return status is preserved",
+        "status": "FAILED",
+        "expected": "REPLACEMENT_ISSUED",
+        "actual": "REFUNDED",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+      },
+      {
+        "assertionId": "assert_003",
+        "label": "Refund amount is preserved",
+        "status": "FAILED",
+        "expected": 0,
+        "actual": 12000,
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+      },
+      {
+        "assertionId": "assert_004",
+        "label": "Sellable inventory side effect matches",
+        "status": "FAILED",
+        "expected": 9,
+        "actual": 11,
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007"
+      },
+      {
+        "assertionId": "assert_005",
+        "label": "Quarantine inventory side effect matches",
+        "status": "FAILED",
+        "expected": 1,
+        "actual": 0,
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007"
+      }
+    ],
+    "mismatches": [
+      {
+        "path": "decision",
+        "expected": "REPLACEMENT",
+        "actual": "REFUND",
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "explanation": "Decision is preserved: legacy produced REPLACEMENT, candidate produced REFUND."
+      },
+      {
+        "path": "returnRecord.status",
+        "expected": "REPLACEMENT_ISSUED",
+        "actual": "REFUNDED",
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "explanation": "Return status is preserved: legacy produced REPLACEMENT_ISSUED, candidate produced REFUNDED."
+      },
+      {
+        "path": "returnRecord.refundCents",
+        "expected": 0,
+        "actual": 12000,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "explanation": "Refund amount is preserved: legacy produced 0, candidate produced 12000."
+      },
+      {
+        "path": "inventoryAfter.sellable",
+        "expected": 9,
+        "actual": 11,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007",
+        "explanation": "Sellable inventory side effect matches: legacy produced 9, candidate produced 11."
+      },
+      {
+        "path": "inventoryAfter.quarantine",
+        "expected": 1,
+        "actual": 0,
+        "severity": "major",
+        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
+        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007",
+        "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
+      }
+    ],
+    "mutationDetected": true,
+    "limitations": [
+      "The proof covers only this concrete input and the deterministic assertions listed here.",
+      "No OpenAI or Codex call is represented by this local run."
+    ],
+    "generatedAt": "2026-07-11T06:23:22.298Z",
+    "digest": "sha256:611a46c96e26ddd1d0d6692884dbffcfa697a2b4e2232d0e0d20903f809722c8"
+  },
+  {
+    "proofId": "proof_1b000c5f-70d2-4b03-bb07-658a4aa56e51",
+    "runId": "run_e02f2a9d-90f8-40a6-904e-781fe33a6241",
+    "status": "FAILED",
+    "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
+    "scenarioId": "boundary-standard-damaged-49999",
+    "candidateVersion": "seeded",
+    "implementations": {
+      "legacy": "legacy.return-workflow.v1",
+      "candidate": "replacement.return-workflow.seeded-candidate"
+    },
+    "legacyTraceId": "trace_c589e408-94f4-4065-ab62-5213074febc9",
+    "candidateTraceId": "trace_6c326bbe-4891-4e64-a73c-9ba641560293",
+    "contractId": "contract_6234b9b4-1db1-4150-a87d-4b721adfaa55",
+    "assertions": [
+      {
+        "assertionId": "assert_001",
+        "label": "Decision is preserved",
+        "status": "PASSED",
+        "expected": "REFUND",
+        "actual": "REFUND",
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+      },
+      {
+        "assertionId": "assert_002",
+        "label": "Return status is preserved",
+        "status": "PASSED",
+        "expected": "REFUNDED",
+        "actual": "REFUNDED",
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+      },
+      {
+        "assertionId": "assert_003",
+        "label": "Refund amount is preserved",
+        "status": "PASSED",
+        "expected": 49999,
+        "actual": 49999,
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+      },
+      {
+        "assertionId": "assert_004",
+        "label": "Sellable inventory side effect matches",
+        "status": "FAILED",
+        "expected": 10,
+        "actual": 11,
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007"
+      },
+      {
+        "assertionId": "assert_005",
+        "label": "Quarantine inventory side effect matches",
+        "status": "FAILED",
+        "expected": 1,
+        "actual": 0,
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007"
+      }
+    ],
+    "mismatches": [
+      {
+        "path": "inventoryAfter.sellable",
+        "expected": 10,
+        "actual": 11,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007",
+        "explanation": "Sellable inventory side effect matches: legacy produced 10, candidate produced 11."
+      },
+      {
+        "path": "inventoryAfter.quarantine",
+        "expected": 1,
+        "actual": 0,
+        "severity": "major",
+        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
+        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007",
+        "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
+      }
+    ],
+    "mutationDetected": true,
+    "limitations": [
+      "The proof covers only this concrete input and the deterministic assertions listed here.",
+      "No OpenAI or Codex call is represented by this local run."
+    ],
+    "generatedAt": "2026-07-11T06:23:22.300Z",
+    "digest": "sha256:e1626385e599c2f5f747933d1a7d11b48c8bf4e895660095e5ab3b3b537519ce"
+  }
+]

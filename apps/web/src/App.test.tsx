@@ -151,8 +151,8 @@ describe('TraceForge Migration Loom', () => {
       updatedAt: '2026-07-11T01:01:00.000Z',
       modelId: 'gpt-5.6-sol',
       replay: {
-        recordedAt: '2026-07-11T06:25:27.754Z',
-        sourceRunId: 'migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996',
+        recordedAt: '2026-07-11T17:42:15.612Z',
+        sourceRunId: 'migration_efaa0383-628a-4fba-94df-96bfe344bcbe',
         modelId: 'gpt-5.6-sol',
         disclosure: 'Recorded execution.',
       },
@@ -165,22 +165,22 @@ describe('TraceForge Migration Loom', () => {
         status: 'accepted',
         summary: 'Counterexample-aware replacement workflow',
         modelId: 'gpt-5.6-sol',
-        codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
+        codexThreadId: '019f5244-7bef-71f2-8f25-8ed1446a539e',
         changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
       }],
       proof: {
         id: 'proof-01',
         migrationId: replayJob.id,
         status: 'PASSED',
-        digest: `sha256:${'4ff6eba'.padEnd(64, '0')}`,
+        digest: `sha256:${'4be44d4'.padEnd(64, '0')}`,
         generatedAt: '2026-07-11T01:01:00.000Z',
-        scenariosPassed: 6,
-        scenariosTotal: 6,
-        assertionsPassed: 30,
-        assertionsTotal: 30,
+        scenariosPassed: 7,
+        scenariosTotal: 7,
+        assertionsPassed: 35,
+        assertionsTotal: 35,
         mismatchCount: 0,
-        modelInvocations: [22_936, 22_483, 24_193, 45_953].map((totalTokens, index) => ({
-          role: index === 0 ? 'trace-archaeologist' : 'counterexample-hunter',
+        modelInvocations: [23_811, 23_723, 24_267, 49_872].map((totalTokens, index) => ({
+          role: index === 0 ? 'trace-archaeologist' : index === 3 ? 'contract-critic' : 'counterexample-hunter',
           model: 'gpt-5.6-sol',
           threadId: `thread-${index + 1}`,
           status: 'succeeded',
@@ -188,13 +188,13 @@ describe('TraceForge Migration Loom', () => {
         })),
         candidate: {
           implementationId: 'replacement.return-workflow.generated-candidate',
-          codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
-          baseCommit: '7c1dceeaee7f375beb8d2895fda502f2ad74e039',
+          codexThreadId: '019f5244-7bef-71f2-8f25-8ed1446a539e',
+          baseCommit: 'eb0e6169974b96bd3bff3b536b38ef5f665127c2',
           changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
-          sourceDigest: `sha256:${'b890c0d'.padEnd(64, '0')}`,
-          diffDigest: `sha256:${'99d556c'.padEnd(64, '0')}`,
+          sourceDigest: `sha256:${'fdf9a85'.padEnd(64, '0')}`,
+          diffDigest: `sha256:${'4e28410'.padEnd(64, '0')}`,
         },
-        hostVerification: { testsPassed: 42, testsTotal: 42, testsSkipped: 4, scope: 'candidate-safe' },
+        hostVerification: { testsPassed: 56, testsTotal: 56, testsSkipped: 4, scope: 'candidate-safe' },
       },
     }
 
@@ -202,15 +202,15 @@ describe('TraceForge Migration Loom', () => {
     const strip = screen.getByRole('region', { name: 'Server-reported provenance' })
 
     expect(within(strip).getByText('4 verified')).toBeInTheDocument()
-    expect(within(strip).getByText('115,565 recorded')).toBeInTheDocument()
+    expect(within(strip).getByText('121,673 recorded')).toBeInTheDocument()
     expect(within(strip).getByText('4 reported')).toBeInTheDocument()
-    expect(within(strip).getByText('42/42 · 4 replay-only')).toBeInTheDocument()
-    expect(within(strip).getByText('6/6')).toBeInTheDocument()
-    expect(within(strip).getByText('30/30')).toBeInTheDocument()
-    expect(within(strip).getByText('sha256:b890c0d…')).toHaveAttribute('title', expect.stringMatching(/^sha256:b890c0d/))
-    expect(within(strip).getByText('sha256:99d556c…')).toHaveAttribute('title', expect.stringMatching(/^sha256:99d556c/))
-    expect(within(strip).getByText('sha256:4ff6eba…')).toHaveAttribute('title', expect.stringMatching(/^sha256:4ff6eba/))
-    expect(within(strip).getByTitle(replayJob.replay!.sourceRunId)).toHaveTextContent('migration_77f7a45d-a07f')
+    expect(within(strip).getByText('56/56 · 4 replay-only')).toBeInTheDocument()
+    expect(within(strip).getByText('7/7')).toBeInTheDocument()
+    expect(within(strip).getByText('35/35')).toBeInTheDocument()
+    expect(within(strip).getByText('sha256:fdf9a85…')).toHaveAttribute('title', expect.stringMatching(/^sha256:fdf9a85/))
+    expect(within(strip).getByText('sha256:4e28410…')).toHaveAttribute('title', expect.stringMatching(/^sha256:4e28410/))
+    expect(within(strip).getByText('sha256:4be44d4…')).toHaveAttribute('title', expect.stringMatching(/^sha256:4be44d4/))
+    expect(within(strip).getByTitle(replayJob.replay!.sourceRunId)).toHaveTextContent('migration_efaa0383-628a')
     expect(within(strip).getByTitle(replayJob.id)).toHaveTextContent('migration_replay_fresh_')
     expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })
@@ -265,7 +265,7 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('Local executable release')
     expect(dialog).toHaveTextContent('88fd9faa613f · local-runner-v0.1.6')
     expect(dialog).toHaveTextContent('15 focused candidate tests + 7 differential scenarios')
-    expect(dialog).toHaveTextContent('55 candidate-safe tests + 4 separate replay guards')
+    expect(dialog).toHaveTextContent('56 candidate-safe tests + 4 separate replay guards')
     expect(dialog).toHaveTextContent('Pinned tag + commit 88fd9fa')
     expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.6/)).toBeInTheDocument()
 

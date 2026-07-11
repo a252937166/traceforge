@@ -1,6 +1,6 @@
 # 100-second demo script
 
-Use **Replay a verified run** for the judged video so the complete experiment fits in 100 seconds. Keep the disclosure visible: the archaeology and build events come from a successful real run completed on 2026-07-11, while the host verifier executes the six-scenario suite again and issues a fresh proof. Never describe replayed events as live calls.
+Use **Replay a verified run** for the judged video so the complete experiment fits in 100 seconds. Keep the disclosure visible: the archaeology and build events come from successful live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, while the host verifier executes the seven-scenario suite again and issues a fresh proof. Never describe replayed events as live calls.
 
 ## 0–9 seconds — the migration risk
 
@@ -33,19 +33,19 @@ Open one evidence event to show its actor, digest, and evidence IDs.
 
 ## 30–45 seconds — Infer
 
-**Screen:** The Evidence Loom shows two bounded hypotheses and their cited evidence IDs.
+**Screen:** The Evidence Loom shows bounded hypotheses, their cited evidence IDs, and the lifecycle from `4 initial` unknowns to `4 resolved · 0 remaining`.
 
 **Narration:**
 
-> GPT-5.6 Sol preserves that uncertainty. It states only what each observed point supports, cites supplied evidence IDs, and records the unanswered questions instead of inventing a complete policy.
+> GPT-5.6 Sol preserves uncertainty instead of hiding it. Four blocking questions enter the archaeology loop; the host will not permit Build until evidence resolves all four or marks unsupported scope explicitly.
 
 ## 45–61 seconds — Challenge
 
-**Screen:** Show the crossed VIP-at-$45 counterexample, then the $500 high-value counterexample and exact boundary evidence. Show the three accepted, priority-ordered rules.
+**Screen:** Show the crossed VIP-at-$45 counterexample, the $500 high-value counterexample and exact boundary evidence, then the zero-sellable-stock failure row. Show `4 resolved · 0 remaining` before the accepted contract.
 
 **Narration:**
 
-> A Counterexample Hunter chooses high-information inputs, but only the host executes them. The crossed input separates tier from amount. The high-value trace and deterministic boundary probes establish that manual review begins at exactly $500 and outranks tier-specific processing.
+> A Counterexample Hunter chooses high-information inputs, but only the host executes them. The crossed input separates tier from amount; boundary probes find the exact $500 review rule. A stockout probe establishes that replacement must fail atomically: no return record, no inventory change, and no side effect. Only then does the host open Build.
 
 ## 61–76 seconds — Build
 
@@ -53,15 +53,15 @@ Open one evidence event to show its actor, digest, and evidence IDs.
 
 **Narration:**
 
-> Codex receives the evidence-bounded contract, all three failed proofs, and only the disclosed scenarios. Thread `019f4fd8…33ef` repairs one allowed workflow file from base `7c1dce…e039`. It cannot edit the verifier, commit, push, or deploy.
+> Codex receives the evidence-bounded contract, all four failed proofs, and only disclosed scenarios. Thread `019f5244…539e` repairs one allowed workflow file from base `eb0e616…27c2`. It cannot edit the verifier, commit, push, or deploy.
 
 ## 76–93 seconds — Verify
 
-**Screen:** The six-row matrix fills from server events. Keep the last row's public label **verification-only** visible. Land on `6/6 PASSED`, `30/30` assertions, zero mismatches, and the host-gate split.
+**Screen:** The seven-row matrix fills from server events. Keep the stockout row and the last row's public label **verification-only** visible. Land on `7/7 PASSED`, `35/35` assertions, zero mismatches, and the host-gate split.
 
 **Narration:**
 
-> After the writing turn ends, the host generates a concrete verification-only input, resets both SQLite partitions, and runs five deterministic assertions per scenario. The candidate passes 42 of 42 candidate-safe tests and all six scenarios; four replay-only guards remain separate from the candidate worktree gate.
+> After the writing turn ends, the host generates a concrete verification-only input and resets both SQLite partitions. Successful rows compare five business results; the stockout row compares five failure and atomicity facts. The candidate passes 56 of 56 candidate-safe tests and all seven scenarios; four replay-only guards remain separate.
 
 ## 93–100 seconds — handoff, not a promise
 
@@ -75,14 +75,16 @@ Open one evidence event to show its actor, digest, and evidence IDs.
 
 - System: `evidence-bounded behavior migration system`.
 - Mode: `recorded-replay` and “not live” disclosure.
-- Source live run: `migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996`.
-- GPT-5.6 Sol: `4 turns · 115,565 tokens`.
-- Codex thread: `019f4fd8-5408-7752-b8fa-f8c6b08b33ef`.
-- Candidate base: `7c1dceeaee7f375beb8d2895fda502f2ad74e039`.
-- Host gate: `42/42 candidate-safe · 4 replay-only`.
-- Coverage: `2 observed · 1 counterexample · 2 boundary · 1 verification-only`.
-- Verdict: `6/6 PASSED · 30/30 assertions · 0 mismatches`.
-- Source proof digest: `sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241`.
+- Source live run: `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`.
+- GPT-5.6 Sol: `4 real turns · 121,673 tokens`.
+- Unknown lifecycle: `4 initial · 4 resolved · 0 remaining`.
+- Codex thread: `019f5244-7bef-71f2-8f25-8ed1446a539e`.
+- Candidate base: `eb0e6169974b96bd3bff3b536b38ef5f665127c2`.
+- Repair input: `sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8`.
+- Host gate: `56/56 candidate-safe · 4 replay-only`.
+- Coverage: `2 observed · 2 counterexample · 2 boundary · 1 verification-only`.
+- Verdict: `7/7 PASSED · 35/35 assertions · 0 mismatches`.
+- Source proof digest: `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc`.
 
 ## Capture notes
 

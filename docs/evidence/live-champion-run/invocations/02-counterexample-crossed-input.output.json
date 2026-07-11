@@ -1,7 +1,7 @@
 {
   "role": "counterexample_hunter",
   "scenario": {
-    "scenarioId": "crossed-vip-damaged-4500",
+    "scenarioId": "counterexample-vip-damaged-4500",
     "input": {
       "returnId": "RET-CE-001",
       "sku": "SKU-COPPER-01",
@@ -16,18 +16,16 @@
   },
   "distinguishes": [
     {
-      "ruleId": "RULE-VIP-REPLACEMENT",
-      "fromRuleId": "RULE-STANDARD-REFUND",
-      "reason": "This crosses the observed VIP tier with the observed 4500-cent amount while holding DAMAGED condition, SKU, and inventory constant. A tier-driven explanation and an amount-driven explanation therefore imply different rule selection, without introducing an unobserved amount value."
+      "ruleId": "H-TIER-VIP-DAMAGED",
+      "fromRuleId": "H-AMOUNT-BELOW-12000-DAMAGED",
+      "reason": "This crossed input combines VIP tier with the previously observed below-12000 amount, so the tier-driven and amount-driven hypotheses imply different decisions."
     }
   ],
-  "expectedInformationGain": "Maximum among single crossed inputs: it directly separates tier-driven from amount-driven explanations by combining VIP with the exact amount previously observed only for STANDARD. It also minimizes redundancy and avoids confounding from condition or inventory changes.",
+  "expectedInformationGain": "High: it changes only customerTier relative to the observed 4500-cent case and only amountCents relative to the observed VIP case, directly separating tier-driven from amount-driven explanations with minimal redundancy.",
   "basedOnEvidenceIds": [
-    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
-    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
-    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_005"
+    "ev_trace_04595d1b-5123-44e1-a638-61930da53919_002",
+    "ev_trace_04595d1b-5123-44e1-a638-61930da53919_005",
+    "ev_trace_c960c88d-ca7d-44d0-9473-c1ba79684724_002",
+    "ev_trace_c960c88d-ca7d-44d0-9473-c1ba79684724_005"
   ]
 }

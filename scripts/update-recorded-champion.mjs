@@ -169,7 +169,9 @@ const codexBuild = {
     typescript: proof.candidate.sourceDigest,
     javascript: digest(javascriptSource),
   },
-  hostVerification: proof.hostVerification,
+  hostVerification: proof.hostVerification
+    ? { ...proof.hostVerification, source: "recorded-command-log" }
+    : undefined,
   freshProofIds: generatedSuite.runs.map(({ proofId }) => proofId),
   diff,
   commands,

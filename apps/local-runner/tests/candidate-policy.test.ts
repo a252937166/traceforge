@@ -9,6 +9,7 @@ import { LOCAL_RUNNER_MANIFEST } from "../src/manifest.js";
 
 const execFileAsync = promisify(execFile);
 const candidatePath = "apps/api/src/candidates/generated-return-workflow.ts";
+const generatedFunctionStart = "export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecution {\n";
 
 async function sources(): Promise<{ base: string; candidate: string }> {
   const repo = await findRepoRoot();
@@ -41,8 +42,8 @@ test("candidate policy rejects edits outside the generated function", async () =
 test("candidate policy rejects process access and dynamic imports inside the repair", async () => {
   const { base, candidate } = await sources();
   const processCandidate = candidate.replace(
-    "  const isObservedDomain =",
-    "  process.cwd();\n  const isObservedDomain =",
+    generatedFunctionStart,
+    `${generatedFunctionStart}  process.cwd();\n`,
   );
   assert.throws(
     () => validateCandidateSource(processCandidate, base),
@@ -50,8 +51,8 @@ test("candidate policy rejects process access and dynamic imports inside the rep
   );
 
   const importCandidate = candidate.replace(
-    "  const isObservedDomain =",
-    '  void import("node:fs");\n  const isObservedDomain =',
+    generatedFunctionStart,
+    `${generatedFunctionStart}  void import("node:fs");\n`,
   );
   assert.throws(
     () => validateCandidateSource(importCandidate, base),
@@ -62,8 +63,8 @@ test("candidate policy rejects process access and dynamic imports inside the rep
 test("candidate policy rejects constructor and builtin-module escape chains", async () => {
   const { base, candidate } = await sources();
   const constructorEscape = candidate.replace(
-    "  const isObservedDomain =",
-    '  (() => {}).constructor("return process")();\n  const isObservedDomain =',
+    generatedFunctionStart,
+    `${generatedFunctionStart}  (() => {}).constructor("return process")();\n`,
   );
   assert.throws(
     () => validateCandidateSource(constructorEscape, base),
@@ -71,8 +72,8 @@ test("candidate policy rejects constructor and builtin-module escape chains", as
   );
 
   const builtinEscape = candidate.replace(
-    "  const isObservedDomain =",
-    '  process.getBuiltinModule("node:fs").readFileSync("tests/workflow.test.ts");\n  const isObservedDomain =',
+    generatedFunctionStart,
+    `${generatedFunctionStart}  process.getBuiltinModule("node:fs").readFileSync("tests/workflow.test.ts");\n`,
   );
   assert.throws(
     () => validateCandidateSource(builtinEscape, base),
@@ -80,11 +81,20 @@ test("candidate policy rejects constructor and builtin-module escape chains", as
   );
 
   const aliasEscape = candidate.replace(
-    "  const isObservedDomain =",
-    '  const hidden = sideEffects["constructor"];\n  const isObservedDomain =',
+    generatedFunctionStart,
+    `${generatedFunctionStart}  const hidden = sideEffects["constructor"];\n`,
   );
   assert.throws(
     () => validateCandidateSource(aliasEscape, base),
     /LOCAL_CANDIDATE_COMPUTED_ACCESS_BLOCKED/,
+  );
+
+  const broadAssign = candidate.replace(
+    '{ code: "INSUFFICIENT_SELLABLE_STOCK" },',
+    '{ code: "DIFFERENT", extra: process.env },',
+  );
+  assert.throws(
+    () => validateCandidateSource(broadAssign, base),
+    /LOCAL_CANDIDATE_CALL_BLOCKED/,
   );
 });

@@ -231,8 +231,8 @@ recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex e
     const body = await created.json();
     const job = await terminalJob(baseUrl, body.data.id);
     assert.equal(job.status, "passed");
-    assert.equal(job.recordedAt, "2026-07-11T06:25:27.754Z");
-    assert.equal(job.sourceRunId, "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996");
+    assert.equal(job.recordedAt, "2026-07-11T17:42:15.612Z");
+    assert.equal(job.sourceRunId, "migration_efaa0383-628a-4fba-94df-96bfe344bcbe");
     assert.equal(job.modelId, "gpt-5.6-sol");
 
     const proofResponse = await fetch(`${baseUrl}/api/migrations/${job.id}/proof`);
@@ -240,11 +240,11 @@ recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex e
     const proof = (await proofResponse.json()).data;
     assert.equal(proof.status, "PASSED");
     assert.equal(proof.modelInvocations.length, 4);
-    assert.equal(proof.candidate.codexThreadId, "019f4fd8-5408-7752-b8fa-f8c6b08b33ef");
-    assert.equal(proof.candidate.baseCommit, "7c1dceeaee7f375beb8d2895fda502f2ad74e039");
+    assert.equal(proof.candidate.codexThreadId, "019f5244-7bef-71f2-8f25-8ed1446a539e");
+    assert.equal(proof.candidate.baseCommit, "eb0e6169974b96bd3bff3b536b38ef5f665127c2");
     assert.deepEqual(proof.hostVerification, {
-      testsPassed: 55,
-      testsTotal: 55,
+      testsPassed: 56,
+      testsTotal: 56,
       testsSkipped: 4,
       scope: "candidate-safe",
       source: "recorded-command-log",

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "artifact_1410e7f2-583c-48d8-b84a-41840318f7fb",
+    "migrationId": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "label": "candidate.diff",
+    "filename": "candidate.diff",
+    "kind": "diff",
+    "mimeType": "text/x-diff",
+    "digest": "sha256:140ed9165c3083a1fa5308a1446d38a13633ae1b57f9bf86f1265a3b435d80c4",
+    "byteLength": 3714,
+    "href": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/downloads/candidate.diff",
+    "createdAt": "2026-07-11T17:34:39.752Z"
+  },
+  {
+    "id": "artifact_29170799-3ae0-48d7-a80d-80355eefb25d",
+    "migrationId": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "label": "evidence.jsonl",
+    "filename": "evidence.jsonl",
+    "kind": "evidence",
+    "mimeType": "application/x-ndjson",
+    "digest": "sha256:c1ae686e031f755da6382567f0269bb3f09a3d49efdec76a1d79eb33f562e948",
+    "byteLength": 100328,
+    "href": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/downloads/evidence.jsonl",
+    "createdAt": "2026-07-11T17:34:39.752Z"
+  },
+  {
+    "id": "artifact_2f11b300-57f8-4369-992e-335cc4a6513b",
+    "migrationId": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "label": "proof.json",
+    "filename": "proof.json",
+    "kind": "proof",
+    "mimeType": "application/json",
+    "digest": "sha256:b40a2cdb298028717ccc9bc4265240a7d026657153651c8903b5bc78507ead01",
+    "byteLength": 53771,
+    "href": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/downloads/proof.json",
+    "createdAt": "2026-07-11T17:34:39.752Z"
+  },
+  {
+    "id": "artifact_66ade0d0-25ae-4c17-8400-99d36096c49b",
+    "migrationId": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "label": "commands.json",
+    "filename": "commands.json",
+    "kind": "command-log",
+    "mimeType": "application/json",
+    "digest": "sha256:5e8de1b6ae4520db0dc3ac347139d3a06919a0c5946d2c74da7523c0df5e905b",
+    "byteLength": 13325,
+    "href": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/downloads/commands.json",
+    "createdAt": "2026-07-11T17:34:39.752Z"
+  },
+  {
+    "id": "artifact_dc6e0f66-02dd-447e-80b9-1c38851252d3",
+    "migrationId": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "label": "contract.json",
+    "filename": "contract.json",
+    "kind": "contract",
+    "mimeType": "application/json",
+    "digest": "sha256:d984017643c04dc39bd03b413d83ad22b3d92f0d42b376c22cb230e01c27258d",
+    "byteLength": 13452,
+    "href": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/downloads/contract.json",
+    "createdAt": "2026-07-11T17:34:39.752Z"
+  }
+]

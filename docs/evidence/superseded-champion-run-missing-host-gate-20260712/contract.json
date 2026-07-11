@@ -1,0 +1,279 @@
+{
+  "id": "contract-live-migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+  "scope": "Evidence-bounded Web returns workflow",
+  "rules": [
+    {
+      "ruleId": "RULE-HIGH-VALUE-REVIEW",
+      "statement": "For a DAMAGED Web return with amountCents greater than or equal to 50000, apply MANUAL_REVIEW before tier rules; persist a PENDING_REVIEW return, leave inventory unchanged, and return only a HIGH_VALUE review-queue side effect.",
+      "priority": 1,
+      "evidenceIds": [
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_002",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_004",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_005",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_006",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_007",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_002",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_004",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_006",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_007",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_004",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005",
+        "ev_trace_391ddd93-0bbf-4b1c-82ab-e8e2afb9a838_004",
+        "ev_trace_391ddd93-0bbf-4b1c-82ab-e8e2afb9a838_005",
+        "ev_trace_3aca32c0-66f3-4ed2-9b67-afb9c65c142f_004",
+        "ev_trace_3aca32c0-66f3-4ed2-9b67-afb9c65c142f_005"
+      ],
+      "confidence": 1
+    },
+    {
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "statement": "For a DAMAGED Web return below 50000 cents with customerTier VIP, require at least one sellable unit. With sufficient stock, issue REPLACEMENT, decrement sellable by one, increment quarantine by one, and return shipment and quarantine-move side effects. With zero sellable stock, reject with INSUFFICIENT_SELLABLE_STOCK before persistence: create no return record, leave inventory unchanged, and return no shipment or other side effect.",
+      "priority": 2,
+      "evidenceIds": [
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_002",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_004",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_005",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_006",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_007",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_002",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_004",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_005",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_006",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_007",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_008"
+      ],
+      "confidence": 1
+    },
+    {
+      "ruleId": "RULE-STANDARD-REFUND",
+      "statement": "For a DAMAGED Web return below 50000 cents with customerTier STANDARD, issue REFUND for amountCents, preserve sellable inventory, increment quarantine by one, and return refund-ledger and quarantine-move side effects.",
+      "priority": 3,
+      "evidenceIds": [
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_002",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_004",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_005",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_006",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_007",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_002",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_004",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_005",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_006",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_007"
+      ],
+      "confidence": 1
+    }
+  ],
+  "findings": [
+    {
+      "findingId": "FIND-TIER-RULES-REQUIRE-BOUNDARY",
+      "type": "CONFLICTING_EVIDENCE",
+      "severity": "BLOCKING",
+      "claim": "The initial unconditional tier rules are false for DAMAGED Web returns: at 50000 cents both STANDARD and VIP are routed to MANUAL_REVIEW instead of REFUND or REPLACEMENT.",
+      "ruleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ],
+      "evidenceIds": [
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_002",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_004",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_002",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_004",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005"
+      ],
+      "requiredAction": "Constrain the tier rules to DAMAGED Web returns below 50000 cents and evaluate the high-value rule first."
+    },
+    {
+      "findingId": "FIND-12000-SPLIT-REJECTED",
+      "type": "CONFLICTING_EVIDENCE",
+      "severity": "BLOCKING",
+      "claim": "The proposed amount-only split at 12000 cents is unsupported: at exactly 12000 cents STANDARD receives REFUND while VIP receives REPLACEMENT.",
+      "ruleIds": [
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ],
+      "evidenceIds": [
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_002",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_004",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_005",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_002",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_004",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_005"
+      ],
+      "requiredAction": "Remove both 12000-cent amount-only hypotheses and retain tier selection below the evidenced high-value threshold."
+    },
+    {
+      "findingId": "FIND-HIGH-VALUE-RULE-MISSING",
+      "type": "COVERAGE_GAP",
+      "severity": "BLOCKING",
+      "claim": "The initial hypotheses omit the inclusive 50000-cent MANUAL_REVIEW rule and its precedence over both tier rules.",
+      "ruleIds": [
+        "RULE-HIGH-VALUE-REVIEW"
+      ],
+      "evidenceIds": [
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_002",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_004",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_005",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_002",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_004",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_004",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005"
+      ],
+      "requiredAction": "Add the high-value rule at priority 1 with amountCents greater than or equal to 50000."
+    },
+    {
+      "findingId": "FIND-REPLACEMENT-STOCK-SEMANTICS-MISSING",
+      "type": "COVERAGE_GAP",
+      "severity": "BLOCKING",
+      "claim": "The initial VIP replacement rule omits the sellable-stock precondition and atomic rejection semantics observed when sellable stock is zero.",
+      "ruleIds": [
+        "RULE-VIP-REPLACEMENT"
+      ],
+      "evidenceIds": [
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_002",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_004",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_005",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_006",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_007",
+        "ev_trace_5fb247f8-0297-450f-a360-f005640e03e7_008"
+      ],
+      "requiredAction": "Require at least one sellable unit and specify that zero stock rejects before persistence with unchanged inventory, no return record, and no side effects."
+    },
+    {
+      "findingId": "FIND-OTHER-CONDITIONS-UNOBSERVED",
+      "type": "COVERAGE_GAP",
+      "severity": "WARNING",
+      "claim": "The trace pack provides no evidence for item conditions other than DAMAGED, so the contract cannot be generalized beyond the observed DAMAGED domain.",
+      "ruleIds": [
+        "RULE-HIGH-VALUE-REVIEW",
+        "RULE-VIP-REPLACEMENT",
+        "RULE-STANDARD-REFUND"
+      ],
+      "evidenceIds": [],
+      "requiredAction": "Keep every rule explicitly constrained to DAMAGED; obtain separate traces before specifying other item conditions."
+    }
+  ],
+  "initialUnknowns": [
+    {
+      "unknownId": "UNK-TIER-VS-AMOUNT",
+      "question": "Is the decision controlled by customer tier, amount, or an interaction between them?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT",
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-AMOUNT-BOUNDARY",
+      "question": "If amount affects the decision, what is the actual threshold and boundary behavior?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-CONDITION-SCOPE",
+      "question": "Does DAMAGED participate in rule matching, and do other item conditions produce different decisions or inventory effects?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT",
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-RULE-PRECEDENCE",
+      "question": "When tier-based and amount-based conditions overlap, which rule has precedence?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT",
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-MANUAL-REVIEW",
+      "question": "What inputs, if any, produce MANUAL_REVIEW?",
+      "blocking": true,
+      "relatedRuleIds": []
+    }
+  ],
+  "resolvedUnknowns": [
+    {
+      "unknownId": "UNK-TIER-VS-AMOUNT",
+      "resolution": "Within DAMAGED Web returns, amount and tier interact through ordered rules: amounts at or above 50000 select MANUAL_REVIEW regardless of STANDARD or VIP; below 50000, STANDARD selects REFUND and VIP selects REPLACEMENT subject to sellable stock.",
+      "evidenceIds": [
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_002",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_005",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_002",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_005",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005"
+      ]
+    },
+    {
+      "unknownId": "UNK-AMOUNT-BOUNDARY",
+      "resolution": "Within DAMAGED Web returns, the exact observed high-value threshold is 50000 cents inclusive: 49999 follows the lower-priority tier rule and 50000 enters MANUAL_REVIEW.",
+      "evidenceIds": [
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_002",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_004",
+        "ev_trace_19365aae-0bc4-4108-b3e2-c52b631149ae_005",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_002",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_004",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005"
+      ]
+    },
+    {
+      "unknownId": "UNK-RULE-PRECEDENCE",
+      "resolution": "RULE-HIGH-VALUE-REVIEW has priority over both tier rules at and above 50000 cents; below 50000, the applicable tier rule runs.",
+      "evidenceIds": [
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_004",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_004",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005",
+        "ev_trace_3aca32c0-66f3-4ed2-9b67-afb9c65c142f_004",
+        "ev_trace_3aca32c0-66f3-4ed2-9b67-afb9c65c142f_005",
+        "ev_trace_624a7de7-294f-4294-a897-2b48bdaa5d34_004",
+        "ev_trace_41573a09-bfaf-4d1a-a606-3ddeb493008d_004"
+      ]
+    },
+    {
+      "unknownId": "UNK-MANUAL-REVIEW",
+      "resolution": "Within DAMAGED Web returns, amountCents at or above 50000 produces MANUAL_REVIEW for observed STANDARD and VIP customers, persists PENDING_REVIEW, leaves inventory unchanged, and returns a HIGH_VALUE review-queue side effect.",
+      "evidenceIds": [
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_002",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_005",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_006",
+        "ev_trace_3aa81677-d943-4b46-8e8c-af62715c22d7_007",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_002",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_005",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_006",
+        "ev_trace_73b7a76b-864d-4656-bd54-89dabe2c18d1_007"
+      ]
+    }
+  ],
+  "remainingUnknowns": [
+    {
+      "unknownId": "UNK-CONDITION-SCOPE",
+      "question": "Does DAMAGED participate in rule matching, and do other item conditions produce different decisions or inventory effects?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT",
+        "HYP-AMOUNT-BELOW-12000-REFUND",
+        "HYP-AMOUNT-AT-LEAST-12000-REPLACEMENT"
+      ],
+      "inScope": false,
+      "reason": "The supported contract is explicitly limited to the observed DAMAGED Web-return domain. Behavior for other item conditions remains unresolved and must not be inferred from these traces."
+    }
+  ],
+  "disposition": "READY_FOR_BUILD",
+  "criticThreadId": "019f523b-a8fe-7b20-bcbe-0c0f3522cc68"
+}

@@ -1,6 +1,6 @@
 # TraceForge web
 
-The Migration Loom is the judge-facing workbench for one TraceForge job. It renders five server-driven stages, evidence-linked hypotheses, falsifying counterexamples, candidate history, a six-scenario differential matrix, append-only events, and downloadable artifacts.
+The Migration Loom is the judge-facing workbench for one TraceForge job. It renders five server-driven stages, evidence-linked hypotheses, the initial/resolved/remaining unknown lifecycle, falsifying counterexamples, candidate history, a seven-scenario differential matrix, append-only events, and downloadable artifacts.
 
 ## Run
 

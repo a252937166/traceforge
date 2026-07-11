@@ -1,40 +1,42 @@
 {
-  "threadId": "019f4fd8-5408-7752-b8fa-f8c6b08b33ef",
+  "threadId": "019f5244-7bef-71f2-8f25-8ed1446a539e",
   "model": "gpt-5.6-sol",
-  "startedAt": "2026-07-11T06:23:27.308Z",
-  "completedAt": "2026-07-11T06:25:21.980Z",
-  "durationMs": 115409,
-  "timeToFirstTokenMs": 14683,
+  "startedAt": "2026-07-11T17:40:50.218Z",
+  "completedAt": "2026-07-11T17:42:07.519Z",
+  "durationMs": 77960,
+  "timeToFirstTokenMs": 14934,
   "usage": {
-    "input_tokens": 251253,
-    "cached_input_tokens": 211200,
-    "output_tokens": 3639,
-    "reasoning_output_tokens": 1236,
-    "total_tokens": 254892
+    "input_tokens": 154689,
+    "cached_input_tokens": 115712,
+    "output_tokens": 2327,
+    "reasoning_output_tokens": 458,
+    "total_tokens": 157016
   },
   "promptDigest": "sha256:b6df02fffe96022746a8eed2f66ccbf7a71fd5457979235fdbf02201ff16f5cd",
-  "outputDigest": "sha256:b4e3676f8f44334317bc68b9e83a47850f78f38b862427b0a9bdf064564b26ba",
-  "baseCommit": "7c1dceeaee7f375beb8d2895fda502f2ad74e039",
+  "outputDigest": "sha256:82e53b64a2c01573f79165e6a7cfdba91d55fe48f34b5ebb40fa41594e5e61dd",
+  "baseCommit": "eb0e6169974b96bd3bff3b536b38ef5f665127c2",
   "changedFiles": [
     "apps/api/src/candidates/generated-return-workflow.ts"
   ],
   "repairInput": {
-    "digest": "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
-    "contractDigest": "sha256:d4dfc557658fc4e2839a4db5809705586e130c6bd9ef3b9e27f14c700eccaa4f",
+    "digest": "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+    "contractDigest": "sha256:235acdcc4a120bf5965035dc8c43658dac534a4f85da7bbc78b26c01fcafc716",
     "failedProofDigests": [
-      "sha256:e2b7bef16aae08b7bf31aa3acb5fa078c15aa1dc75473e8019df1879bb9259e1",
-      "sha256:611a46c96e26ddd1d0d6692884dbffcfa697a2b4e2232d0e0d20903f809722c8",
-      "sha256:e1626385e599c2f5f747933d1a7d11b48c8bf4e895660095e5ab3b3b537519ce"
+      "sha256:f242aabce2cb8b436593070a3f0b1c26451909e5d318518eab60e62dd5029502",
+      "sha256:409b421be3e1285dc4d9cc814ef87b7915c6682b10cd00acd665b61744d8d7d1",
+      "sha256:5861c57d1dc16e61697b01cc3ead70c7548fdfead197994774d7861e29788906",
+      "sha256:b3ea08c0626d2bb02d78bc27d0697a7b1faec141e4fb15849a41048e8fed697a"
     ],
     "visibleScenarioIds": [
       "observed-standard-damaged-4500",
       "observed-vip-damaged-12000",
       "counterexample-vip-damaged-50000",
+      "counterexample-vip-damaged-no-sellable",
       "boundary-standard-damaged-49999",
       "boundary-standard-damaged-50000",
-      "live-covered-high-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996"
+      "live-covered-high-migration_efaa0383-628a-4fba-94df-96bfe344bcbe"
     ]
   },
-  "sourceDigest": "sha256:b890c0d27c0857e2bc47be608a1ade5619eb10d784a0428f1ae861c7eb1bf708",
-  "diffDigest": "sha256:99d556cd803383557773258d55cdddac12d0aad3c631d31171ceaf27c7e9f49c"
+  "sourceDigest": "sha256:fdf9a85c55e6a007320a5613672ba3354fb785d307c57f7201357bdc7b1c9e74",
+  "diffDigest": "sha256:4e2841074c97edaacd151318cdcc1fc8e0b9ba72f50d47c40d0a5c4a6a21577a"
 }

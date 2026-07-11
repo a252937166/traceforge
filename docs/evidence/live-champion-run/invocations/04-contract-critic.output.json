@@ -2,108 +2,186 @@
   "role": "contract_critic",
   "findings": [
     {
-      "findingId": "FIND-INITIAL-CONTRACT-OMITS-HIGH-VALUE",
-      "type": "COVERAGE_GAP",
+      "findingId": "F-STANDARD-NOT-UNIVERSAL",
+      "type": "CONFLICTING_EVIDENCE",
       "severity": "BLOCKING",
-      "claim": "The initial two-rule contract omits RULE-HIGH-VALUE-REVIEW. Fresh traces establish a 50000-cent boundary: STANDARD/DAMAGED returns refund at 49999 and enter manual review at 50000, while VIP/DAMAGED at 50000 also enters manual review instead of replacement.",
+      "claim": "H-TIER-STANDARD-DAMAGED is false as a universal rule: STANDARD DAMAGED returns at or above 50000 cents enter MANUAL_REVIEW instead of REFUND and do not increase quarantine.",
       "ruleIds": [
-        "RULE-HIGH-VALUE-REVIEW",
-        "RULE-VIP-REPLACEMENT",
-        "RULE-STANDARD-REFUND"
+        "H-TIER-STANDARD-DAMAGED"
       ],
       "evidenceIds": [
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_002",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_005",
-        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_002",
-        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004",
-        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_005"
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_002",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_002",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_006"
       ],
-      "requiredAction": "Add the 50000-cent high-value rule at priority 1, ahead of the VIP and STANDARD rules."
+      "requiredAction": "Restrict the STANDARD refund rule to amounts below 50000 cents and place the high-value review rule first."
     },
     {
-      "findingId": "FIND-INVENTORY-EFFECT-NOT-SINGULAR",
-      "type": "COVERAGE_GAP",
-      "severity": "WARNING",
-      "claim": "VIP replacement has a composite inventory effect: quarantine increases by one and sellable inventory decreases by one. A contract field that permits only one inventory effect cannot represent the observed behavior completely.",
+      "findingId": "F-VIP-NOT-UNIVERSAL",
+      "type": "CONFLICTING_EVIDENCE",
+      "severity": "BLOCKING",
+      "claim": "H-TIER-VIP-DAMAGED is false as a universal rule: VIP DAMAGED returns at or above 50000 cents enter MANUAL_REVIEW, and a below-threshold replacement with zero sellable stock fails atomically instead of producing REPLACEMENT.",
       "ruleIds": [
-        "RULE-VIP-REPLACEMENT"
+        "H-TIER-VIP-DAMAGED"
       ],
       "evidenceIds": [
-        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
-        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_003",
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006"
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_002",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_004",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_002",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_004",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_006",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_007",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_008"
       ],
-      "requiredAction": "Represent replacement inventory mutations as two effects, or define one composite effect containing sellable-minus-one and quarantine-plus-one."
+      "requiredAction": "Restrict VIP replacement to amounts below 50000 cents and preserve the sellable-stock precondition and atomic zero-stock failure."
     },
     {
-      "findingId": "FIND-OUTSIDE-OBSERVED-DOMAIN",
-      "type": "UNKNOWN",
-      "severity": "WARNING",
-      "claim": "The traces do not establish behavior for item conditions other than DAMAGED, customer tiers other than STANDARD and VIP, or invalid and out-of-range amounts.",
+      "findingId": "F-BELOW-12000-REFUND-FALSE",
+      "type": "CONFLICTING_EVIDENCE",
+      "severity": "BLOCKING",
+      "claim": "H-AMOUNT-BELOW-12000-DAMAGED is false: a VIP DAMAGED return at 4500 cents produces REPLACEMENT, so amount below 12000 does not determine REFUND.",
       "ruleIds": [
-        "RULE-HIGH-VALUE-REVIEW",
-        "RULE-VIP-REPLACEMENT",
-        "RULE-STANDARD-REFUND"
+        "H-AMOUNT-BELOW-12000-DAMAGED"
       ],
-      "evidenceIds": [],
-      "requiredAction": "Keep these inputs outside the reconstructed contract until additional traces establish their behavior."
+      "evidenceIds": [
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_002",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_004",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_005"
+      ],
+      "requiredAction": "Reject the proposed 12000-cent refund threshold and use customer tier after the high-value rule."
+    },
+    {
+      "findingId": "F-AT-LEAST-12000-REPLACEMENT-FALSE",
+      "type": "CONFLICTING_EVIDENCE",
+      "severity": "BLOCKING",
+      "claim": "H-AMOUNT-AT-LEAST-12000-DAMAGED is false: STANDARD returns from 12000 through 49999 cents follow REFUND, while both tiers at 50000 cents follow MANUAL_REVIEW.",
+      "ruleIds": [
+        "H-AMOUNT-AT-LEAST-12000-DAMAGED"
+      ],
+      "evidenceIds": [
+        "ev_trace_1c9f26f3-a39e-4dea-a3a4-06b0c4a0d9b5_002",
+        "ev_trace_1c9f26f3-a39e-4dea-a3a4-06b0c4a0d9b5_004",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_002",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_002",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_004"
+      ],
+      "requiredAction": "Reject 12000 cents as a decision boundary and adopt the observed inclusive 50000-cent high-value threshold."
+    },
+    {
+      "findingId": "F-QUARANTINE-NOT-ALL-DAMAGED",
+      "type": "UNSUPPORTED_ASSUMPTION",
+      "severity": "BLOCKING",
+      "claim": "The observed quarantine increment cannot be generalized to every DAMAGED return: high-value DAMAGED returns leave quarantine unchanged, and the exhausted-stock replacement attempt also leaves inventory unchanged.",
+      "ruleIds": [
+        "H-TIER-STANDARD-DAMAGED",
+        "H-TIER-VIP-DAMAGED",
+        "H-AMOUNT-BELOW-12000-DAMAGED",
+        "H-AMOUNT-AT-LEAST-12000-DAMAGED"
+      ],
+      "evidenceIds": [
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_006",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_006",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_006"
+      ],
+      "requiredAction": "Attach quarantine-plus-one only to successfully completed below-threshold refund or replacement paths."
     }
   ],
   "revisedRules": [
     {
-      "ruleId": "RULE-HIGH-VALUE-REVIEW",
-      "statement": "Priority 1: within the observed domain of DAMAGED returns for STANDARD and VIP customers, amountCents greater than or equal to 50000 produces MANUAL_REVIEW, status PENDING_REVIEW, no inventory mutation, and a HIGH_VALUE review-queue side effect. This rule runs before tier-specific rules; behavior for other conditions or tiers is unknown.",
+      "ruleId": "R-HIGH-VALUE-REVIEW",
+      "statement": "For an observed Web DAMAGED return with amountCents greater than or equal to 50000, apply MANUAL_REVIEW before tier-specific processing: create a PENDING_REVIEW return record, leave sellable and quarantine inventory unchanged, and return only a HIGH_VALUE review-queue side effect.",
       "priority": 1,
       "evidenceIds": [
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_002",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_005",
-        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004",
-        "ev_trace_1b4a473b-bd84-4d0b-a894-717c9f811747_006",
-        "ev_trace_f8cbae6b-87a1-4de4-bf78-dda41e2a1029_005"
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_002",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_002",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_006",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_007",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_004"
       ],
       "confidence": 1
     },
     {
-      "ruleId": "RULE-VIP-REPLACEMENT",
-      "statement": "Priority 2: after the high-value rule, a VIP, DAMAGED return with an observed valid amount below 50000 produces REPLACEMENT, status REPLACEMENT_ISSUED, refundCents 0, sellable-minus-one, quarantine-plus-one, and a shipment side effect. Behavior for other conditions and unobserved amount validity domains is unknown.",
+      "ruleId": "R-VIP-REPLACEMENT-WITH-STOCK",
+      "statement": "For an observed Web VIP DAMAGED return below 50000 cents, replacement requires sellable stock. With sufficient stock, issue REPLACEMENT, decrement sellable by one, increment quarantine by one, and return shipment and quarantine-move side effects. With zero sellable stock, reject with INSUFFICIENT_SELLABLE_STOCK before persistence: create no return record, leave inventory unchanged, and return no shipment or other side effect.",
       "priority": 2,
       "evidenceIds": [
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_002",
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_004",
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_005",
-        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006",
-        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
-        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
-        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
-        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004"
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_002",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_004",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_006",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_007",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_002",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_004",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_006",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_007",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_008"
       ],
       "confidence": 1
     },
     {
-      "ruleId": "RULE-STANDARD-REFUND",
-      "statement": "Priority 3: after the high-value rule, a STANDARD, DAMAGED return with an observed valid amount below 50000 produces REFUND for the full amount, status REFUNDED, unchanged sellable inventory, quarantine-plus-one, and a refund-ledger side effect. Behavior for other conditions and unobserved amount validity domains is unknown.",
+      "ruleId": "R-STANDARD-REFUND",
+      "statement": "For an observed Web STANDARD DAMAGED return below 50000 cents, issue REFUND for amountCents, keep sellable unchanged, increment quarantine by one, and return refund-ledger and quarantine-move side effects.",
       "priority": 3,
       "evidenceIds": [
-        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
-        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
-        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
-        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_006",
-        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004"
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_002",
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_004",
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_005",
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_006",
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_007",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_002",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_004",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_006"
       ],
       "confidence": 1
     }
   ],
+  "resolvedUnknowns": [
+    {
+      "unknownId": "U-TIER-VS-AMOUNT",
+      "resolution": "Both fields matter in the observed domain: amountCents first selects MANUAL_REVIEW at 50000 or above; below 50000, customerTier distinguishes VIP REPLACEMENT from STANDARD REFUND.",
+      "evidenceIds": [
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_004",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_004"
+      ]
+    },
+    {
+      "unknownId": "U-AMOUNT-BOUNDARY",
+      "resolution": "The observed high-value threshold is exactly 50000 cents with an inclusive boundary: 49999 produces REFUND for STANDARD, while 50000 produces MANUAL_REVIEW.",
+      "evidenceIds": [
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_002",
+        "ev_trace_04f5958d-31dd-4103-a577-9aadb68dd976_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_002",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004"
+      ]
+    },
+    {
+      "unknownId": "U-RULE-PRECEDENCE",
+      "resolution": "The high-value rule runs before tier-specific rules: at 50000 cents VIP and STANDARD both produce MANUAL_REVIEW; below 50000 the tier-specific rules apply.",
+      "evidenceIds": [
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_002",
+        "ev_trace_99f3ad45-c747-44b9-8d23-efc6a847fad1_004",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_004",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_004"
+      ]
+    },
+    {
+      "unknownId": "U-CONDITION-GENERALITY",
+      "resolution": "Quarantine does not increase for every DAMAGED return. It increases by one only on the observed successful below-threshold REFUND and REPLACEMENT paths; high-value review and zero-stock replacement failure leave quarantine unchanged.",
+      "evidenceIds": [
+        "ev_trace_04595d1b-5123-44e1-a638-61930da53919_006",
+        "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_006",
+        "ev_trace_d48d4627-9834-4d61-a6ab-5a1c0a1131a5_006",
+        "ev_trace_ac30cb84-ddc5-4721-b685-fb6e314db20d_006"
+      ]
+    }
+  ],
+  "remainingUnknowns": [],
   "disposition": "READY_FOR_BUILD"
 }

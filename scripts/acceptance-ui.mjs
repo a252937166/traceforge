@@ -58,7 +58,7 @@ async function buildAndReadStaticContract() {
     "local-runner-v0.1.6",
     "88fd9faa613f0b7280a584a79e209fae800272d9",
     "15 focused candidate tests + 7 differential scenarios",
-    "55 candidate-safe tests + 4 separate replay guards",
+    "56 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -181,7 +181,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.6/);
     assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit 88fd9fa/);
     assert.match(await runnerDialog.innerText(), /15 focused candidate tests \+ 7 differential scenarios/);
-    assert.match(await runnerDialog.innerText(), /55 candidate-safe tests \+ 4 separate replay guards/);
+    assert.match(await runnerDialog.innerText(), /56 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
 

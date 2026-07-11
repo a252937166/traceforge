@@ -192,7 +192,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
           <p class="scope-note">Codex sends the bounded build context to OpenAI. Credentials, generated source, diff, and proof are not uploaded to the TraceForge website.</p>
           <div class="gate-compare" aria-label="Verification gate comparison">
             <div class="gate-row"><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
-            <div class="gate-row"><span>Source champion gate</span><strong>55 candidate-safe tests + 4 separate replay guards</strong></div>
+            <div class="gate-row"><span>Source champion gate</span><strong>56 candidate-safe tests + 4 separate replay guards</strong></div>
           </div>
         </section>
 

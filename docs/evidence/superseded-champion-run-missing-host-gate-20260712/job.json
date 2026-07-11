@@ -1,0 +1,28 @@
+{
+  "id": "migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+  "executionMode": "live-ai",
+  "scenarioIds": [
+    "observed-standard-damaged-4500",
+    "observed-vip-damaged-12000",
+    "counterexample-vip-damaged-50000",
+    "counterexample-vip-damaged-no-sellable",
+    "boundary-standard-damaged-49999",
+    "boundary-standard-damaged-50000"
+  ],
+  "status": "passed",
+  "currentStage": "verify",
+  "streamVersion": 37,
+  "model": "gpt-5.6-sol",
+  "modelId": "gpt-5.6-sol",
+  "createdAt": "2026-07-11T17:25:26.439Z",
+  "updatedAt": "2026-07-11T17:34:39.759Z",
+  "links": {
+    "self": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6",
+    "events": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/events",
+    "proof": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/proof",
+    "artifacts": "/api/migrations/migration_651820ef-13ee-4084-96a4-74a79b4bcfa6/artifacts"
+  },
+  "startedAt": "2026-07-11T17:25:26.451Z",
+  "proofId": "migration-proof_7a667dd6-aab1-4de4-88ea-f8858319b2be",
+  "completedAt": "2026-07-11T17:34:39.759Z"
+}

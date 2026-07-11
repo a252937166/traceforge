@@ -28,11 +28,12 @@ Implemented controls:
 - structured JSON schemas per archaeology role;
 - an allowlist of evidence IDs from the supplied trace pack;
 - rejection of any output that references an unknown evidence ID;
-- explicit unknowns and critic dispositions;
+- explicit initial, resolved, and remaining unknowns plus critic dispositions;
+- a host gate that rejects `READY_FOR_BUILD` while an in-scope blocking unknown remains;
 - model-proposed inputs executed only by the host;
 - deterministic adjacent probes for the exact review threshold.
 
-These controls establish provenance, not semantic omniscience. A model can still interpret valid evidence incorrectly, so the final claim remains limited to the host-executed suite.
+The canonical run begins with four blocking unknowns and reaches Build only after the critic resolves all four with allowed evidence, leaving zero remaining. These controls establish provenance, not semantic omniscience. A model can still interpret valid evidence incorrectly, so the final claim remains limited to the host-executed suite.
 
 ## Model-executed side effects
 
@@ -48,7 +49,7 @@ Codex receives a failed proof but cannot decide that the repair passed. It runs 
 apps/api/src/candidates/generated-return-workflow.ts
 ```
 
-Change inspection covers tracked, staged, untracked, and relevant ignored paths. Codex is instructed not to install dependencies or run verification. After the model turn, the host performs the offline frozen install, API tests, six-scenario generated-candidate verification, proof linkage checks, and diff collection.
+Change inspection covers tracked, staged, untracked, and relevant ignored paths. Codex is instructed not to install dependencies or run verification. After the model turn, the host performs the offline frozen install, `56/56` candidate-safe API tests, seven-scenario generated-candidate verification, proof linkage checks, and diff collection. Four replay-integrity guards remain separate from the candidate worktree gate.
 
 The adapter never applies the worktree change to the caller's branch and never commits, pushes, merges, deploys, or publishes it.
 
@@ -73,11 +74,11 @@ Implemented controls:
 - model invocations retain role, model, auth path, thread ID, token usage, input/output digest, and schema version;
 - deterministic-only proofs contain no model invocation and state that no model execution is represented.
 
-The checked-in champion export is a recorded replay backed by real model threads. It must never be described as a model call occurring at replay time.
+The checked-in champion export is the real source run used by recorded replay. A replay backed by those threads must never be described as a model call occurring at replay time.
 
 ## False equivalence claims
 
-The host compares five fields per scenario: decision, return status, refund amount, sellable quantity, and quarantine quantity. The proof names all six executed scenarios and partitions them as observed, counterexample, boundary, or held out.
+The proof names all seven executed scenarios and partitions them as observed, counterexample, boundary, or held out. Six successful rows compare decision, return status, refund amount, sellable quantity, and quarantine quantity. The exhausted-stock counterexample instead compares five failure-and-atomicity facts: failure status, code plus message, no return record, unchanged inventory, and zero side effects.
 
 The claim does not cover unexecuted inputs, UI rendering, latency, concurrency, external payment settlement, carrier behavior, other databases, or arbitrary applications. The UI and submission use “behavioral conformance for the executed scenarios,” never “the systems are identical.”
 

@@ -1,7 +1,7 @@
 [
   {
-    "proofId": "proof_b501bc6e-fb35-4986-96b4-50ad38bd3beb",
-    "runId": "run_07e76f13-7e0e-4e92-90e3-013441b179eb",
+    "proofId": "proof_55c00467-8006-4d2e-a44d-fc1895efdcb4",
+    "runId": "run_438baa87-0c85-44a4-bfd1-8d8be97f837a",
     "status": "FAILED",
     "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
     "scenarioId": "observed-standard-damaged-4500",
@@ -10,9 +10,9 @@
       "legacy": "legacy.return-workflow.v1",
       "candidate": "replacement.return-workflow.seeded-candidate"
     },
-    "legacyTraceId": "trace_e75d1035-0eae-4b04-a496-fe9269d1e843",
-    "candidateTraceId": "trace_36ce9484-334a-4998-b1ea-9ee04f706ea4",
-    "contractId": "contract_3c3da53c-7805-4b4f-a9af-10cea478ee2c",
+    "legacyTraceId": "trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2",
+    "candidateTraceId": "trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3",
+    "contractId": "contract_2f24abde-a843-4d81-8f5e-3d915bea054b",
     "assertions": [
       {
         "assertionId": "assert_001",
@@ -20,8 +20,8 @@
         "status": "PASSED",
         "expected": "REFUND",
         "actual": "REFUND",
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_005",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_006"
       },
       {
         "assertionId": "assert_002",
@@ -29,8 +29,8 @@
         "status": "PASSED",
         "expected": "REFUNDED",
         "actual": "REFUNDED",
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_005",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_006"
       },
       {
         "assertionId": "assert_003",
@@ -38,8 +38,8 @@
         "status": "PASSED",
         "expected": 4500,
         "actual": 4500,
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_005",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_006"
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_005",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_006"
       },
       {
         "assertionId": "assert_004",
@@ -47,8 +47,8 @@
         "status": "FAILED",
         "expected": 10,
         "actual": 11,
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007"
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_006",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_007"
       },
       {
         "assertionId": "assert_005",
@@ -56,8 +56,8 @@
         "status": "FAILED",
         "expected": 1,
         "actual": 0,
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007"
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_006",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_007"
       }
     ],
     "mismatches": [
@@ -66,8 +66,8 @@
         "expected": 10,
         "actual": 11,
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007",
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_006",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_007",
         "explanation": "Sellable inventory side effect matches: legacy produced 10, candidate produced 11."
       },
       {
@@ -75,8 +75,8 @@
         "expected": 1,
         "actual": 0,
         "severity": "major",
-        "legacyEvidenceId": "ev_trace_e75d1035-0eae-4b04-a496-fe9269d1e843_006",
-        "candidateEvidenceId": "ev_trace_36ce9484-334a-4998-b1ea-9ee04f706ea4_007",
+        "legacyEvidenceId": "ev_trace_bf7f74c7-fa54-474d-9de0-183ddd4d33c2_006",
+        "candidateEvidenceId": "ev_trace_ea0f7b02-4c58-431f-80ff-b0561bcd85a3_007",
         "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
       }
     ],
@@ -85,12 +85,12 @@
       "The proof covers only this concrete input and the deterministic assertions listed here.",
       "No OpenAI or Codex call is represented by this local run."
     ],
-    "generatedAt": "2026-07-11T06:23:22.296Z",
-    "digest": "sha256:e2b7bef16aae08b7bf31aa3acb5fa078c15aa1dc75473e8019df1879bb9259e1"
+    "generatedAt": "2026-07-11T17:40:46.337Z",
+    "digest": "sha256:f242aabce2cb8b436593070a3f0b1c26451909e5d318518eab60e62dd5029502"
   },
   {
-    "proofId": "proof_ff6333f8-d6df-4fa4-9868-b63edd8628a5",
-    "runId": "run_38ece380-b0d3-47d5-adf1-d6342004b836",
+    "proofId": "proof_aac463ad-c4d8-45c6-a241-a660c6013b14",
+    "runId": "run_43832092-8d8e-46d5-b8c1-7f270bb4117f",
     "status": "FAILED",
     "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
     "scenarioId": "observed-vip-damaged-12000",
@@ -99,9 +99,9 @@
       "legacy": "legacy.return-workflow.v1",
       "candidate": "replacement.return-workflow.seeded-candidate"
     },
-    "legacyTraceId": "trace_28711960-3b39-4947-b23f-9004b8056f59",
-    "candidateTraceId": "trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de",
-    "contractId": "contract_25c5bf8f-f3fd-4692-bea4-b43e3c967fe8",
+    "legacyTraceId": "trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434",
+    "candidateTraceId": "trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05",
+    "contractId": "contract_85c9bbf2-dff3-4e47-a5df-54636b72960a",
     "assertions": [
       {
         "assertionId": "assert_001",
@@ -109,8 +109,8 @@
         "status": "FAILED",
         "expected": "REPLACEMENT",
         "actual": "REFUND",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006"
       },
       {
         "assertionId": "assert_002",
@@ -118,8 +118,8 @@
         "status": "FAILED",
         "expected": "REPLACEMENT_ISSUED",
         "actual": "REFUNDED",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006"
       },
       {
         "assertionId": "assert_003",
@@ -127,8 +127,8 @@
         "status": "FAILED",
         "expected": 0,
         "actual": 12000,
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006"
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006"
       },
       {
         "assertionId": "assert_004",
@@ -136,8 +136,8 @@
         "status": "FAILED",
         "expected": 9,
         "actual": 11,
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007"
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_006",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_007"
       },
       {
         "assertionId": "assert_005",
@@ -145,8 +145,8 @@
         "status": "FAILED",
         "expected": 1,
         "actual": 0,
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007"
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_006",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_007"
       }
     ],
     "mismatches": [
@@ -155,8 +155,8 @@
         "expected": "REPLACEMENT",
         "actual": "REFUND",
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006",
         "explanation": "Decision is preserved: legacy produced REPLACEMENT, candidate produced REFUND."
       },
       {
@@ -164,8 +164,8 @@
         "expected": "REPLACEMENT_ISSUED",
         "actual": "REFUNDED",
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006",
         "explanation": "Return status is preserved: legacy produced REPLACEMENT_ISSUED, candidate produced REFUNDED."
       },
       {
@@ -173,8 +173,8 @@
         "expected": 0,
         "actual": 12000,
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_005",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_006",
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_005",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_006",
         "explanation": "Refund amount is preserved: legacy produced 0, candidate produced 12000."
       },
       {
@@ -182,8 +182,8 @@
         "expected": 9,
         "actual": 11,
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007",
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_006",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_007",
         "explanation": "Sellable inventory side effect matches: legacy produced 9, candidate produced 11."
       },
       {
@@ -191,8 +191,8 @@
         "expected": 1,
         "actual": 0,
         "severity": "major",
-        "legacyEvidenceId": "ev_trace_28711960-3b39-4947-b23f-9004b8056f59_006",
-        "candidateEvidenceId": "ev_trace_75b06ec6-0dfd-4912-bc5b-543fef06c1de_007",
+        "legacyEvidenceId": "ev_trace_123a58b2-2bfd-41cf-ab18-e0866d6cb434_006",
+        "candidateEvidenceId": "ev_trace_0f3cead7-ef0b-4e7a-a5ce-4806e0367e05_007",
         "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
       }
     ],
@@ -201,12 +201,152 @@
       "The proof covers only this concrete input and the deterministic assertions listed here.",
       "No OpenAI or Codex call is represented by this local run."
     ],
-    "generatedAt": "2026-07-11T06:23:22.298Z",
-    "digest": "sha256:611a46c96e26ddd1d0d6692884dbffcfa697a2b4e2232d0e0d20903f809722c8"
+    "generatedAt": "2026-07-11T17:40:46.342Z",
+    "digest": "sha256:409b421be3e1285dc4d9cc814ef87b7915c6682b10cd00acd665b61744d8d7d1"
   },
   {
-    "proofId": "proof_1b000c5f-70d2-4b03-bb07-658a4aa56e51",
-    "runId": "run_e02f2a9d-90f8-40a6-904e-781fe33a6241",
+    "proofId": "proof_921a0c86-1d49-457d-85cc-7cc4df01cc6c",
+    "runId": "run_547d2d66-c0c7-477c-8bd5-ef530a37ce87",
+    "status": "FAILED",
+    "claim": "Failure behavior and atomicity conformance for the exhausted-stock replacement counterexample.",
+    "scenarioId": "counterexample-vip-damaged-no-sellable",
+    "candidateVersion": "seeded",
+    "implementations": {
+      "legacy": "legacy.return-workflow.v1",
+      "candidate": "replacement.return-workflow.seeded-candidate"
+    },
+    "legacyTraceId": "trace_c783c1d1-c094-4a49-8887-f2aec51573ca",
+    "candidateTraceId": "trace_36f478e3-269d-43de-9073-1e8bbaa1239e",
+    "contractId": "contract_60dee174-2be8-44e5-93bc-f7a274645487",
+    "assertions": [
+      {
+        "assertionId": "assert_001",
+        "label": "Failure status is preserved",
+        "status": "FAILED",
+        "expected": "FAILED",
+        "actual": "SUCCEEDED",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_004",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_004"
+      },
+      {
+        "assertionId": "assert_002",
+        "label": "Failure reason is preserved",
+        "status": "FAILED",
+        "expected": {
+          "code": "INSUFFICIENT_SELLABLE_STOCK",
+          "message": "replacement cannot be issued without sellable stock"
+        },
+        "actual": {
+          "code": null,
+          "message": null
+        },
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_005",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_005"
+      },
+      {
+        "assertionId": "assert_003",
+        "label": "No return record is created",
+        "status": "FAILED",
+        "expected": false,
+        "actual": true,
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_007",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_007"
+      },
+      {
+        "assertionId": "assert_004",
+        "label": "Inventory remains unchanged",
+        "status": "FAILED",
+        "expected": {
+          "sellable": 0,
+          "quarantine": 0
+        },
+        "actual": {
+          "sellable": 1,
+          "quarantine": 0
+        },
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_006",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_006"
+      },
+      {
+        "assertionId": "assert_005",
+        "label": "No shipment or other side effect is emitted",
+        "status": "FAILED",
+        "expected": 0,
+        "actual": 2,
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_008",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_008"
+      }
+    ],
+    "mismatches": [
+      {
+        "path": "execution.status",
+        "expected": "FAILED",
+        "actual": "SUCCEEDED",
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_004",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_004",
+        "explanation": "Failure status is preserved: legacy produced \"FAILED\", candidate produced \"SUCCEEDED\"."
+      },
+      {
+        "path": "failure",
+        "expected": {
+          "code": "INSUFFICIENT_SELLABLE_STOCK",
+          "message": "replacement cannot be issued without sellable stock"
+        },
+        "actual": {
+          "code": null,
+          "message": null
+        },
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_005",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_005",
+        "explanation": "Failure reason is preserved: legacy produced {\"code\":\"INSUFFICIENT_SELLABLE_STOCK\",\"message\":\"replacement cannot be issued without sellable stock\"}, candidate produced {\"code\":null,\"message\":null}."
+      },
+      {
+        "path": "returnRecord.created",
+        "expected": false,
+        "actual": true,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_007",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_007",
+        "explanation": "No return record is created: legacy produced false, candidate produced true."
+      },
+      {
+        "path": "inventoryAfter",
+        "expected": {
+          "sellable": 0,
+          "quarantine": 0
+        },
+        "actual": {
+          "sellable": 1,
+          "quarantine": 0
+        },
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_006",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_006",
+        "explanation": "Inventory remains unchanged: legacy produced {\"sellable\":0,\"quarantine\":0}, candidate produced {\"sellable\":1,\"quarantine\":0}."
+      },
+      {
+        "path": "sideEffects.count",
+        "expected": 0,
+        "actual": 2,
+        "severity": "critical",
+        "legacyEvidenceId": "ev_trace_c783c1d1-c094-4a49-8887-f2aec51573ca_008",
+        "candidateEvidenceId": "ev_trace_36f478e3-269d-43de-9073-1e8bbaa1239e_008",
+        "explanation": "No shipment or other side effect is emitted: legacy produced 0, candidate produced 2."
+      }
+    ],
+    "mutationDetected": true,
+    "limitations": [
+      "The proof covers only this concrete exhausted-stock input and the five deterministic failure assertions listed here.",
+      "No OpenAI or Codex call is represented by this local run."
+    ],
+    "generatedAt": "2026-07-11T17:40:46.347Z",
+    "digest": "sha256:5861c57d1dc16e61697b01cc3ead70c7548fdfead197994774d7861e29788906"
+  },
+  {
+    "proofId": "proof_5981ce4f-1066-4ec3-aecf-3d7557c4adae",
+    "runId": "run_41e9af4b-db84-4a71-a9eb-6c392d6008d1",
     "status": "FAILED",
     "claim": "Covered-scenario behavioral conformance against the captured legacy execution.",
     "scenarioId": "boundary-standard-damaged-49999",
@@ -215,9 +355,9 @@
       "legacy": "legacy.return-workflow.v1",
       "candidate": "replacement.return-workflow.seeded-candidate"
     },
-    "legacyTraceId": "trace_c589e408-94f4-4065-ab62-5213074febc9",
-    "candidateTraceId": "trace_6c326bbe-4891-4e64-a73c-9ba641560293",
-    "contractId": "contract_6234b9b4-1db1-4150-a87d-4b721adfaa55",
+    "legacyTraceId": "trace_eab6620f-3d3f-43a8-a0e1-027117295c10",
+    "candidateTraceId": "trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112",
+    "contractId": "contract_a885ca2f-8eff-40f7-91ea-5e5b047d3b92",
     "assertions": [
       {
         "assertionId": "assert_001",
@@ -225,8 +365,8 @@
         "status": "PASSED",
         "expected": "REFUND",
         "actual": "REFUND",
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_005",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_006"
       },
       {
         "assertionId": "assert_002",
@@ -234,8 +374,8 @@
         "status": "PASSED",
         "expected": "REFUNDED",
         "actual": "REFUNDED",
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_005",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_006"
       },
       {
         "assertionId": "assert_003",
@@ -243,8 +383,8 @@
         "status": "PASSED",
         "expected": 49999,
         "actual": 49999,
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_005",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_006"
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_005",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_006"
       },
       {
         "assertionId": "assert_004",
@@ -252,8 +392,8 @@
         "status": "FAILED",
         "expected": 10,
         "actual": 11,
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007"
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_006",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_007"
       },
       {
         "assertionId": "assert_005",
@@ -261,8 +401,8 @@
         "status": "FAILED",
         "expected": 1,
         "actual": 0,
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007"
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_006",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_007"
       }
     ],
     "mismatches": [
@@ -271,8 +411,8 @@
         "expected": 10,
         "actual": 11,
         "severity": "critical",
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007",
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_006",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_007",
         "explanation": "Sellable inventory side effect matches: legacy produced 10, candidate produced 11."
       },
       {
@@ -280,8 +420,8 @@
         "expected": 1,
         "actual": 0,
         "severity": "major",
-        "legacyEvidenceId": "ev_trace_c589e408-94f4-4065-ab62-5213074febc9_006",
-        "candidateEvidenceId": "ev_trace_6c326bbe-4891-4e64-a73c-9ba641560293_007",
+        "legacyEvidenceId": "ev_trace_eab6620f-3d3f-43a8-a0e1-027117295c10_006",
+        "candidateEvidenceId": "ev_trace_38787aa7-afa1-4591-9ea7-fc3ab10d6112_007",
         "explanation": "Quarantine inventory side effect matches: legacy produced 1, candidate produced 0."
       }
     ],
@@ -290,7 +430,7 @@
       "The proof covers only this concrete input and the deterministic assertions listed here.",
       "No OpenAI or Codex call is represented by this local run."
     ],
-    "generatedAt": "2026-07-11T06:23:22.300Z",
-    "digest": "sha256:e1626385e599c2f5f747933d1a7d11b48c8bf4e895660095e5ab3b3b537519ce"
+    "generatedAt": "2026-07-11T17:40:46.349Z",
+    "digest": "sha256:b3ea08c0626d2bb02d78bc27d0697a7b1faec141e4fb15849a41048e8fed697a"
   }
 ]

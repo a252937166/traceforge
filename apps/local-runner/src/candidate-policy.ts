@@ -18,6 +18,7 @@ const FORBIDDEN_IDENTIFIERS = new Set([
   "require",
 ]);
 const ALLOWED_PROPERTY_ACCESS = new Set([
+  "assign",
   "amountCents",
   "customerTier",
   "decision",
@@ -41,6 +42,42 @@ const ALLOWED_DIRECT_CALLS = new Set([
   "candidateEvents",
   "validateWorkflowInput",
 ]);
+
+function isExactFailureCodeAssignment(node: ts.CallExpression): boolean {
+  if (
+    !ts.isPropertyAccessExpression(node.expression)
+    || !ts.isIdentifier(node.expression.expression)
+    || node.expression.expression.text !== "Object"
+    || node.expression.name.text !== "assign"
+    || node.arguments.length !== 2
+  ) {
+    return false;
+  }
+  const [errorArgument, metadataArgument] = node.arguments;
+  if (
+    !errorArgument
+    || !ts.isNewExpression(errorArgument)
+    || !ts.isIdentifier(errorArgument.expression)
+    || errorArgument.expression.text !== "Error"
+    || errorArgument.arguments?.length !== 1
+    || !ts.isStringLiteral(errorArgument.arguments[0]!)
+    || errorArgument.arguments[0]!.text !== "replacement cannot be issued without sellable stock"
+    || !metadataArgument
+    || !ts.isObjectLiteralExpression(metadataArgument)
+    || metadataArgument.properties.length !== 1
+  ) {
+    return false;
+  }
+  const property = metadataArgument.properties[0];
+  return Boolean(
+    property
+    && ts.isPropertyAssignment(property)
+    && ts.isIdentifier(property.name)
+    && property.name.text === "code"
+    && ts.isStringLiteral(property.initializer)
+    && property.initializer.text === "INSUFFICIENT_SELLABLE_STOCK",
+  );
+}
 
 export interface CandidatePolicyEvidence {
   sourceDigest: string;
@@ -130,7 +167,8 @@ export function validateCandidateSource(
         && ts.isIdentifier(expression.expression)
         && expression.expression.text === "sideEffects"
         && expression.name.text === "push";
-      if (!directCall && !sideEffectPush) {
+      const failureCodeAssignment = isExactFailureCodeAssignment(node);
+      if (!directCall && !sideEffectPush && !failureCodeAssignment) {
         throw new Error("LOCAL_CANDIDATE_CALL_BLOCKED");
       }
     }

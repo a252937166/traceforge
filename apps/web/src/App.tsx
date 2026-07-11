@@ -742,7 +742,7 @@ export default function App() {
                 </div>
                 <div className="runner-gate-compare" aria-label="Verification gate comparison">
                   <div><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
-                  <div><span>Source champion gate</span><strong>55 candidate-safe tests + 4 separate replay guards</strong></div>
+                  <div><span>Source champion gate</span><strong>56 candidate-safe tests + 4 separate replay guards</strong></div>
                 </div>
                 <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">
                   {copyStatus === 'copied'

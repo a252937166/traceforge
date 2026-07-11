@@ -14,32 +14,29 @@ const runtimeEvidenceFile = new URL(
 const sessionRoot = process.env.TRACEFORGE_CODEX_SESSION_ROOT
   ?? join(homedir(), ".codex", "sessions");
 
-const expectedInvocations = [
-  {
-    order: 1,
-    slug: "trace-archaeologist",
-    role: "trace-archaeologist",
-    threadId: "019f4fd5-00a1-76c3-bf42-5e821800ad3c",
-  },
-  {
-    order: 2,
-    slug: "counterexample-crossed-input",
-    role: "counterexample-hunter",
-    threadId: "019f4fd5-cf26-7180-89ee-360a62e3d5b8",
-  },
-  {
-    order: 3,
-    slug: "counterexample-high-value",
-    role: "counterexample-hunter",
-    threadId: "019f4fd6-6541-7452-b9eb-217a27e54f68",
-  },
-  {
-    order: 4,
-    slug: "contract-critic",
-    role: "contract-critic",
-    threadId: "019f4fd7-1f71-79c2-b461-33647571d2a7",
-  },
-];
+const canonicalProof = JSON.parse(
+  await readFile(new URL("../docs/evidence/live-champion-run/proof.json", import.meta.url), "utf8"),
+);
+const roleCounts = new Map();
+const expectedInvocations = canonicalProof.modelInvocations.map((invocation, index) => {
+  const count = (roleCounts.get(invocation.role) ?? 0) + 1;
+  roleCounts.set(invocation.role, count);
+  const slug = invocation.role === "counterexample-hunter"
+    ? count === 1
+      ? "counterexample-crossed-input"
+      : count === 2
+        ? "counterexample-high-value"
+        : `counterexample-high-value-${count - 1}`
+    : invocation.role === "contract-critic"
+      ? count === 1 ? "contract-critic" : `contract-critic-${count}`
+      : invocation.role;
+  return {
+    order: index + 1,
+    slug,
+    role: invocation.role,
+    threadId: invocation.threadId,
+  };
+});
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -158,7 +155,7 @@ function parseSession(raw, expected) {
 await mkdir(outputDirectory, { recursive: true });
 const manifest = {
   disclosure:
-    "Extracted from the four recorded Codex SDK sessions. Files contain only the bounded application prompt, final structured output, and turn metadata; system and developer context is excluded.",
+    `Extracted from ${expectedInvocations.length} recorded Codex SDK sessions. Files contain only the bounded application prompt, final structured output, and turn metadata; system and developer context is excluded.`,
   invocations: [],
 };
 

@@ -1,12 +1,12 @@
 {
   "role": "counterexample_hunter",
   "scenario": {
-    "scenarioId": "high-value-vip-damaged-50000",
+    "scenarioId": "counterexample-standard-damaged-75000",
     "input": {
       "returnId": "RET-CE-002",
       "sku": "SKU-COPPER-01",
-      "amountCents": 50000,
-      "customerTier": "VIP",
+      "amountCents": 75000,
+      "customerTier": "STANDARD",
       "itemCondition": "DAMAGED",
       "initialInventory": {
         "sellable": 10,
@@ -16,21 +16,27 @@
   },
   "distinguishes": [
     {
-      "ruleId": "RULE-VIP-REPLACEMENT",
-      "fromRuleId": "RULE-STANDARD-REFUND",
-      "reason": "This keeps the already demonstrated VIP and DAMAGED predicates while raising the amount materially above the highest automatically processed observation. The resulting trace can reveal whether VIP replacement retains priority or a high-value exception supersedes automatic processing, while unchanged nonzero inventory makes immediate versus deferred inventory movement observable without adding an inventory confound."
+      "ruleId": "H-TIER-STANDARD-DAMAGED",
+      "fromRuleId": "H-AMOUNT-AT-LEAST-12000-DAMAGED",
+      "reason": "This crossed input combines STANDARD tier with 75000 cents, materially above the 12000-cent maximum in all automatically processed traces, separating the tier rule from the high-amount rule while exposing any high-value priority exception."
+    },
+    {
+      "ruleId": "H-TIER-STANDARD-DAMAGED",
+      "fromRuleId": "H-TIER-VIP-DAMAGED",
+      "reason": "Using the unresolved high-value region with STANDARD tier tests whether priority handling overrides the observed tier split; before/after state and recorded side effects can also reveal whether quarantine movement occurs within the workflow or is deferred."
     }
   ],
-  "expectedInformationGain": "High: one input simultaneously probes the unresolved precedence of a high-value exception against the demonstrated VIP replacement rule and whether inventory mutation remains immediate or is deferred when that exception is reached. The 50000-cent amount is materially above both 4500 and 12000, while all other behavior-relevant observed fields remain controlled.",
+  "expectedInformationGain": "Maximum among the remaining contrasts: the prior VIP-at-low-amount trace strongly favored tier over the proposed 12000-cent split, so a STANDARD DAMAGED return at 75000 cents probes the opposite crossed cell, the unresolved high-value priority exception, rule precedence, and inventory-movement timing in one workflow without duplicating an executed input.",
   "basedOnEvidenceIds": [
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
-    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_007",
-    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_002",
-    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_004",
-    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006",
-    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_007"
+    "ev_trace_04595d1b-5123-44e1-a638-61930da53919_002",
+    "ev_trace_04595d1b-5123-44e1-a638-61930da53919_006",
+    "ev_trace_04595d1b-5123-44e1-a638-61930da53919_007",
+    "ev_trace_c960c88d-ca7d-44d0-9473-c1ba79684724_002",
+    "ev_trace_c960c88d-ca7d-44d0-9473-c1ba79684724_006",
+    "ev_trace_c960c88d-ca7d-44d0-9473-c1ba79684724_007",
+    "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_002",
+    "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_004",
+    "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_006",
+    "ev_trace_7fed501a-28f9-4a7a-a934-8e2f8757149a_007"
   ]
 }

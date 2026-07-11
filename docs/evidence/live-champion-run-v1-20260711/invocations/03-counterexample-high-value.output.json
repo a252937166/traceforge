@@ -1,0 +1,36 @@
+{
+  "role": "counterexample_hunter",
+  "scenario": {
+    "scenarioId": "high-value-vip-damaged-50000",
+    "input": {
+      "returnId": "RET-CE-002",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 50000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  "distinguishes": [
+    {
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "fromRuleId": "RULE-STANDARD-REFUND",
+      "reason": "This keeps the already demonstrated VIP and DAMAGED predicates while raising the amount materially above the highest automatically processed observation. The resulting trace can reveal whether VIP replacement retains priority or a high-value exception supersedes automatic processing, while unchanged nonzero inventory makes immediate versus deferred inventory movement observable without adding an inventory confound."
+    }
+  ],
+  "expectedInformationGain": "High: one input simultaneously probes the unresolved precedence of a high-value exception against the demonstrated VIP replacement rule and whether inventory mutation remains immediate or is deferred when that exception is reached. The 50000-cent amount is materially above both 4500 and 12000, while all other behavior-relevant observed fields remain controlled.",
+  "basedOnEvidenceIds": [
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_007",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_002",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_004",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_007"
+  ]
+}

@@ -66,6 +66,35 @@
     }
   },
   {
+    "id": "counterexample-vip-damaged-no-sellable",
+    "title": "Host-derived counterexample · replacement stock exhausted",
+    "description": "A VIP replacement with no sellable unit must fail before a shipment, return record, or inventory mutation is created.",
+    "stage": "counterexample",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-derived",
+      "detail": "Derived from the stock-sufficiency unknown and executed before the Codex writing turn."
+    },
+    "expectedFailure": {
+      "code": "INSUFFICIENT_SELLABLE_STOCK",
+      "message": "replacement cannot be issued without sellable stock",
+      "returnRecordCreated": false,
+      "inventoryMutation": false,
+      "sideEffectsCount": 0
+    },
+    "input": {
+      "returnId": "RET-CHALLENGE-STOCK-001",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 12000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 0,
+        "quarantine": 0
+      }
+    }
+  },
+  {
     "id": "boundary-standard-damaged-49999",
     "title": "Boundary · one cent below review",
     "description": "$499.99 remains eligible for automatic refund and quarantine.",
@@ -110,7 +139,7 @@
     }
   },
   {
-    "id": "live-covered-high-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "id": "live-covered-high-migration_efaa0383-628a-4fba-94df-96bfe344bcbe",
     "title": "Host coverage probe · above the review boundary",
     "description": "A disclosed 75,000-cent VIP damaged return bounds the interval used by the post-turn verifier.",
     "stage": "counterexample",
@@ -120,7 +149,7 @@
       "detail": "Host-authored coverage evidence disclosed before the Codex writing turn."
     },
     "input": {
-      "returnId": "RET-LIVE-COVERED-HIGH-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+      "returnId": "RET-LIVE-COVERED-HIGH-migration_efaa0383-628a-4fba-94df-96bfe344bcbe",
       "sku": "SKU-COPPER-01",
       "amountCents": 75000,
       "customerTier": "VIP",
