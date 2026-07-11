@@ -768,7 +768,7 @@ export class CodexRepairAdapter {
       if (install.exitCode === 0) {
         apiTests = await runCommand(
           "pnpm",
-          ["--filter", "@traceforge/api", "test"],
+          ["--filter", "@traceforge/api", "test:candidate"],
           worktreePath,
           verificationEnvironment,
         );

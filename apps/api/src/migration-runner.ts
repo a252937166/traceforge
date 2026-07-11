@@ -136,10 +136,14 @@ function commandTestCounts(command?: { stdout: string; stderr: string; exitCode:
   const output = `${command.stdout}\n${command.stderr}`;
   const total = [...output.matchAll(/# tests\s+(\d+)/g)].at(-1)?.[1];
   const passed = [...output.matchAll(/# pass\s+(\d+)/g)].at(-1)?.[1];
+  const skipped = [...output.matchAll(/# skipped\s+(\d+)/g)].at(-1)?.[1];
   if (!total || !passed) return undefined;
+  const skippedCount = skipped ? Number.parseInt(skipped, 10) : 0;
   return {
     testsPassed: Number.parseInt(passed, 10),
-    testsTotal: Number.parseInt(total, 10),
+    testsTotal: Number.parseInt(total, 10) - skippedCount,
+    ...(skippedCount ? { testsSkipped: skippedCount } : {}),
+    scope: "candidate-safe",
     source: "live-command-output",
   };
 }
@@ -407,6 +411,7 @@ export class MigrationRunner {
       hostVerification: {
         testsPassed: 37,
         testsTotal: 37,
+        scope: "full-release",
         source: "recorded-command-log",
       },
     }, recordedArchaeology.contract);

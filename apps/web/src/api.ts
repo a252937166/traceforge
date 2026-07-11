@@ -250,6 +250,10 @@ export function normalizeProof(raw: unknown): ProofBundle {
       ? {
           testsPassed: asNumber(rawHostVerification.testsPassed),
           testsTotal: asNumber(rawHostVerification.testsTotal),
+          testsSkipped: asNumber(rawHostVerification.testsSkipped) || undefined,
+          scope: rawHostVerification.scope === 'candidate-safe' || rawHostVerification.scope === 'full-release'
+            ? rawHostVerification.scope
+            : undefined,
         }
       : undefined,
     signature: asString(item.signature) || undefined,

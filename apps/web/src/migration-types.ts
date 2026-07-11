@@ -99,6 +99,8 @@ export type CandidateProvenance = {
 export type HostVerificationProvenance = {
   testsPassed?: number
   testsTotal?: number
+  testsSkipped?: number
+  scope?: 'candidate-safe' | 'full-release'
 }
 
 export type ScenarioProvenance = {

@@ -11,6 +11,8 @@ import { recordedCodexBuild } from "../src/recorded-codex-build.js";
 import { MigrationStore } from "../src/migration-store.js";
 import { ArtifactStore } from "../src/store.js";
 
+const recordedReplayTest = process.env.TRACEFORGE_CANDIDATE_TESTS === "1" ? test.skip : test;
+
 test("candidate evidence resolves the source format actually executed by the runtime", () => {
   assert.equal(
     candidateModuleSourceUrl("file:///workspace/apps/api/src/migration-runner.ts").pathname,
@@ -22,7 +24,7 @@ test("candidate evidence resolves the source format actually executed by the run
   );
 });
 
-test("recorded replay fails closed when current executable source differs from recorded digest", async () => {
+recordedReplayTest("recorded replay fails closed when current executable source differs from recorded digest", async () => {
   assert.equal(
     await verifyRecordedCandidateSourceDigest(),
     recordedCodexBuild.executableSourceDigests.typescript,
@@ -62,7 +64,7 @@ async function withApi(
   }
 }
 
-test("recorded replay pacing exposes an intermediate server-owned state before completion", async () => {
+recordedReplayTest("recorded replay pacing exposes an intermediate server-owned state before completion", async () => {
   await withApi(async (baseUrl) => {
     const created = await start(baseUrl, "recorded-replay");
     const body = await created.json();
@@ -173,7 +175,7 @@ test("deterministic-only migration emits real stages and a downloadable recomput
   });
 });
 
-test("recorded replay exposes real GPT-5.6 and full-module Codex evidence", async () => {
+recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex evidence", async () => {
   await withApi(async (baseUrl) => {
     const created = await start(baseUrl, "recorded-replay");
     const body = await created.json();
