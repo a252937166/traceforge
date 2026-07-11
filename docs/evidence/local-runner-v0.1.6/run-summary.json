@@ -1,0 +1,40 @@
+{
+  "capturedAt": "2026-07-11T15:38:37.590Z",
+  "releaseTag": "local-runner-v0.1.6",
+  "releaseCommit": "88fd9faa613f0b7280a584a79e209fae800272d9",
+  "runnerVersion": "0.1.6",
+  "route": "headless Playwright clicked Start local build on the loopback UI",
+  "terminalPhase": "passed",
+  "pageErrors": [],
+  "proofId": "local_proof_c8a225d7-a347-4bec-b5a7-2f611ec4ca85",
+  "proofDigest": "sha256:dd29511b4089b9080033321aa096518967ef332a8b9d55b63d4e23692e208d31",
+  "proofDigestValid": true,
+  "diffDigest": "sha256:00b56d9c593d156045f61c99e02f5bf111af647e1ce61834b65fc559f9a3f675",
+  "model": "gpt-5.6-sol",
+  "threadId": "019f51d3-b4ec-7d53-b02e-e03ce0e7cafe",
+  "turnId": "019f51d3-b530-7a33-90a7-dd741d8f3068",
+  "tokenUsage": {
+    "totalTokens": 24162,
+    "inputTokens": 23871,
+    "cachedInputTokens": 22272,
+    "outputTokens": 291,
+    "reasoningOutputTokens": 188
+  },
+  "tests": {
+    "discovered": 13,
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "candidateSafeTotal": 13
+  },
+  "scenarios": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  },
+  "assertions": 30,
+  "mismatches": 0,
+  "changedFiles": [
+    "apps/api/src/candidates/generated-return-workflow.ts"
+  ]
+}

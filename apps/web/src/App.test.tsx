@@ -262,11 +262,12 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('No Codex writing turn or verifier command runs before Start local build.')
     expect(dialog).toHaveTextContent('13 focused candidate tests + 6 differential scenarios')
     expect(dialog).toHaveTextContent('42 candidate-safe tests + 4 separate replay guards')
+    expect(dialog).toHaveTextContent('Pinned tag + commit 88fd9fa')
     expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.6/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
+      'EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 

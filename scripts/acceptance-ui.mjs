@@ -56,6 +56,7 @@ async function buildAndReadStaticContract() {
     "Host-only proof",
     "Build live with my Codex",
     "local-runner-v0.1.6",
+    "88fd9faa613f0b7280a584a79e209fae800272d9",
     "13 focused candidate tests + 6 differential scenarios",
     "42 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
@@ -156,7 +157,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
     const releaseFooter = page.getByRole("contentinfo", { name: "Deployed release identity" });
     await releaseFooter.waitFor({ state: "visible" });
-    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.5/);
+    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.6/);
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
     assert.ok(
@@ -178,6 +179,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
     assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.6/);
+    assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit 88fd9fa/);
     assert.match(await runnerDialog.innerText(), /13 focused candidate tests \+ 6 differential scenarios/);
     assert.match(await runnerDialog.innerText(), /42 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();

@@ -1,0 +1,251 @@
+{
+  "version": "traceforge.local-proof.v1",
+  "proofId": "local_proof_c8a225d7-a347-4bec-b5a7-2f611ec4ca85",
+  "sessionId": "local_bd2327bc-4d21-4983-8b40-8a2d7ec0d228",
+  "status": "PASSED",
+  "claim": "Evidence-bounded local Codex rebuild verified against the executed host suite.",
+  "provenance": {
+    "archaeology": "recorded-gpt-5.6",
+    "build": "live-local-codex",
+    "verification": "live-local-host",
+    "sourceRunId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996"
+  },
+  "runner": {
+    "version": "0.1.6",
+    "releaseTag": "local-runner-v0.1.6",
+    "manifestDigest": "sha256:601a94b83d9f509275d8520d8a95a708120208caba37d62583f88566ea080e57",
+    "buildPermissionProfile": "traceforge-build",
+    "verifyPermissionProfile": "traceforge-verify"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "threadId": "019f51d3-b4ec-7d53-b02e-e03ce0e7cafe",
+    "turnId": "019f51d3-b530-7a33-90a7-dd741d8f3068",
+    "turnCompletedAt": "2026-07-11T15:38:33.996Z",
+    "usage": {
+      "totalTokens": 24162,
+      "inputTokens": 23871,
+      "cachedInputTokens": 22272,
+      "outputTokens": 291,
+      "reasoningOutputTokens": 188
+    }
+  },
+  "repairInput": {
+    "digest": "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
+    "contractDigest": "sha256:d4dfc557658fc4e2839a4db5809705586e130c6bd9ef3b9e27f14c700eccaa4f",
+    "failedProofDigests": [
+      "sha256:e2b7bef16aae08b7bf31aa3acb5fa078c15aa1dc75473e8019df1879bb9259e1",
+      "sha256:611a46c96e26ddd1d0d6692884dbffcfa697a2b4e2232d0e0d20903f809722c8",
+      "sha256:e1626385e599c2f5f747933d1a7d11b48c8bf4e895660095e5ab3b3b537519ce"
+    ],
+    "visibleScenarioIds": [
+      "observed-standard-damaged-4500",
+      "observed-vip-damaged-12000",
+      "counterexample-vip-damaged-50000",
+      "boundary-standard-damaged-49999",
+      "boundary-standard-damaged-50000",
+      "live-covered-high-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996"
+    ]
+  },
+  "candidate": {
+    "path": "apps/api/src/candidates/generated-return-workflow.ts",
+    "baseSourceDigest": "sha256:200eb9a9aa0ec63f39908d63debb5e3ee59dbf4e03dc35488d770548c6a0a613",
+    "sourceDigest": "sha256:9ff37631e728f24ed279ef6d48b96c88930913a1cebd8e64d8708d7bef44fa23",
+    "diffDigest": "sha256:00b56d9c593d156045f61c99e02f5bf111af647e1ce61834b65fc559f9a3f675",
+    "changedFiles": [
+      "apps/api/src/candidates/generated-return-workflow.ts"
+    ],
+    "policy": {
+      "sourceDigest": "sha256:9ff37631e728f24ed279ef6d48b96c88930913a1cebd8e64d8708d7bef44fa23",
+      "changedFunction": "executeGeneratedReturnWorkflow",
+      "allowedImports": [
+        "../scenarios.js",
+        "../types.js"
+      ]
+    },
+    "structuredOutputDigest": "sha256:c566d35770cc98861abc7ab25b57ea296456f7c98cea120f8c93a6358d64d4d9"
+  },
+  "verification": {
+    "inputCreatedAt": "2026-07-11T15:38:35.974Z",
+    "nonceDigest": "sha256:d18e70e0949a41ea0d00f0876ee3df576e81104d833f262eb5b3e203b45aa072",
+    "commands": [
+      {
+        "name": "install",
+        "executor": "trusted-host",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "install",
+          "--offline",
+          "--frozen-lockfile"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:c6074afe0feab3390f300dbfabb052f3350906850842e51f7ca7c513a74134aa",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "apiTests",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--test",
+          "--import",
+          "tsx",
+          "tests/champion-workflow.test.ts",
+          "tests/workflow.test.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:9a4c1a55e3dc9491a997642bc82b2a2f73e6037e11331d5d61aa9a59b53ba6c4",
+        "stderrDigest": "sha256:2fd8120fe7a30b82ef59dd6dd7789ead299fc1efa6aad86cce0bd5b096ae1ee3",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "generatedSuite",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--import",
+          "tsx",
+          "scripts/verify-generated.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:0a09dcc3c14198762532c2edc4c25ee589fa867180572afdfecfc7dd430aec12",
+        "stderrDigest": "sha256:c894f308d338bd2acd73c600249ba93a6321ffdf3fabd22fc2f92b7a9173401a",
+        "diagnosticCode": "OK"
+      }
+    ],
+    "tests": {
+      "discovered": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "candidateSafeTotal": 13
+    },
+    "suite": {
+      "repairInputDigest": "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
+      "candidateVersion": "generated",
+      "status": "PASSED",
+      "expectedScenarioIds": [
+        "observed-standard-damaged-4500",
+        "observed-vip-damaged-12000",
+        "counterexample-vip-damaged-50000",
+        "boundary-standard-damaged-49999",
+        "boundary-standard-damaged-50000",
+        "host-hidden-41ea0d00f087"
+      ],
+      "summary": {
+        "total": 6,
+        "passed": 6,
+        "failed": 0
+      },
+      "runs": [
+        {
+          "scenarioId": "observed-standard-damaged-4500",
+          "partition": "observed",
+          "runId": "run_3b4644eb-656d-47c8-8eb6-18a6d20e9538",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_11cde303-1240-4a4c-9127-4f3c11a8cdf4",
+          "proofDigest": "sha256:091ac91d06e190e6a6b88b9144a20a7c559733efe507c2d07753389b1e5f19d4",
+          "legacyTraceId": "trace_61cf0106-343b-4db4-b4d7-8d74263ff1fe",
+          "candidateTraceId": "trace_ca998caa-ac70-46a8-90c9-4c152d442456",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "observed-vip-damaged-12000",
+          "partition": "observed",
+          "runId": "run_d3323f55-a131-4ac7-abda-08cc776bf2ec",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_afe49bc5-aa70-4d23-9fbe-7c28172f7bf6",
+          "proofDigest": "sha256:d9e404b072be970384efb7302503ab4b8bc1c3480a245f8532f79efde458568b",
+          "legacyTraceId": "trace_d208b262-cca0-4223-a019-a5641e1dd792",
+          "candidateTraceId": "trace_90e0eace-e995-40bd-ab83-61d7ea2a48fd",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "counterexample-vip-damaged-50000",
+          "partition": "counterexample",
+          "runId": "run_d04cb329-5f97-412e-8b5a-88e79f98f3a4",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_c353412a-c2d4-43ae-a195-5be4ceb07b08",
+          "proofDigest": "sha256:3f9d296377ce82fcebeee7f3efea8fe42e80b768fcd632bc5b68c2a02414b506",
+          "legacyTraceId": "trace_d2ed6560-69da-46b2-b952-9c869fb35688",
+          "candidateTraceId": "trace_eb4522cf-a1ad-43a1-82b9-2f4bcb5db223",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-49999",
+          "partition": "boundary",
+          "runId": "run_f92eed83-fafb-4cc5-8755-f47d0fa71bd4",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_4608beff-61f5-480c-8f96-efba76ef0c64",
+          "proofDigest": "sha256:f0db4c4828c93857ff14f4d6c9ddd25c86336b0b856849e25aa37f7da8d58a76",
+          "legacyTraceId": "trace_888ff9c4-fe90-44ab-84a2-55793bcee6e9",
+          "candidateTraceId": "trace_eabb156b-1365-498b-b7df-0a663e02e648",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-50000",
+          "partition": "boundary",
+          "runId": "run_7cab71e3-b63e-4596-944d-f7855ca4e8cb",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_a7f74aad-1a9e-4c79-afb9-f22d08756ecc",
+          "proofDigest": "sha256:a0e7888836eba997e245c41fc09249166e10e39131661ac691ca1284ccc4835f",
+          "legacyTraceId": "trace_4ee592ef-ed3f-467f-9ed5-3ca58a97b412",
+          "candidateTraceId": "trace_225e52e3-7b58-459f-ba1e-751b441b4108",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "host-hidden-41ea0d00f087",
+          "partition": "held-out",
+          "runId": "run_8bab5ded-b987-42a7-94e9-7fcf8c761a51",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_5f4b0b67-4eac-4a3b-91aa-209e5a9ca5a8",
+          "proofDigest": "sha256:3ecb260b60c08075abfa68df565e1fb8d92e0cc8882ab83f4be691b6d2cdbbfe",
+          "legacyTraceId": "trace_e628b926-bef1-4c42-b3c8-2355dc93fea4",
+          "candidateTraceId": "trace_aa787ff2-32d8-418b-8f95-ebfb9c8a382a",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        }
+      ]
+    },
+    "suiteValidation": {
+      "passed": true,
+      "problems": []
+    }
+  },
+  "limitations": [
+    "Recorded GPT-5.6 archaeology is source evidence; only the Codex build and host verification ran live on this machine.",
+    "The proof covers the six executed returns scenarios and five asserted business fields per scenario.",
+    "SHA-256 provides recomputable integrity, not identity, timestamping, or non-repudiation."
+  ],
+  "generatedAt": "2026-07-11T15:38:37.250Z",
+  "digest": "sha256:dd29511b4089b9080033321aa096518967ef332a8b9d55b63d4e23692e208d31"
+}

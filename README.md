@@ -57,12 +57,14 @@ Reviewers can run the bounded **Build + Verify** stages with their own local Cod
 macOS or Linux:
 
 ```bash
-RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The resulting provenance is explicit: GPT-5.6 archaeology is recorded source evidence, while the `gpt-5.6-sol` Codex build, post-turn verification-only input, deterministic host verification, diff, and proof are fresh on the reviewer's machine. The Runner uses a dedicated ChatGPT sign-in, never reads global `~/.codex/auth.json`, permits one candidate file to change, and disables agent command network and Git publication operations.
+The command verifies that the pinned `local-runner-v0.1.6` tag resolves to commit `88fd9faa613f0b7280a584a79e209fae800272d9` before installation. The resulting provenance is explicit: GPT-5.6 archaeology is recorded source evidence, while the `gpt-5.6-sol` Codex build, post-turn verification-only input, deterministic host verification, diff, and proof are fresh on the reviewer's machine. The Runner uses a dedicated ChatGPT sign-in, never reads global `~/.codex/auth.json`, permits one candidate file to change, and disables agent command network and Git publication operations.
 
 The gates are intentionally different and shown together in the UI: the portable Local Runner executes `13` focused candidate tests plus six differential scenarios, while the source champion gate contains `42` candidate-safe tests plus four separate replay-integrity guards. The local path narrows the host harness for a socket-free verifier; it does not weaken the six business scenarios or their `30` assertions.
+
+The optional hands-on path has been exercised end to end with the real tagged Runner, a real `gpt-5.6-sol` Codex turn, the host verifier, and UI-triggered cleanup. See the [sanitized v0.1.6 run evidence](docs/evidence/local-runner-v0.1.6/README.md).
 
 Requires Node.js `22.5+`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. A public browser cannot silently start local Codex, so the terminal launch is required on first use. Windows is not supported by this verified release. See [docs/local-runner.md](docs/local-runner.md) for exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
 

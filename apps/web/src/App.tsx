@@ -43,9 +43,11 @@ const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 const localRunnerRepository = 'a252937166/traceforge'
 const localRunnerTag = 'local-runner-v0.1.6'
-const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
+const localRunnerCommit = '88fd9faa613f0b7280a584a79e209fae800272d9'
+const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
+const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
 
-const localRunnerCommand = `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
+const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -713,7 +715,7 @@ export default function App() {
               <section className="runner-launch" aria-labelledby="runner-launch-title">
                 <div className="runner-launch-heading">
                   <div><span>First run</span><h3 id="runner-launch-title">Launch the pinned open-source runner</h3></div>
-                  <a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect {localRunnerTag} ↗</a>
+                  <a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect {localRunnerTag} · {localRunnerCommitShort} ↗</a>
                 </div>
                 <div className="runner-platform-tabs" aria-label="Verified Local Runner platform">
                   <strong>Verified on macOS / Linux</strong>
@@ -737,7 +739,7 @@ export default function App() {
                     ? 'Command copied. Run it in a terminal; the runner opens its localhost confirmation page.'
                     : copyStatus === 'failed'
                       ? 'Clipboard access is blocked. Select the command above and copy it manually.'
-                    : 'Pinned source · fixed demo fixture · no unversioned latest install'}
+                    : `Pinned tag + commit ${localRunnerCommitShort} · fixed fixture · no unversioned latest install`}
                 </p>
               </section>
 

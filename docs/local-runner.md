@@ -20,12 +20,16 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command clones the pinned `local-runner-v0.1.6` tag into a new temporary directory, installs both x64 and arm64 variants of required optional native tools, and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.6` tag into a new temporary directory and refuses to continue unless it resolves to commit `88fd9faa613f0b7280a584a79e209fae800272d9`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
+
+## Verified real run
+
+The complete `local-runner-v0.1.6` path has been executed from a fresh temporary checkout by clicking **Start local build** on the loopback page. The captured `gpt-5.6-sol` turn passed `13/13` focused tests, `6/6` differential scenarios, and `30/30` assertions with zero mismatches; UI-triggered deletion then removed the session, writer, verifier, worktree, and Codex lock. The sanitized [proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.6/README.md) are committed for review.
 
 ## First-run requirements
 

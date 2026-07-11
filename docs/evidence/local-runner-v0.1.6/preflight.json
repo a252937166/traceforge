@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-07-11T15:37:36.028Z",
+  "runnerVersion": "0.1.6",
+  "releaseTag": "local-runner-v0.1.6",
+  "releaseCommit": "88fd9faa613f0b7280a584a79e209fae800272d9",
+  "fixtureTag": "local-runner-fixture-v0.1.4",
+  "fixtureBaseCommit": "7c1dceeaee7f375beb8d2895fda502f2ad74e039",
+  "repairInputDigest": "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
+  "codexVersion": "codex-cli 0.144.1",
+  "signedIn": true,
+  "model": "gpt-5.6-sol",
+  "modelAvailable": true,
+  "phase": "ready",
+  "loopbackOnly": true,
+  "noCodexTurnBeforeStart": true
+}
