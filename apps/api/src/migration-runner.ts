@@ -225,12 +225,14 @@ const hostDeterministicContract = {
   ],
 } as const;
 
-function commandTestCounts(command?: { stdout: string; stderr: string; exitCode: number }): MigrationProofBundle["hostVerification"] {
+export function commandTestCounts(command?: { stdout: string; stderr: string; exitCode: number }): MigrationProofBundle["hostVerification"] {
   if (!command || command.exitCode !== 0) return undefined;
   const output = `${command.stdout}\n${command.stderr}`;
-  const total = [...output.matchAll(/# tests\s+(\d+)/g)].at(-1)?.[1];
-  const passed = [...output.matchAll(/# pass\s+(\d+)/g)].at(-1)?.[1];
-  const skipped = [...output.matchAll(/# skipped\s+(\d+)/g)].at(-1)?.[1];
+  const summary = (label: "tests" | "pass" | "skipped") =>
+    [...output.matchAll(new RegExp(`(?:#|ℹ)\\s*${label}\\s+(\\d+)`, "g"))].at(-1)?.[1];
+  const total = summary("tests");
+  const passed = summary("pass");
+  const skipped = summary("skipped");
   if (!total || !passed) return undefined;
   const skippedCount = skipped ? Number.parseInt(skipped, 10) : 0;
   return {
