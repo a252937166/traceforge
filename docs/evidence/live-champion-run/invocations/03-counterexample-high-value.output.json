@@ -1,0 +1,37 @@
+{
+  "role": "counterexample_hunter",
+  "scenario": {
+    "scenarioId": "high-value-vip-damaged-75000",
+    "input": {
+      "returnId": "RET-HUNT-002",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 75000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  "distinguishes": [
+    {
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "fromRuleId": "HYP-HIGH-VALUE-PRIORITY-EXCEPTION",
+      "reason": "Changes only amount relative to the automatically processed VIP/DAMAGED 12000-cent trace. The host-observed rule, decision, inventory state, and side effects can distinguish continued automatic replacement with immediate inventory movement from an unresolved high-value priority path that may defer inventory movement."
+    }
+  ],
+  "expectedInformationGain": "Maximum for the remaining uncertainty: 75000 cents is materially above every automatically processed amount while preserving VIP, DAMAGED, SKU, and initial inventory from the existing replacement trace. This isolates the high-value dimension and lets one host execution reveal both whether a priority exception supersedes automatic processing and whether sellable/quarantine movement occurs immediately or is deferred, without predicting either result.",
+  "basedOnEvidenceIds": [
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_003",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_004",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_006",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_007",
+    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_002",
+    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_004",
+    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_006",
+    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_007"
+  ]
+}

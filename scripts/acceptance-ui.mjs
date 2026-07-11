@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { chromium } from "@playwright/test";
 import {
   acquireApi,
   freePort,
@@ -75,6 +76,126 @@ async function buildAndReadStaticContract() {
   };
 }
 
+async function runIncrementalBrowserAcceptance(webBase) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const pollingRequests = [];
+  const pageErrors = [];
+  let sseResponse;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/events") && url.searchParams.get("format") === "json") {
+      pollingRequests.push(request.url());
+    }
+  });
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.pathname.endsWith("/events") && url.searchParams.get("format") !== "json") {
+      sseResponse = {
+        status: response.status(),
+        contentType: response.headers()["content-type"],
+      };
+    }
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.addInitScript(() => {
+    const trace = {
+      transportStates: [],
+      terminalRendered: false,
+      inferActiveRenderedBeforeTerminal: false,
+      hypothesisRenderedBeforeTerminal: false,
+    };
+    window.__traceforgeAcceptance = trace;
+
+    const sampleDom = () => {
+      const transport = document.querySelector(".transport")?.textContent?.trim();
+      if (transport && trace.transportStates.at(-1) !== transport) {
+        trace.transportStates.push(transport);
+      }
+      const terminalRenderedNow = [...document.querySelectorAll(".event-console strong")]
+        .some((element) => element.textContent?.trim() === "Migration completed");
+      if (!trace.terminalRendered && !terminalRenderedNow) {
+        const infer = [...document.querySelectorAll(".stage-rail li")]
+          .find((element) => element.querySelector("strong")?.textContent?.trim().toLowerCase() === "infer");
+        if (infer?.classList.contains("stage-active")) {
+          trace.inferActiveRenderedBeforeTerminal = true;
+        }
+        if (document.querySelector(".hypothesis")) {
+          trace.hypothesisRenderedBeforeTerminal = true;
+        }
+      }
+      if (terminalRenderedNow) trace.terminalRendered = true;
+    };
+    new MutationObserver(sampleDom).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-current"],
+    });
+    document.addEventListener("DOMContentLoaded", sampleDom, { once: true });
+  });
+
+  try {
+    await page.goto(webBase, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Start migration", exact: true }).click();
+    await page.waitForFunction(
+      () => window.__traceforgeAcceptance.transportStates.includes("sse"),
+      undefined,
+      { timeout: 10_000 },
+    );
+    await page.getByText("PASSED · 6/6 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.waitForFunction(() => window.__traceforgeAcceptance.terminalRendered);
+    await page.waitForTimeout(250);
+
+    const trace = await page.evaluate(() => window.__traceforgeAcceptance);
+
+    assert.ok(trace.transportStates.includes("sse"), "transport must enter sse while the migration is running");
+    assert.ok(
+      trace.inferActiveRenderedBeforeTerminal,
+      "Infer must render active before Migration completed appears",
+    );
+    assert.ok(
+      trace.hypothesisRenderedBeforeTerminal,
+      "a hypothesis must render before Migration completed appears",
+    );
+    assert.equal(pollingRequests.length, 0, "a healthy SSE run must not issue the JSON polling fallback");
+    assert.equal(trace.transportStates.includes("polling"), false, "transport must never render polling on a healthy run");
+    assert.equal(pageErrors.length, 0, `browser emitted page errors: ${pageErrors.join("; ")}`);
+    assert.equal(sseResponse?.status, 200, "browser SSE request must return HTTP 200");
+    assert.match(sseResponse?.contentType ?? "", /text\/event-stream/);
+
+    const eventCountLabel = await page.locator(".event-console .section-heading small").textContent();
+    const eventCount = Number.parseInt(eventCountLabel ?? "0", 10);
+    assert.ok(eventCount >= 25, "browser must incrementally receive the complete server event ledger");
+
+    return {
+      engine: "playwright-chromium",
+      transportStates: trace.transportStates,
+      sseResponse,
+      eventCount,
+      inferActiveRenderedBeforeTerminal: trace.inferActiveRenderedBeforeTerminal,
+      hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
+      pollingFallbackRequests: pollingRequests,
+      finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
+    };
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      trace: window.__traceforgeAcceptance,
+      body: document.body.innerText.slice(0, 4_000),
+    })).catch(() => ({ trace: undefined, body: "page unavailable" }));
+    throw new Error(
+      `${error.message}\nBROWSER TRACE:\n${JSON.stringify(diagnostics.trace, null, 2)}`
+      + `\nPOLLING REQUESTS:\n${JSON.stringify(pollingRequests, null, 2)}`
+      + `\nPAGE ERRORS:\n${JSON.stringify(pageErrors, null, 2)}`
+      + `\nBODY:\n${diagnostics.body}`,
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
 const staticContract = await buildAndReadStaticContract();
 let api;
 let web;
@@ -84,9 +205,12 @@ try {
     webBase = normalizeBaseUrl(process.env.WEB_BASE);
     await waitForUrl(webBase);
   } else {
-    api = await acquireApi();
     const webPort = await freePort();
     webBase = `http://127.0.0.1:${webPort}`;
+    api = await acquireApi({
+      TRACEFORGE_REPLAY_EVENT_DELAY_MS: "25",
+      TRACEFORGE_ALLOWED_ORIGINS: webBase,
+    });
     web = startProcess(
       "pnpm",
       ["--filter", "@traceforge/web", "exec", "vite", "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"],
@@ -110,6 +234,8 @@ try {
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
 
+  const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
+
   const artifact = await writeArtifact("migration-ui-contract.json", {
     webBase,
     apiBase,
@@ -121,9 +247,9 @@ try {
       healthStatus: health.body.status,
     },
     staticContract,
-    browserAutomation: false,
+    browserAutomation,
   });
-  console.log("ACCEPTANCE UI PASS (HTTP + production bundle contract; browser automation intentionally separate)");
+  console.log("ACCEPTANCE UI PASS (production bundle + incremental Playwright SSE contract)");
   console.log(`web=${webBase} api=${apiBase} artifact=${artifact}`);
 } catch (error) {
   const webLogs = web?.logs?.join("") ?? "";

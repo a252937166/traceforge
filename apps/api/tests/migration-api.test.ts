@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
-import { candidateModuleSourceUrl } from "../src/migration-runner.js";
+import {
+  assertCandidateSourceDigest,
+  candidateModuleSourceUrl,
+  verifyRecordedCandidateSourceDigest,
+} from "../src/migration-runner.js";
+import { recordedCodexBuild } from "../src/recorded-codex-build.js";
 import { MigrationStore } from "../src/migration-store.js";
 import { ArtifactStore } from "../src/store.js";
 
@@ -17,15 +22,32 @@ test("candidate evidence resolves the source format actually executed by the run
   );
 });
 
+test("recorded replay fails closed when current executable source differs from recorded digest", async () => {
+  assert.equal(
+    await verifyRecordedCandidateSourceDigest(),
+    recordedCodexBuild.executableSourceDigests.typescript,
+  );
+  assert.throws(
+    () => assertCandidateSourceDigest("tampered candidate source", recordedCodexBuild.executableSourceDigests.typescript),
+    /RECORDED_CANDIDATE_SOURCE_MISMATCH/,
+  );
+});
+
 async function withApi(
   assertion: (baseUrl: string) => Promise<void>,
+  env: NodeJS.ProcessEnv = {},
 ): Promise<void> {
   const store = new ArtifactStore(":memory:");
   const migrationStore = new MigrationStore(":memory:");
   const { app } = createApp({
     store,
     migrationStore,
-    env: { TRACEFORGE_ENABLE_GPT56: "0", TRACEFORGE_ENABLE_CODEX: "0" },
+    env: {
+      TRACEFORGE_ENABLE_GPT56: "0",
+      TRACEFORGE_ENABLE_CODEX: "0",
+      TRACEFORGE_REPLAY_EVENT_DELAY_MS: "0",
+      ...env,
+    },
   });
   const server: Server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -39,6 +61,33 @@ async function withApi(
     store.close();
   }
 }
+
+test("recorded replay pacing exposes an intermediate server-owned state before completion", async () => {
+  await withApi(async (baseUrl) => {
+    const created = await start(baseUrl, "recorded-replay");
+    const body = await created.json();
+    let observedIntermediate = false;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const [jobResponse, eventsResponse] = await Promise.all([
+        fetch(`${baseUrl}/api/migrations/${body.data.id}`),
+        fetch(`${baseUrl}/api/migrations/${body.data.id}/events?format=json`),
+      ]);
+      const job = (await jobResponse.json()).data;
+      const events = (await eventsResponse.json()).data.events as Array<{ type: string }>;
+      if (
+        job.status === "running" &&
+        events.some(({ type }) => type === "hypothesis.proposed") &&
+        !events.some(({ type }) => type === "job.completed")
+      ) {
+        observedIntermediate = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(observedIntermediate, true);
+    assert.equal((await terminalJob(baseUrl, body.data.id)).status, "passed");
+  }, { TRACEFORGE_REPLAY_EVENT_DELAY_MS: "15" });
+});
 
 async function start(baseUrl: string, executionMode: string) {
   return fetch(`${baseUrl}/api/migrations`, {
@@ -86,6 +135,11 @@ test("deterministic-only migration emits real stages and a downloadable recomput
       passed: 6,
     });
     assert.equal(proof.modelInvocations.length, 0);
+    assert.equal(proof.contractId, "contract-host-deterministic-v1");
+    assert.equal(
+      proof.limitations.includes("The deterministic-only contract is host-authored and is not a replay of a recorded model artifact."),
+      true,
+    );
 
     const verifiedResponse = await fetch(`${baseUrl}/api/proofs/verify-digest`, {
       method: "POST",
@@ -113,6 +167,9 @@ test("deterministic-only migration emits real stages and a downloadable recomput
     const downloaded = await fetch(`${baseUrl}${artifacts.find(({ filename }: { filename: string }) => filename === "proof.json").href}`);
     assert.match(downloaded.headers.get("content-type") ?? "", /application\/json/);
     assert.equal(downloaded.headers.get("x-content-sha256")?.startsWith("sha256:"), true);
+    const contractDownloaded = await fetch(`${baseUrl}${artifacts.find(({ filename }: { filename: string }) => filename === "contract.json").href}`);
+    const contract = await contractDownloaded.json();
+    assert.equal(contract.source, "host-authored");
   });
 });
 

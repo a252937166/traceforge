@@ -2,24 +2,27 @@ import {
   validateGeneratedSuite,
   type GeneratedCandidateSuiteEvidence,
 } from "../src/codex-adapter.js";
-import { scenarios } from "../src/scenarios.js";
 import { TraceForgeService } from "../src/service.js";
 import { ArtifactStore } from "../src/store.js";
 
-const sourceProofDigest = process.env.TRACEFORGE_SOURCE_PROOF_DIGEST ?? "";
+const repairInputDigest = process.env.TRACEFORGE_REPAIR_INPUT_DIGEST ?? "";
+const hostHiddenScenarioNonce = process.env.TRACEFORGE_HOST_HIDDEN_SCENARIO_NONCE;
 const store = new ArtifactStore(":memory:");
 
 try {
   const service = new TraceForgeService(store);
-  const result = service.runSuite("generated");
+  const result = service.runSuite("generated", hostHiddenScenarioNonce);
   const suite: GeneratedCandidateSuiteEvidence = {
-    sourceProofDigest,
+    repairInputDigest,
     candidateVersion: "generated",
     status: result.status,
-    expectedScenarioIds: scenarios.map((scenario) => scenario.id),
+    expectedScenarioIds: result.runs.map(({ proofBundle }) => proofBundle.scenarioId ?? ""),
     summary: result.summary,
     runs: result.runs.map(({ runId, status, proofBundle }) => ({
       scenarioId: proofBundle.scenarioId ?? "",
+      partition: proofBundle.scenarioId?.startsWith("host-hidden-")
+        ? "held-out"
+        : service.listScenarios().find(({ id }) => id === proofBundle.scenarioId)?.stage ?? "observed",
       runId,
       status,
       implementationId: proofBundle.implementations.candidate,
@@ -32,7 +35,7 @@ try {
       proofPersisted: store.getProof(proofBundle.proofId)?.digest === proofBundle.digest,
     })),
   };
-  const validation = validateGeneratedSuite(suite, sourceProofDigest);
+  const validation = validateGeneratedSuite(suite, repairInputDigest);
   process.stdout.write(`${JSON.stringify({ suite, validation })}\n`);
   if (!validation.passed) {
     process.exitCode = 1;

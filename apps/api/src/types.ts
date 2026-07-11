@@ -168,6 +168,10 @@ export interface Scenario {
   description: string;
   stage: "observed" | "counterexample" | "boundary" | "held-out";
   visibility: "visible" | "hidden";
+  provenance: {
+    source: "model-proposed" | "host-derived" | "host-authored";
+    detail: string;
+  };
   input: ReturnWorkflowInput;
 }
 

@@ -3,14 +3,24 @@ import {
   executeSeededReturnWorkflow,
 } from "./candidates/generated-return-workflow.js";
 import { executeLegacyReturnWorkflow } from "./legacy/return-workflow.js";
-import { findScenario, scenarios, validateWorkflowInput } from "./scenarios.js";
+import {
+  createHostHiddenScenario,
+  findScenario,
+  scenarios,
+  validateWorkflowInput,
+} from "./scenarios.js";
 import type {
   CandidateVersion,
   SystemName,
   WorkflowExecution,
 } from "./types.js";
 
-export { findScenario, scenarios, validateWorkflowInput } from "./scenarios.js";
+export {
+  createHostHiddenScenario,
+  findScenario,
+  scenarios,
+  validateWorkflowInput,
+} from "./scenarios.js";
 
 /** The legacy oracle is a standalone implementation module. */
 export function executeLegacyWorkflow(rawInput: unknown): WorkflowExecution {
@@ -56,3 +66,4 @@ export function executeWorkflow(
 void findScenario;
 void scenarios;
 void validateWorkflowInput;
+void createHostHiddenScenario;

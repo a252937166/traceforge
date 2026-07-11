@@ -34,12 +34,12 @@ test("health and scenarios are available", async () => {
   assert.equal(health.status, "ok");
   assert.equal(health.codexConfigured, false);
   assert.equal(health.codexStatus.mode, "disabled");
-  assert.equal(scenarioResponse.data.length, 6);
+  assert.equal(scenarioResponse.data.length, 5);
   assert.deepEqual(
     scenarioResponse.data.map((scenario: { stage: string }) => scenario.stage),
-    ["observed", "observed", "counterexample", "boundary", "boundary", "held-out"],
+    ["observed", "observed", "counterexample", "boundary", "boundary"],
   );
-  assert.equal(scenarioResponse.data.at(-1).visibility, "hidden");
+  assert.equal(scenarioResponse.data.every(({ visibility }: { visibility: string }) => visibility === "visible"), true);
 });
 
 test("CORS allows local frontend origins and rejects untrusted browser origins", async () => {

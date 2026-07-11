@@ -1,0 +1,33 @@
+{
+  "role": "counterexample_hunter",
+  "scenario": {
+    "scenarioId": "cross-standard-damaged-12000",
+    "input": {
+      "returnId": "RET-HUNT-001",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 12000,
+      "customerTier": "STANDARD",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  "distinguishes": [
+    {
+      "ruleId": "RULE-STANDARD-REFUND",
+      "fromRuleId": "HYP-AMOUNT-BANDED-REPLACEMENT",
+      "reason": "Crosses STANDARD tier with the already observed 12000-cent amount while holding DAMAGED condition and inventory constant, separating a tier-driven explanation from the competing amount-at-or-above-12000 explanation."
+    }
+  ],
+  "expectedInformationGain": "Maximum for one minimally redundant workflow input: it reuses the observed 12000-cent boundary and changes only customer tier relative to that trace, so the host-observed decision directly discriminates tier-driven from amount-driven explanations without introducing a new amount-boundary ambiguity.",
+  "basedOnEvidenceIds": [
+    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_002",
+    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_004",
+    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_005",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_004",
+    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005"
+  ]
+}

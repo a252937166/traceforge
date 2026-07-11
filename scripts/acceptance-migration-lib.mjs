@@ -110,7 +110,7 @@ export function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
 }
 
-export async function acquireApi() {
+export async function acquireApi(extraEnv = {}) {
   if (process.env.API_BASE) {
     const baseUrl = normalizeBaseUrl(process.env.API_BASE);
     const { response, body } = await requestJson(`${baseUrl}/api/health`);
@@ -122,6 +122,7 @@ export async function acquireApi() {
   const api = await startApi({
     TRACEFORGE_ENABLE_GPT56: "0",
     TRACEFORGE_ENABLE_CODEX: "0",
+    ...extraEnv,
   });
   return { ...api, external: false };
 }

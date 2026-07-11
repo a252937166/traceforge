@@ -33,4 +33,4 @@ pnpm --filter @traceforge/web test
 pnpm --filter @traceforge/web build
 ```
 
-The component tests cover all three execution modes, fail-closed live behavior, streamed hypotheses and counterexamples, proof rendering, object-valued scenario fields, artifact links, and the evidence dialog.
+The component tests cover all three execution modes, fail-closed live behavior, the named `migration` SSE channel, healthy terminal close without polling fallback, streamed hypotheses and counterexamples, proof rendering, object-valued scenario fields, artifact links, and the evidence dialog. `pnpm acceptance:ui` adds a real Playwright Chromium run over the compiled API and browser client.

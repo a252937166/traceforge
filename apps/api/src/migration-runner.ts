@@ -10,7 +10,12 @@ import {
   type GeneratedCandidateSuiteEvidence,
 } from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
-import { findScenario, scenarios, validateWorkflowInput } from "./domain.js";
+import {
+  createHostHiddenScenario,
+  findScenario,
+  scenarios,
+  validateWorkflowInput,
+} from "./domain.js";
 import { MigrationStore } from "./migration-store.js";
 import type {
   MigrationArtifact,
@@ -73,16 +78,100 @@ type CriticOutput = {
   disposition: "NEEDS_COUNTEREXAMPLE" | "READY_FOR_BUILD" | "STOP_UNSUPPORTED";
 };
 
-type CandidateEvidence = { threadId?: string; diff: string; sourceDigest?: string };
+type CandidateEvidence = {
+  threadId?: string;
+  diff: string;
+  sourceDigest?: string;
+  baseCommit?: string;
+  changedFiles?: string[];
+  hostVerification?: MigrationProofBundle["hostVerification"];
+};
+
+type HostCommandArtifact = {
+  command: string;
+  exitCode: number;
+  summary: string;
+  cwd?: string;
+  stdout?: string;
+  stderr?: string;
+};
+
+function redactHostCommandText(value: string): string {
+  const home = process.env.HOME;
+  return value
+    .replace(/(authorization:\s*bearer\s+)[^\s]+/gi, "$1[REDACTED]")
+    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s]+/gi, "$1[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, "[REDACTED_OPENAI_KEY]")
+    .replace(home ? new RegExp(home.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g") : /$^/, "~");
+}
+
+const hostDeterministicContract = {
+  id: "contract-host-deterministic-v1",
+  source: "host-authored",
+  scope: "The six deterministic Web returns scenarios executed by the local verifier only.",
+  rules: [
+    {
+      id: "HOST-R-HIGH-VALUE-HOLD",
+      priority: 10,
+      statement: "At or above 50,000 cents, require manual review before inventory or payment effects.",
+    },
+    {
+      id: "HOST-R-STANDARD-REFUND",
+      priority: 20,
+      statement: "Below the review boundary, a standard damaged return refunds into quarantine.",
+    },
+    {
+      id: "HOST-R-VIP-REPLACEMENT",
+      priority: 30,
+      statement: "Below the review boundary, a VIP damaged return is replaced and quarantined.",
+    },
+  ],
+  unknowns: [
+    "This host-authored contract does not claim behavior outside the executed REST and SQLite scenario corpus.",
+  ],
+} as const;
+
+function commandTestCounts(command?: { stdout: string; stderr: string; exitCode: number }): MigrationProofBundle["hostVerification"] {
+  if (!command || command.exitCode !== 0) return undefined;
+  const output = `${command.stdout}\n${command.stderr}`;
+  const total = [...output.matchAll(/# tests\s+(\d+)/g)].at(-1)?.[1];
+  const passed = [...output.matchAll(/# pass\s+(\d+)/g)].at(-1)?.[1];
+  if (!total || !passed) return undefined;
+  return {
+    testsPassed: Number.parseInt(passed, 10),
+    testsTotal: Number.parseInt(total, 10),
+    source: "live-command-output",
+  };
+}
 
 export function candidateModuleSourceUrl(runtimeModuleUrl = import.meta.url): URL {
   const extension = runtimeModuleUrl.endsWith(".ts") ? "ts" : "js";
   return new URL(`./candidates/generated-return-workflow.${extension}`, runtimeModuleUrl);
 }
 
+export function assertCandidateSourceDigest(source: string, expectedDigest: string): string {
+  const actualDigest = sha256Digest(source);
+  if (actualDigest !== expectedDigest) {
+    throw new Error("RECORDED_CANDIDATE_SOURCE_MISMATCH");
+  }
+  return actualDigest;
+}
+
+export async function verifyRecordedCandidateSourceDigest(
+  runtimeModuleUrl = import.meta.url,
+): Promise<string> {
+  const sourceUrl = candidateModuleSourceUrl(runtimeModuleUrl);
+  const source = await readFile(fileURLToPath(sourceUrl), "utf8");
+  const expectedDigest = sourceUrl.pathname.endsWith(".ts")
+    ? recordedCodexBuild.executableSourceDigests.typescript
+    : recordedCodexBuild.executableSourceDigests.javascript;
+  return assertCandidateSourceDigest(source, expectedDigest);
+}
+
 export class MigrationRunner {
   readonly archaeology: BehaviorArchaeologyAdapter;
   private readonly modelTimeoutMs: number;
+  private readonly replayEventDelayMs: number;
 
   constructor(
     readonly service: TraceForgeService,
@@ -95,6 +184,10 @@ export class MigrationRunner {
     this.modelTimeoutMs = Number.isFinite(requestedTimeout)
       ? Math.min(Math.max(Math.trunc(requestedTimeout), 30_000), 1_800_000)
       : 900_000;
+    const requestedReplayDelay = Number(env.TRACEFORGE_REPLAY_EVENT_DELAY_MS ?? 160);
+    this.replayEventDelayMs = Number.isFinite(requestedReplayDelay)
+      ? Math.min(Math.max(Math.trunc(requestedReplayDelay), 0), 2_000)
+      : 160;
   }
 
   start(request: StartMigrationRequest): MigrationJob {
@@ -157,6 +250,8 @@ export class MigrationRunner {
         ? "GPT56_ADAPTER_NOT_CONFIGURED"
         : message === "RECORDED_CODEX_BUILD_NOT_VERIFIED"
           ? "RECORDED_CODEX_BUILD_NOT_VERIFIED"
+          : message === "RECORDED_CANDIDATE_SOURCE_MISMATCH"
+            ? "RECORDED_CANDIDATE_SOURCE_MISMATCH"
           : "MIGRATION_FAILED";
       job.status = "failed";
       job.error = { code, message, stage };
@@ -196,9 +291,9 @@ export class MigrationRunner {
       "generated",
       [],
       { diff: "" },
-      recordedArchaeology.contract,
+      hostDeterministicContract,
     );
-    await this.issueArtifacts(job, proof, "", [], recordedArchaeology.contract);
+    await this.issueArtifacts(job, proof, "", [], hostDeterministicContract);
     this.emit(job, "verify", "proof.completed", proof.status === "PASSED" ? "passed" : "failed", "Host proof completed", `${proof.coverage.passed}/${proof.coverage.total} scenarios passed.`, {
       proof,
     });
@@ -209,9 +304,11 @@ export class MigrationRunner {
 
   private async runRecordedReplay(job: MigrationJob): Promise<void> {
     if (!recordedCodexBuild.verified) throw new Error("RECORDED_CODEX_BUILD_NOT_VERIFIED");
+    const executedSourceDigest = await verifyRecordedCandidateSourceDigest();
     const origin: MigrationEventOrigin = "recorded";
 
     this.stageStarted(job, "observe", "Replay two operator-observed legacy traces", origin);
+    await this.paceRecordedReplay();
     for (const evidence of [
       {
         id: "ev_seed_01_state",
@@ -229,38 +326,49 @@ export class MigrationRunner {
       this.emit(job, "observe", "evidence.recorded", "passed", evidence.label, evidence.detail, {
         evidence: { ...evidence, digest: sha256Digest(evidence) },
       }, origin);
+      await this.paceRecordedReplay();
     }
     this.stagePassed(job, "observe", "Two legacy traces captured", origin);
+    await this.paceRecordedReplay();
 
     this.stageStarted(job, "infer", "GPT-5.6 proposes competing rules", origin);
+    await this.paceRecordedReplay();
     for (const hypothesis of recordedArchaeology.initialHypotheses) {
       this.emit(job, "infer", "hypothesis.proposed", "passed", "Evidence-linked hypothesis", hypothesis.statement, {
         hypothesis,
         invocation: recordedModelInvocations[0],
       }, origin);
+      await this.paceRecordedReplay();
     }
     this.stagePassed(job, "infer", "Ambiguity preserved instead of guessed away", origin);
+    await this.paceRecordedReplay();
 
     this.stageStarted(job, "challenge", "GPT-5.6 searches for discriminating inputs", origin);
+    await this.paceRecordedReplay();
     for (const counterexample of recordedArchaeology.counterexamples) {
       this.emit(job, "challenge", "counterexample.updated", "passed", counterexample.title, counterexample.rationale, {
         counterexample,
       }, origin);
+      await this.paceRecordedReplay();
     }
     for (const hypothesis of recordedArchaeology.initialHypotheses.filter(({ status }) => status === "falsified")) {
       this.emit(job, "challenge", "hypothesis.falsified", "passed", "Over-generalization falsified", hypothesis.statement, {
         hypothesis,
       }, origin);
+      await this.paceRecordedReplay();
     }
     for (const hypothesis of recordedArchaeology.refinedHypotheses) {
       this.emit(job, "challenge", "hypothesis.accepted", "passed", "Contract narrowed by evidence", hypothesis.statement, {
         hypothesis,
         invocation: recordedModelInvocations.at(-1),
       }, origin);
+      await this.paceRecordedReplay();
     }
     this.stagePassed(job, "challenge", "Counterexamples resolved the hidden priority rule", origin);
+    await this.paceRecordedReplay();
 
     this.stageStarted(job, "build", "Replay isolated Codex candidate build", origin);
+    await this.paceRecordedReplay();
     this.emit(job, "build", "candidate.updated", "failed", "Candidate 01 rejected", "The seeded implementation failed VIP priority and damaged inventory disposition.", {
       candidate: {
         id: "candidate-seeded-01",
@@ -272,6 +380,7 @@ export class MigrationRunner {
         rejectedByScenarioIds: ["observed-standard-damaged-4500", "observed-vip-damaged-12000"],
       },
     }, origin);
+    await this.paceRecordedReplay();
     this.emit(job, "build", "candidate.updated", "passed", "Candidate 02 built by Codex", "Codex repaired the complete decision and side-effect module in an isolated worktree.", {
       candidate: {
         id: "candidate-generated-02",
@@ -283,13 +392,23 @@ export class MigrationRunner {
         changedFiles: recordedCodexBuild.changedFiles,
       },
     }, origin);
+    await this.paceRecordedReplay();
     this.stagePassed(job, "build", "Host accepted the whitelisted candidate diff", origin);
+    await this.paceRecordedReplay();
 
     this.stageStarted(job, "verify", "Replay fresh observed + counterexample + boundary + held-out proof", origin);
+    await this.paceRecordedReplay();
     const proof = await this.buildProof(job, "generated", recordedModelInvocations, {
       threadId: recordedCodexBuild.threadId,
       diff: recordedCodexBuild.diff,
-      sourceDigest: recordedCodexBuild.sourceDigest,
+      sourceDigest: executedSourceDigest,
+      baseCommit: recordedCodexBuild.baseCommit,
+      changedFiles: [...recordedCodexBuild.changedFiles],
+      hostVerification: {
+        testsPassed: 37,
+        testsTotal: 37,
+        source: "recorded-command-log",
+      },
     }, recordedArchaeology.contract);
     const artifacts = await this.issueArtifacts(
       job,
@@ -303,12 +422,15 @@ export class MigrationRunner {
       this.emit(job, "build", "artifact.ready", "passed", "Candidate diff ready", diff.filename, {
         artifact: this.artifactPayload(diff),
       }, origin);
+      await this.paceRecordedReplay();
     }
     this.emit(job, "verify", "proof.completed", proof.status === "PASSED" ? "passed" : "failed", "Independent verifier decided", `${proof.coverage.passed}/${proof.coverage.total} scenarios passed with ${proof.scenarios.reduce((sum, scenario) => sum + scenario.mismatchCount, 0)} mismatches.`, {
       proof,
     }, origin);
+    await this.paceRecordedReplay();
     if (proof.status !== "PASSED") throw new Error("RECORDED_PROOF_REPLAY_FAILED");
     this.stagePassed(job, "verify", "Verification passed · digest available for recomputation", origin);
+    await this.paceRecordedReplay();
     this.complete(job, proof);
   }
 
@@ -317,6 +439,7 @@ export class MigrationRunner {
     if (!adapterStatus.configured) throw new Error("GPT56_ADAPTER_NOT_CONFIGURED");
     if (!this.codex.status().configured) throw new Error("CODEX_ADAPTER_NOT_CONFIGURED");
 
+    const visibleScenarios = [...scenarios];
     this.stageStarted(job, "observe", "Capture two operator-observed legacy traces");
     const observedTraces = scenarios
       .filter(({ stage }) => stage === "observed")
@@ -426,23 +549,35 @@ export class MigrationRunner {
     });
     invocations.push(critic.invocation);
     if (critic.output.disposition === "NEEDS_COUNTEREXAMPLE") {
-      const heldOut = scenarios.find(({ stage }) => stage === "held-out");
-      if (!heldOut) throw new Error("HELD_OUT_PRIORITY_SCENARIO_MISSING");
-      const heldOutTrace = this.service.capture("legacy", heldOut.input, "seeded", heldOut.id);
-      challengeTraces.push(heldOutTrace);
-      this.emit(job, "challenge", "counterexample.updated", "passed", "Critic-requested priority check executed", this.traceSummary(heldOutTrace), {
+      const generated = createHostHiddenScenario(`contract-clarification:${job.id}`);
+      const priorityCheck = {
+        ...generated,
+        id: `live-priority-check-${job.id}`,
+        title: "Host-disclosed critic priority check",
+        description: "Additional evidence requested by the critic before the build turn.",
+        stage: "counterexample" as const,
+        visibility: "visible" as const,
+        provenance: {
+          source: "host-derived" as const,
+          detail: "Host-generated input requested by the GPT-5.6 critic before the Codex writing turn.",
+        },
+      };
+      visibleScenarios.push(priorityCheck);
+      const priorityTrace = this.service.capture("legacy", priorityCheck.input, "seeded", priorityCheck.id);
+      challengeTraces.push(priorityTrace);
+      this.emit(job, "challenge", "counterexample.updated", "passed", "Critic-requested priority check executed", this.traceSummary(priorityTrace), {
         counterexample: {
           id: "LIVE-CX-CRITIC",
-          title: heldOut.title,
+          title: priorityCheck.title,
           rationale: critic.output.findings.map(({ requiredAction }) => requiredAction).join(" "),
           status: "confirmed",
-          scenario: heldOutTrace.input,
+          scenario: priorityTrace.input,
           observedOutcome: {
-            decision: heldOutTrace.result.decision,
-            inventoryBefore: heldOutTrace.result.inventoryBefore,
-            inventoryAfter: heldOutTrace.result.inventoryAfter,
+            decision: priorityTrace.result.decision,
+            inventoryBefore: priorityTrace.result.inventoryBefore,
+            inventoryAfter: priorityTrace.result.inventoryAfter,
           },
-          evidenceIds: heldOutTrace.evidence.map(({ evidenceId }) => evidenceId),
+          evidenceIds: priorityTrace.evidence.map(({ evidenceId }) => evidenceId),
           targetHypothesisIds: critic.output.findings.flatMap(({ ruleIds }) => ruleIds),
         },
       });
@@ -485,7 +620,7 @@ export class MigrationRunner {
     this.stagePassed(job, "challenge", "GPT-5.6 contract passed host evidence-reference validation");
 
     this.stageStarted(job, "build", "Reject Candidate 01, then let Codex repair the complete module");
-    const seededSuite = this.service.runSuite("seeded");
+    const seededSuite = this.service.runVisibleSuite("seeded");
     const rejectedScenarioIds = seededSuite.runs
       .filter(({ status }) => status === "FAILED")
       .map(({ proofBundle }) => proofBundle.scenarioId ?? "custom");
@@ -499,9 +634,15 @@ export class MigrationRunner {
         rejectedByScenarioIds: rejectedScenarioIds,
       },
     });
-    const failedProof = seededSuite.runs.find(({ status }) => status === "FAILED")?.proofBundle;
-    if (!failedProof) throw new Error("SEEDED_CANDIDATE_DID_NOT_FAIL");
-    const repair = await this.codex.repair(failedProof);
+    const failedProofs = seededSuite.runs
+      .filter(({ status }) => status === "FAILED")
+      .map(({ proofBundle }) => proofBundle);
+    if (failedProofs.length === 0) throw new Error("SEEDED_CANDIDATE_DID_NOT_FAIL");
+    const repair = await this.codex.repair({
+      behaviorContract: liveContract,
+      failedProofs,
+      visibleScenarios,
+    });
     if (repair.verification.status !== "PASSED" || repair.verification.suiteValidation?.passed !== true) {
       throw new Error("CODEX_CANDIDATE_VERIFICATION_FAILED");
     }
@@ -517,6 +658,7 @@ export class MigrationRunner {
       },
       usage: repair.usage,
       worktree: repair.worktree,
+      repairInput: repair.repairInput,
     });
     this.stagePassed(job, "build", "One-file allowlist and six-scenario host suite passed");
 
@@ -526,6 +668,9 @@ export class MigrationRunner {
       threadId: repair.threadId,
       diff: repair.diff,
       sourceDigest: sha256Digest(repairedSource),
+      baseCommit: repair.worktree.baseCommit,
+      changedFiles: repair.changedFiles,
+      hostVerification: commandTestCounts(repair.verification.apiTests),
     }, liveContract, repair.verification.suite);
     await this.issueArtifacts(job, proof, repair.diff, this.commandLog(repair), liveContract);
     this.emit(job, "verify", "proof.completed", proof.status === "PASSED" ? "passed" : "failed", "Independent verifier decided", `${proof.coverage.passed}/${proof.coverage.total} scenarios passed.`, {
@@ -693,7 +838,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
     return probes;
   }
 
-  private commandLog(repair: CodexRepairResult): Array<{ command: string; exitCode: number; summary: string }> {
+  private commandLog(repair: CodexRepairResult): HostCommandArtifact[] {
     return [
       repair.verification.install,
       repair.verification.apiTests,
@@ -704,6 +849,9 @@ ${JSON.stringify(this.tracePack(traces))}`;
         command: [command.command, ...command.args].join(" "),
         exitCode: command.exitCode,
         summary: command.exitCode === 0 ? "Host command passed." : "Host command failed; inspect the retained worktree.",
+        cwd: redactHostCommandText(command.cwd),
+        stdout: redactHostCommandText(command.stdout),
+        stderr: redactHostCommandText(command.stderr),
       }));
   }
 
@@ -721,26 +869,36 @@ ${JSON.stringify(this.tracePack(traces))}`;
           const scenario = findScenario(run.scenarioId);
           return {
             scenarioId: run.scenarioId,
-            partition: scenario?.stage ?? "observed",
+            partition: run.partition ?? scenario?.stage ?? "observed",
             status: run.status,
             legacyTraceId: run.legacyTraceId,
             candidateTraceId: run.candidateTraceId,
             assertionCount: run.assertionCount,
             mismatchCount: run.mismatchCount,
             mismatches: [],
+            provenance: scenario?.provenance ?? {
+              source: "host-authored",
+              detail: "Concrete verification-only input generated by the host after the Codex writing turn.",
+            },
           };
         })
       : (suite?.runs ?? []).map(({ proofBundle }) => {
       const scenario = proofBundle.scenarioId ? findScenario(proofBundle.scenarioId) : undefined;
       return {
         scenarioId: proofBundle.scenarioId ?? "custom",
-        partition: scenario?.stage ?? "observed",
+        partition: proofBundle.scenarioId?.startsWith("host-hidden-")
+          ? "held-out"
+          : scenario?.stage ?? "observed",
         status: proofBundle.status,
         legacyTraceId: proofBundle.legacyTraceId,
         candidateTraceId: proofBundle.candidateTraceId,
         assertionCount: proofBundle.assertions.length,
         mismatchCount: proofBundle.mismatches.length,
         mismatches: proofBundle.mismatches.map(({ path, expected, actual }) => ({ path, expected, actual })),
+        provenance: scenario?.provenance ?? {
+          source: "host-authored",
+          detail: "Concrete verification-only input generated by the host for this proof run.",
+        },
       };
     });
     let sourceDigest = candidateEvidence.sourceDigest;
@@ -763,7 +921,12 @@ ${JSON.stringify(this.tracePack(traces))}`;
         sourceDigest,
         diffDigest: sha256Digest(candidateEvidence.diff),
         ...(candidateEvidence.threadId ? { codexThreadId: candidateEvidence.threadId } : {}),
+        ...(candidateEvidence.baseCommit ? { baseCommit: candidateEvidence.baseCommit } : {}),
+        ...(candidateEvidence.changedFiles ? { changedFiles: candidateEvidence.changedFiles } : {}),
       },
+      ...(candidateEvidence.hostVerification
+        ? { hostVerification: candidateEvidence.hostVerification }
+        : {}),
       coverage: {
         observed: scenarioProofs.filter(({ partition }) => partition === "observed").length,
         counterexample: scenarioProofs.filter(({ partition }) => partition === "counterexample").length,
@@ -777,7 +940,10 @@ ${JSON.stringify(this.tracePack(traces))}`;
         "The claim covers only the six executed Web workflow scenarios listed in this bundle.",
         "External payment settlement, carrier systems, and workflows outside REST + SQLite are not claimed equivalent.",
         ...(job.executionMode === "deterministic-only"
-          ? ["No GPT-5.6 or Codex execution is represented by this deterministic-only run."]
+          ? [
+              "No GPT-5.6 or Codex execution is represented by this deterministic-only run.",
+              "The deterministic-only contract is host-authored and is not a replay of a recorded model artifact.",
+            ]
           : []),
       ],
       generatedAt: new Date().toISOString(),
@@ -789,7 +955,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
     job: MigrationJob,
     proof: MigrationProofBundle,
     diff: string,
-    commands: ReadonlyArray<{ command: string; exitCode: number; summary: string }>,
+    commands: ReadonlyArray<HostCommandArtifact>,
     contract: unknown,
   ): Promise<MigrationArtifact[]> {
     const now = new Date().toISOString();
@@ -845,6 +1011,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
       this.emit(job, "verify", "artifact.ready", "passed", `${artifact.filename} ready`, artifact.digest, {
         artifact: this.artifactPayload(artifact),
       });
+      if (job.executionMode === "recorded-replay") await this.paceRecordedReplay();
     }
     return artifacts;
   }
@@ -864,6 +1031,13 @@ ${JSON.stringify(this.tracePack(traces))}`;
       byteLength: artifact.byteLength,
       createdAt: artifact.createdAt,
     };
+  }
+
+  private async paceRecordedReplay(): Promise<void> {
+    if (this.replayEventDelayMs === 0) return;
+    await new Promise<void>((resolvePromise) => {
+      setTimeout(resolvePromise, this.replayEventDelayMs);
+    });
   }
 
   private complete(job: MigrationJob, proof: MigrationProofBundle): void {

@@ -1,7 +1,5 @@
-import { sha256Digest } from "./digest.js";
+import recordedInvocationEvidence from "./recorded-model-invocations.generated.json" with { type: "json" };
 import type { ModelInvocationEvidence } from "./migration-types.js";
-
-export const RECORDED_AT = "2026-07-10T17:06:31.357Z";
 
 export const recordedArchaeology = {
   sourceRunId: "migration_57dcf6ff-c7b0-4842-8a66-a74e08565b7b",
@@ -142,70 +140,10 @@ export const recordedArchaeology = {
   },
 } as const;
 
-function invocation(
-  role: ModelInvocationEvidence["role"],
-  threadId: string,
-  totalTokens: number,
-  output: unknown,
-  inputTraceIds: string[],
-): ModelInvocationEvidence {
-  const startedAt = RECORDED_AT;
-  return {
-    role,
-    provider: "openai",
-    model: "gpt-5.6-sol",
-    authPath: "codex-chatgpt",
-    threadId,
-    startedAt,
-    completedAt: RECORDED_AT,
-    usage: { totalTokens },
-    inputTraceIds,
-    inputEvidenceDigests: [],
-    inputDigest: sha256Digest({ role, inputTraceIds }),
-    outputDigest: sha256Digest(output),
-    schemaVersion: "traceforge.behavior-archaeology.v1",
-    status: "succeeded",
-  };
-}
-
-export const recordedModelInvocations: ModelInvocationEvidence[] = [
-  invocation(
-    "trace-archaeologist",
-    "019f4cf8-e79c-7af0-8a2a-9ade019a5d7b",
-    23_559,
-    recordedArchaeology.initialHypotheses,
-    ["trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396", "trace_6642d425-3bff-4ffa-a505-ebef7e060e75"],
-  ),
-  invocation(
-    "counterexample-hunter",
-    "019f4cf9-f48d-77a1-a6d4-a5c54894e138",
-    23_689,
-    recordedArchaeology.counterexamples[0],
-    ["trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396", "trace_6642d425-3bff-4ffa-a505-ebef7e060e75"],
-  ),
-  invocation(
-    "counterexample-hunter",
-    "019f4cfa-af8a-7592-b3d7-1a055683863d",
-    25_769,
-    recordedArchaeology.counterexamples[1],
-    [
-      "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
-      "trace_6642d425-3bff-4ffa-a505-ebef7e060e75",
-      "trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa",
-    ],
-  ),
-  invocation(
-    "contract-critic",
-    "019f4cfb-aab9-7e41-a8a2-aa4157748559",
-    46_005,
-    recordedArchaeology.contract,
-    [
-      "trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396",
-      "trace_6642d425-3bff-4ffa-a505-ebef7e060e75",
-      "trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa",
-      "trace_70902b12-bfa8-4481-8f8b-7f379233218c",
-      "trace_5ed95113-3f7d-488b-96cc-27b27010e419",
-      "trace_0968e5d4-d287-4877-857c-b4b74855e913",
-    ],
-  ),
-];
+/**
+ * Runtime-safe copy of the bounded invocation metadata extracted into the
+ * evidence manifest. Raw prompts and outputs remain in docs/evidence and are
+ * never loaded by the public API.
+ */
+export const recordedModelInvocations =
+  recordedInvocationEvidence.invocations as ModelInvocationEvidence[];

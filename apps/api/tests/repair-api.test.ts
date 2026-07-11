@@ -8,13 +8,13 @@ import {
   GENERATED_CANDIDATE_PATH,
   validateChangedFiles,
   type CodexRepairResult,
+  type CodexRepairInput,
 } from "../src/codex-adapter.js";
 import { TraceForgeService } from "../src/service.js";
 import { ArtifactStore } from "../src/store.js";
-import type { ProofBundle } from "../src/types.js";
 
 class FakeCodexRepairAdapter extends CodexRepairAdapter {
-  calls: ProofBundle[] = [];
+  calls: CodexRepairInput[] = [];
 
   constructor(private readonly result: CodexRepairResult) {
     super({ env: { TRACEFORGE_ENABLE_CODEX: "1" } });
@@ -24,8 +24,8 @@ class FakeCodexRepairAdapter extends CodexRepairAdapter {
     return buildCodexStatus({ TRACEFORGE_ENABLE_CODEX: "1" }, true);
   }
 
-  override async repair(proof: ProofBundle): Promise<CodexRepairResult> {
-    this.calls.push(proof);
+  override async repair(input: CodexRepairInput): Promise<CodexRepairResult> {
+    this.calls.push(input);
     return this.result;
   }
 }
@@ -56,6 +56,12 @@ function fakeRepairResult(status: "PASSED" | "FAILED"): CodexRepairResult {
       path: "/tmp/traceforge-contract-worktree",
       baseCommit: "0123456789abcdef",
       retained: true,
+    },
+    repairInput: {
+      digest: `sha256:${"a".repeat(64)}`,
+      contractDigest: `sha256:${"b".repeat(64)}`,
+      failedProofDigests: [`sha256:${"c".repeat(64)}`],
+      visibleScenarioIds: ["observed-standard-damaged-4500"],
     },
   };
 }
@@ -144,7 +150,12 @@ test("repair returns the typed fake adapter result with HTTP 200 after a failed 
     assert.equal(body.data.verification.status, "PASSED");
     assert.deepEqual(body.data.changedFiles, [GENERATED_CANDIDATE_PATH]);
     assert.equal(adapter.calls.length, 1);
-    assert.equal(adapter.calls[0]?.proofId, failedRun.proofBundle.proofId);
+    assert.deepEqual(
+      adapter.calls[0]?.failedProofs.map(({ proofId }) => proofId),
+      [failedRun.proofBundle.proofId],
+    );
+    assert.equal(adapter.calls[0]?.behaviorContract.contractId, failedRun.contract.contractId);
+    assert.equal(adapter.calls[0]?.visibleScenarios.some(({ visibility }) => visibility === "hidden"), false);
   });
 });
 

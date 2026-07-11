@@ -19,6 +19,10 @@ export const recordedCodexBuild = {
   },
   sourceProofDigest: "sha256:e844b5edc3ee4ed9dfb2666df91a6ac4033b27b0d8ed543ec228a851fc61fe6a",
   sourceDigest: "sha256:33dae444638bf3e7015aa743711358a19e330ca98d1fec8b98d044a106132773",
+  executableSourceDigests: {
+    typescript: "sha256:33dae444638bf3e7015aa743711358a19e330ca98d1fec8b98d044a106132773",
+    javascript: "sha256:0c18f0279f4f8e76f8235f67f015374ddc3b52d715c3f637a0c46780676e80e9",
+  },
   freshProofIds: [
     "proof_79ca3d45-e008-469e-9695-ce63acb47ea7",
     "proof_bbe9f812-3d71-4a3f-b501-474593c372bd",

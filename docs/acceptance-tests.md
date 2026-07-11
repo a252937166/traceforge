@@ -30,7 +30,7 @@ Generated outputs are retained under `.traceforge/acceptance/` and excluded from
 |---|---|
 | `pnpm check` | API and Web type checking, unit/integration tests, and production builds. This includes the six-scenario corpus, exact 50,000-cent priority boundary, independent candidate module, three execution-mode behavior, event reduction, replay disclosure, and fail-closed live mode. |
 | `pnpm acceptance:api` | The compiled production API runs both `deterministic-only` and `recorded-replay`, then checks the complete five-stage event ledger, SSE replay, four recorded GPT-5.6 Sol invocations, Codex provenance, `6/6` proof coverage, artifact downloads, digest recomputation, and tamper rejection. |
-| `pnpm acceptance:ui` | A fresh production Web build, required application/CSS contract, served HTML, and live API health over HTTP. This gate intentionally does not start a browser. |
+| `pnpm acceptance:ui` | A fresh production Web build plus a real headless Chromium run. It proves the browser enters SSE, renders Infer active and a hypothesis before completion, never falls back to polling on the healthy stream, and finishes at `6/6 PASSED`. |
 | `pnpm acceptance:repeat -- --runs 3` | Three independently issued replay jobs have stable normalized semantics while migration, proof, event, artifact, and scenario trace IDs remain unique. |
 
 ## API acceptance details
@@ -64,7 +64,7 @@ The same gate verifies:
 - the compiled deterministic run passes and records zero model invocations;
 - an unknown migration returns `404`;
 - `?after=<sequence>` returns exactly the later events;
-- the SSE endpoint returns `text/event-stream`, `X-Accel-Buffering: no`, every server sequence ID, `hypothesis.falsified`, and `proof.completed`.
+- the SSE endpoint returns `text/event-stream`, `X-Accel-Buffering: no`, every server sequence ID, and one uniform `event: migration` channel whose JSON payloads include `hypothesis.falsified` and `proof.completed`.
 
 ## UI acceptance details
 
@@ -76,9 +76,17 @@ The same gate verifies:
 - the counterexample and evidence-download surfaces;
 - five-stage workbench styles, keyboard focus styles, and reduced-motion handling.
 
-It then serves the Web app on a random local port, confirms an HTML response with the React root, and checks `/api/health` on a live local API.
+It then serves the Web app and compiled API on random local ports and starts Playwright Chromium. A mutation observer installed before React boots records transient UI states while the browser follows the real recorded-replay click path. The gate requires:
 
-This is an HTTP and production-bundle contract, not browser automation. Browser rendering, responsive layout, and the recorded-replay click path are verified separately during release QA and must not be attributed to this command.
+- transport visibly enters `sse` while the job is running;
+- Infer visibly becomes `active` before the terminal event renders;
+- at least one server-issued hypothesis renders before completion;
+- the browser issues no `?format=json` polling request and never displays `polling`;
+- the native SSE response is HTTP 200 with `text/event-stream`;
+- the complete event ledger reaches the event console;
+- the final proof reads `PASSED · 6/6 scenarios`.
+
+The local acceptance API uses a short server-owned replay delay so transient states are observable. The browser still has no progress timer and derives every state from server events.
 
 To check deployed services instead of starting local ones:
 
@@ -132,7 +140,7 @@ The command exits non-zero if the internal proof digest does not match its canon
 
 The executable gate does not prove:
 
-- browser rendering or interaction through `acceptance:ui`;
+- exhaustive responsive or visual-regression quality beyond the Chromium interaction path exercised by `acceptance:ui`;
 - a fresh GPT-5.6 or Codex invocation on every CI run;
 - append-only integrity against a database administrator;
 - a cryptographic signature or external timestamp;

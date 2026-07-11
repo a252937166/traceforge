@@ -16,6 +16,7 @@
     "acceptance:all": "pnpm check && pnpm acceptance:api && pnpm acceptance:ui && pnpm acceptance:repeat -- --runs 3",
     "release:package": "node scripts/package-release.mjs",
     "capture:showcase": "node scripts/capture-showcase.mjs",
+    "evidence:extract-invocations": "node scripts/extract-recorded-invocations.mjs",
     "proof:verify": "pnpm --filter @traceforge/api proof:verify"
   },
   "devDependencies": {

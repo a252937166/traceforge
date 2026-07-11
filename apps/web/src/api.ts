@@ -13,6 +13,8 @@ import type {
   MigrationJobStatus,
   MigrationStage,
   ProofBundle,
+  RuntimeCapabilities,
+  ScenarioProvenance,
   VerificationStatus,
 } from './migration-types'
 
@@ -44,6 +46,10 @@ function asNumber(value: unknown, fallback = 0): number {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function asBoolean(value: unknown): boolean {
+  return value === true
 }
 
 function unwrap(body: unknown): unknown {
@@ -195,6 +201,9 @@ export function normalizeProof(raw: unknown): ProofBundle {
   const item = asRecord(raw)
   const coverage = asRecord(item.coverage)
   const scenarios = Array.isArray(item.scenarios) ? item.scenarios.map(asRecord) : []
+  const rawInvocations = Array.isArray(item.modelInvocations) ? item.modelInvocations.map(asRecord) : []
+  const rawCandidate = asRecord(item.candidate)
+  const rawHostVerification = asRecord(item.hostVerification)
   const assertionsTotal = scenarios.reduce((total, scenario) => total + asNumber(scenario.assertionCount), 0)
   const mismatchCount = scenarios.reduce((total, scenario) => total + asNumber(scenario.mismatchCount), 0)
 
@@ -210,18 +219,75 @@ export function normalizeProof(raw: unknown): ProofBundle {
     assertionsPassed: asNumber(item.assertionsPassed, assertionsTotal - mismatchCount),
     assertionsTotal: asNumber(item.assertionsTotal, assertionsTotal),
     mismatchCount: asNumber(item.mismatchCount, mismatchCount),
+    modelInvocations: rawInvocations.map((invocation) => {
+      const usage = asRecord(invocation.usage)
+      const inputTokens = asNumber(usage.inputTokens ?? usage.input_tokens)
+      const outputTokens = asNumber(usage.outputTokens ?? usage.output_tokens)
+      const explicitTotal = asNumber(usage.totalTokens ?? usage.total_tokens)
+      return {
+        role: asString(invocation.role, 'unreported-role'),
+        model: asString(invocation.model, 'unreported-model'),
+        threadId: asString(invocation.threadId) || undefined,
+        status: invocation.status === 'failed' ? 'failed' : 'succeeded',
+        usage: {
+          totalTokens: explicitTotal || (inputTokens || outputTokens ? inputTokens + outputTokens : undefined),
+        },
+      }
+    }),
+    candidate: Object.keys(rawCandidate).length
+      ? {
+          implementationId: asString(rawCandidate.implementationId) || undefined,
+          codexThreadId: asString(rawCandidate.codexThreadId) || undefined,
+          baseCommit: asString(rawCandidate.baseCommit) || undefined,
+          changedFiles: Array.isArray(rawCandidate.changedFiles)
+            ? asStringArray(rawCandidate.changedFiles)
+            : undefined,
+          sourceDigest: asString(rawCandidate.sourceDigest) || undefined,
+          diffDigest: asString(rawCandidate.diffDigest) || undefined,
+        }
+      : undefined,
+    hostVerification: Object.keys(rawHostVerification).length
+      ? {
+          testsPassed: asNumber(rawHostVerification.testsPassed),
+          testsTotal: asNumber(rawHostVerification.testsTotal),
+        }
+      : undefined,
     signature: asString(item.signature) || undefined,
     signerPublicKey: asString(item.signerPublicKey) || undefined,
     artifactId: asString(item.artifactId) || undefined,
-    scenarios: scenarios.map((scenario) => ({
-      scenarioId: asString(scenario.scenarioId),
-      partition: scenario.partition === 'counterexample' || scenario.partition === 'boundary' || scenario.partition === 'held-out'
-        ? scenario.partition
-        : 'observed',
-      status: normalizeVerificationStatus(scenario.status),
-      assertionCount: asNumber(scenario.assertionCount),
-      mismatchCount: asNumber(scenario.mismatchCount),
-    })),
+    scenarios: scenarios.map((scenario) => {
+      const rawProvenance = asRecord(scenario.provenance)
+      const source = rawProvenance.source
+      const provenance: ScenarioProvenance | undefined = source === 'model-proposed' || source === 'host-derived' || source === 'host-authored'
+        ? { source, detail: asString(rawProvenance.detail) || undefined }
+        : undefined
+      return {
+        scenarioId: asString(scenario.scenarioId),
+        partition: scenario.partition === 'counterexample' || scenario.partition === 'boundary' || scenario.partition === 'held-out'
+          ? scenario.partition
+          : 'observed',
+        status: normalizeVerificationStatus(scenario.status),
+        assertionCount: asNumber(scenario.assertionCount),
+        mismatchCount: asNumber(scenario.mismatchCount),
+        provenance,
+      }
+    }),
+  }
+}
+
+export async function getRuntimeCapabilities(): Promise<RuntimeCapabilities> {
+  const health = asRecord(await request('/api/health'))
+  const gpt56 = asRecord(health.gpt56Status)
+  const codex = asRecord(health.codexStatus)
+  const gpt56Configured = asBoolean(gpt56.configured)
+  const codexConfigured = asBoolean(health.codexConfigured ?? codex.configured)
+  return {
+    liveAiAvailable: gpt56Configured && codexConfigured,
+    gpt56Configured,
+    codexConfigured,
+    boundary: [asString(gpt56.truthfulBoundary), asString(codex.truthfulBoundary)]
+      .filter(Boolean)
+      .join(' '),
   }
 }
 
@@ -354,14 +420,16 @@ export function subscribeToMigration(
   },
 ): () => void {
   let closed = false
+  let terminalReceived = false
   let latestSequence = options.after ?? -1
   let source: EventSource | undefined
   let pollTimer: number | undefined
 
-  const emit = (raw: unknown) => {
+  const emit = (raw: unknown): MigrationEvent => {
     const event = normalizeMigrationEvent(raw)
     latestSequence = Math.max(latestSequence, event.sequence)
     options.onEvent(event)
+    return event
   }
 
   const poll = async () => {
@@ -392,14 +460,19 @@ export function subscribeToMigration(
     source.onopen = () => options.onTransport('sse')
     const receive = (message: MessageEvent<string>) => {
       try {
-        emit(JSON.parse(message.data) as unknown)
+        const event = emit(JSON.parse(message.data) as unknown)
+        if (event.type === 'job.completed' || event.type === 'job.failed') {
+          terminalReceived = true
+          source?.close()
+        }
       } catch {
         options.onError(new Error('The migration stream returned an invalid event.'))
       }
     }
-    source.onmessage = receive
     source.addEventListener('migration', receive as EventListener)
-    source.onerror = startPolling
+    source.onerror = () => {
+      if (!terminalReceived && !closed) startPolling()
+    }
   }
 
   return () => {

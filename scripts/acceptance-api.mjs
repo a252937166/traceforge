@@ -53,8 +53,14 @@ try {
   const streamBody = await streamResponse.text();
   const streamIds = [...streamBody.matchAll(/^id: (\d+)$/gm)].map((match) => Number(match[1]));
   assert.deepEqual(streamIds, result.events.map((event) => event.sequence));
-  assert.match(streamBody, /event: hypothesis\.falsified/);
-  assert.match(streamBody, /event: proof\.completed/);
+  const streamChannels = [...streamBody.matchAll(/^event: (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(
+    streamChannels,
+    result.events.map(() => "migration"),
+    "every SSE frame must use the single migration channel",
+  );
+  assert.match(streamBody, /^data: .*"type":"hypothesis\.falsified"/m);
+  assert.match(streamBody, /^data: .*"type":"proof\.completed"/m);
 
   const tamperedProof = structuredClone(result.proof);
   tamperedProof.coverage.passed = 0;
@@ -70,6 +76,12 @@ try {
     proofId: result.proof.proofId,
     deterministicMigrationId: deterministicJob.id,
     eventCount: result.events.length,
+    sse: {
+      channel: "migration",
+      frameCount: streamChannels.length,
+      contentType: streamResponse.headers.get("content-type"),
+      proxyBuffering: streamResponse.headers.get("x-accel-buffering"),
+    },
     coverage: result.proof.coverage,
     modelInvocations: result.proof.modelInvocations.map(({ role, model, threadId, status }) => ({ role, model, threadId, status })),
     artifacts: result.downloaded,

@@ -77,6 +77,42 @@ export type MigrationCandidate = {
 
 export type VerificationStatus = 'PASSED' | 'FAILED' | 'INCOMPLETE'
 
+export type ModelInvocationProvenance = {
+  role: string
+  model: string
+  threadId?: string
+  status?: 'succeeded' | 'failed'
+  usage?: {
+    totalTokens?: number
+  }
+}
+
+export type CandidateProvenance = {
+  implementationId?: string
+  codexThreadId?: string
+  baseCommit?: string
+  changedFiles?: string[]
+  sourceDigest?: string
+  diffDigest?: string
+}
+
+export type HostVerificationProvenance = {
+  testsPassed?: number
+  testsTotal?: number
+}
+
+export type ScenarioProvenance = {
+  source: 'model-proposed' | 'host-derived' | 'host-authored'
+  detail?: string
+}
+
+export type RuntimeCapabilities = {
+  liveAiAvailable: boolean
+  gpt56Configured: boolean
+  codexConfigured: boolean
+  boundary: string
+}
+
 export type ProofBundle = {
   id: string
   migrationId: string
@@ -89,12 +125,16 @@ export type ProofBundle = {
   assertionsPassed: number
   assertionsTotal: number
   mismatchCount: number
+  modelInvocations?: ModelInvocationProvenance[]
+  candidate?: CandidateProvenance
+  hostVerification?: HostVerificationProvenance
   scenarios?: Array<{
     scenarioId: string
     partition: 'observed' | 'counterexample' | 'boundary' | 'held-out'
     status: VerificationStatus
     assertionCount: number
     mismatchCount: number
+    provenance?: ScenarioProvenance
   }>
   signature?: string
   signerPublicKey?: string

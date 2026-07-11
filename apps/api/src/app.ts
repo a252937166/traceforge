@@ -4,7 +4,6 @@ import { CodexRepairAdapter, CodexRepairFailure } from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
 import { MigrationRunner } from "./migration-runner.js";
 import { MigrationStore } from "./migration-store.js";
-import { recordedCodexBuild } from "./recorded-codex-build.js";
 import { ArtifactStore } from "./store.js";
 import { TraceForgeService } from "./service.js";
 import type { MigrationExecutionMode, MigrationProofBundle } from "./migration-types.js";
@@ -59,12 +58,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   const env = dependencies.env ?? process.env;
   const store = dependencies.store ?? new ArtifactStore();
   const service = dependencies.service ?? new TraceForgeService(store);
-  const codexEnv = {
-    ...env,
-    TRACEFORGE_CODEX_BASE_COMMIT:
-      env.TRACEFORGE_CODEX_BASE_COMMIT ?? recordedCodexBuild.baseCommit,
-  };
-  const codex = dependencies.codexAdapter ?? new CodexRepairAdapter({ env: codexEnv });
+  const codex = dependencies.codexAdapter ?? new CodexRepairAdapter({ env });
   const migrationStore = dependencies.migrationStore
     ?? new MigrationStore(dependencies.store ? ":memory:" : env.TRACEFORGE_DB);
   const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env, codex);
@@ -231,7 +225,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     response.flushHeaders();
     const writeEvent = (event: ReturnType<MigrationStore["listEvents"]>[number]) => {
       response.write(`id: ${event.sequence}\n`);
-      response.write(`event: ${event.type}\n`);
+      response.write("event: migration\n");
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     };
     migrationStore.listEvents(job.id, after).forEach(writeEvent);
@@ -331,7 +325,17 @@ export function createApp(dependencies: AppDependencies = {}) {
           error: { code: "PROOF_NOT_FAILED", message: "Codex repair requires a FAILED proof" },
         });
       }
-      const result = await codex.repair(proof);
+      const behaviorContract = store.getContract(proof.contractId);
+      if (!behaviorContract) {
+        return response.status(409).json({
+          error: { code: "CONTRACT_NOT_FOUND", message: "failed proof is not bound to a stored behavior contract" },
+        });
+      }
+      const result = await codex.repair({
+        behaviorContract,
+        failedProofs: [proof],
+        visibleScenarios: service.listScenarios().filter(({ visibility }) => visibility === "visible"),
+      });
       return response.status(result.verification.status === "PASSED" ? 200 : 422).json({ data: result });
     } catch (error) {
       return next(error);

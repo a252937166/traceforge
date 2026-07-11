@@ -22,7 +22,10 @@ function stableSemantics(result) {
       codexThreadId: result.proof.candidate.codexThreadId,
     },
     scenarios: result.proof.scenarios.map(({ scenarioId, partition, status, assertionCount, mismatchCount }) => ({
-      scenarioId,
+      // The concrete held-out identity is deliberately created from fresh
+      // host entropy after each writer turn. Repeatability covers semantics,
+      // not reuse of that secret input.
+      scenarioId: partition === "held-out" ? "host-hidden-<fresh>" : scenarioId,
       partition,
       status,
       assertionCount,

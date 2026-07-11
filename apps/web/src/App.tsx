@@ -4,6 +4,7 @@ import {
   getMigration,
   getMigrationArtifacts,
   getMigrationProof,
+  getRuntimeCapabilities,
   startMigration,
   subscribeToMigration,
   type MigrationTransport,
@@ -14,7 +15,10 @@ import {
   type ExecutionMode,
   type MigrationArtifact,
   type MigrationEvent,
+  type MigrationCandidate,
   type MigrationState,
+  type ProofBundle,
+  type RuntimeCapabilities,
 } from './migration-types'
 
 const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: string }> = {
@@ -56,6 +60,34 @@ function formatScenarioValue(value: unknown): string {
       .join(' · ')
   }
   return String(value)
+}
+
+function formatCount(value?: number): string {
+  return value === undefined ? 'Not reported' : value.toLocaleString('en-US')
+}
+
+function formatShort(value?: string, visible = 12): string {
+  if (!value) return 'Not reported'
+  return value.length > visible ? `${value.slice(0, visible)}…` : value
+}
+
+function formatDigest(value?: string): string {
+  if (!value) return 'Not reported'
+  const [algorithm, digest = algorithm] = value.split(':', 2)
+  const short = formatShort(digest, 7)
+  return value.includes(':') ? `${algorithm}:${short}` : short
+}
+
+function displayTerminology(value?: string): string | undefined {
+  return value?.replace(/\bheld-out\b/gi, 'verification-only')
+}
+
+function scenarioPartitionLabel(scenario: NonNullable<ProofBundle['scenarios']>[number]): string {
+  if (scenario.partition === 'held-out') return 'verification-only'
+  if (scenario.partition !== 'counterexample') return scenario.partition
+  if (scenario.provenance?.source === 'model-proposed') return 'GPT-proposed'
+  if (scenario.provenance?.source === 'host-derived') return 'host-derived'
+  return 'host verification'
 }
 
 function modeDisclosure(mode: ExecutionMode, state: MigrationState): string {
@@ -132,6 +164,9 @@ function HypothesisLoom({ state }: { state: MigrationState }) {
 
 function ScenarioMatrix({ state }: { state: MigrationState }) {
   const scenarios = state.proof?.scenarios ?? []
+  const containsUnattributedCounterexample = scenarios.some(
+    (scenario) => scenario.partition === 'counterexample' && !scenario.provenance,
+  )
   return (
     <section className="suite-panel" aria-labelledby="suite-title">
       <header className="section-heading">
@@ -139,23 +174,115 @@ function ScenarioMatrix({ state }: { state: MigrationState }) {
         <small>{state.proof ? `${state.proof.scenariosPassed}/${state.proof.scenariosTotal} passed` : 'Awaiting proof'}</small>
       </header>
       {scenarios.length ? (
-        <div className="scenario-matrix" role="table" aria-label="Verification scenario matrix">
-          <div role="row" className="matrix-head">
-            <span role="columnheader">Scenario</span><span role="columnheader">Partition</span>
-            <span role="columnheader">Assertions</span><span role="columnheader">Result</span>
-          </div>
-          {scenarios.map((scenario) => (
-            <div role="row" key={scenario.scenarioId}>
-              <strong role="cell">{scenario.scenarioId}</strong><span role="cell">{scenario.partition}</span>
-              <span role="cell">{scenario.assertionCount}</span>
-              <span role="cell" className={`result-${scenario.status.toLowerCase()}`}>
-                {scenario.status}{scenario.mismatchCount ? ` · ${scenario.mismatchCount} mismatches` : ''}
-              </span>
+        <>
+          <div className="scenario-matrix" role="table" aria-label="Verification scenario matrix">
+            <div role="row" className="matrix-head">
+              <span role="columnheader">Scenario</span><span role="columnheader">Partition</span>
+              <span role="columnheader">Assertions</span><span role="columnheader">Result</span>
             </div>
-          ))}
-        </div>
+            {scenarios.map((scenario) => (
+              <div role="row" key={scenario.scenarioId}>
+                <strong role="cell">{scenario.scenarioId}</strong><span role="cell">{scenarioPartitionLabel(scenario)}</span>
+                <span role="cell">{scenario.assertionCount}</span>
+                <span role="cell" className={`result-${scenario.status.toLowerCase()}`}>
+                  {scenario.status}{scenario.mismatchCount ? ` · ${scenario.mismatchCount} mismatches` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+          {containsUnattributedCounterexample && (
+            <p className="scenario-provenance-note">
+              Counterexample rows are host-executed verification scenarios. Model authorship is claimed only when the server reports it.
+            </p>
+          )}
+        </>
       ) : (
         <p className="empty-state">The suite is empty until the host verifier returns a proof bundle.</p>
+      )}
+    </section>
+  )
+}
+
+function ProvenanceValue({ value, fullValue }: { value: string; fullValue?: string }) {
+  const unavailable = value === 'Not reported'
+  return <dd className={unavailable ? 'not-reported' : undefined} title={fullValue}>{value}</dd>
+}
+
+function acceptedCandidate(candidates: MigrationCandidate[]): MigrationCandidate | undefined {
+  return [...candidates].reverse().find(({ status }) => status === 'accepted')
+}
+
+export function ProvenanceStrip({ state, mode }: { state: MigrationState; mode: ExecutionMode }) {
+  const proof = state.proof
+  const invocations = proof?.modelInvocations ?? []
+  const verifiedInvocations = invocations.filter(({ status }) => status !== 'failed')
+  const invocationThreads = new Set(verifiedInvocations.map(({ threadId }) => threadId).filter(Boolean))
+  const totalTokens = verifiedInvocations.length && verifiedInvocations.every(({ usage }) => usage?.totalTokens !== undefined)
+    ? verifiedInvocations.reduce((total, { usage }) => total + (usage?.totalTokens ?? 0), 0)
+    : undefined
+  const candidate = proof?.candidate
+  const candidateEvent = acceptedCandidate(state.candidates)
+  const codexThreadId = candidate?.codexThreadId ?? candidateEvent?.codexThreadId
+  const changedFiles = candidate?.changedFiles ?? candidateEvent?.changedFiles
+  const sourceDigest = candidate?.sourceDigest ?? state.artifacts.find(({ kind }) => kind === 'source')?.digest
+  const diffDigest = candidate?.diffDigest ?? state.artifacts.find(({ kind }) => kind === 'diff')?.digest
+  const noModelCall = mode === 'deterministic-only'
+  const turnQualifier = 'verified'
+  const tokenQualifier = mode === 'recorded-replay' ? 'recorded' : 'reported'
+  const recordedAt = state.job?.replay?.recordedAt
+  const sourceRunId = state.job?.replay?.sourceRunId
+  const replayRunId = state.job?.executionMode === 'recorded-replay' ? state.job.id : undefined
+
+  return (
+    <section className="provenance-strip" aria-labelledby="provenance-title">
+      <header className="provenance-heading">
+        <span>Chain of custody</span>
+        <strong id="provenance-title">Server-reported provenance</strong>
+        <small>Missing fields stay marked—not inferred.</small>
+      </header>
+      <div className="provenance-grid">
+        <article className="provenance-node">
+          <header><span>AI·01</span><h2>GPT-5.6</h2></header>
+          {noModelCall && <p>No model call in this run.</p>}
+          <dl>
+            <div><dt>Turns</dt><ProvenanceValue value={verifiedInvocations.length ? `${verifiedInvocations.length} ${turnQualifier}` : 'Not reported'} /></div>
+            <div><dt>Tokens</dt><ProvenanceValue value={totalTokens === undefined ? 'Not reported' : `${formatCount(totalTokens)} ${tokenQualifier}`} /></div>
+            <div><dt>Thread IDs</dt><ProvenanceValue value={invocationThreads.size ? `${invocationThreads.size} reported` : 'Not reported'} /></div>
+          </dl>
+        </article>
+        <article className="provenance-node">
+          <header><span>BUILD·02</span><h2>Codex</h2></header>
+          {noModelCall && <p>No Codex call in this run.</p>}
+          <dl>
+            <div><dt>Thread</dt><ProvenanceValue value={formatShort(codexThreadId)} fullValue={codexThreadId} /></div>
+            <div><dt>Base</dt><ProvenanceValue value={formatShort(candidate?.baseCommit, 7)} fullValue={candidate?.baseCommit} /></div>
+            <div><dt>Change</dt><ProvenanceValue value={changedFiles ? `${changedFiles.length} file${changedFiles.length === 1 ? '' : 's'}` : 'Not reported'} /></div>
+          </dl>
+        </article>
+        <article className="provenance-node">
+          <header><span>HOST·03</span><h2>Verifier</h2></header>
+          <dl>
+            <div><dt>Tests</dt><ProvenanceValue value={proof?.hostVerification?.testsPassed === undefined || proof.hostVerification.testsTotal === undefined ? 'Not reported' : `${proof.hostVerification.testsPassed}/${proof.hostVerification.testsTotal}`} /></div>
+            <div><dt>Scenarios</dt><ProvenanceValue value={proof ? `${proof.scenariosPassed}/${proof.scenariosTotal}` : 'Not reported'} /></div>
+            <div><dt>Assertions</dt><ProvenanceValue value={proof ? `${proof.assertionsPassed}/${proof.assertionsTotal}` : 'Not reported'} /></div>
+          </dl>
+        </article>
+        <article className="provenance-node">
+          <header><span>HASH·04</span><h2>Integrity</h2></header>
+          <dl>
+            <div><dt>Source</dt><ProvenanceValue value={formatDigest(sourceDigest)} fullValue={sourceDigest} /></div>
+            <div><dt>Diff</dt><ProvenanceValue value={formatDigest(diffDigest)} fullValue={diffDigest} /></div>
+            <div><dt>Proof</dt><ProvenanceValue value={formatDigest(proof?.digest)} fullValue={proof?.digest} /></div>
+          </dl>
+        </article>
+      </div>
+      {mode === 'recorded-replay' && (
+        <div className="provenance-run-link" aria-label="Recorded source and replay run">
+          <span className="recorded-date"><small>Recorded</small><strong>{recordedAt ? formatTime(recordedAt) : 'Not reported'}</strong></span>
+          <span className="run-identity"><small>Source run</small><code title={sourceRunId}>{formatShort(sourceRunId, 24)}</code></span>
+          <span className="run-arrow" aria-hidden="true">→</span>
+          <span className="run-identity"><small>Replay run</small><code title={replayRunId}>{formatShort(replayRunId, 24)}</code></span>
+        </div>
       )}
     </section>
   )
@@ -195,7 +322,7 @@ function EventConsole({ events, onInspect }: { events: MigrationEvent[]; onInspe
           <li key={event.sequence}>
             <button type="button" onClick={() => onInspect(event)}>
               <span>{String(event.sequence).padStart(3, '0')}</span>
-              <span><strong>{event.title ?? event.type}</strong><small>{event.detail ?? event.payload?.message ?? event.actor}</small></span>
+              <span><strong>{event.title ?? event.type}</strong><small>{displayTerminology(event.detail ?? event.payload?.message ?? event.actor)}</small></span>
               <em>{event.stage ?? 'system'}</em>
             </button>
           </li>
@@ -232,6 +359,7 @@ export default function App() {
   const [error, setError] = useState<string>()
   const [starting, setStarting] = useState(false)
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities>()
   const subscription = useRef<(() => void) | undefined>(undefined)
 
   const active = state.job?.status === 'queued' || state.job?.status === 'running'
@@ -243,6 +371,25 @@ export default function App() {
   const latestEvents = useMemo(() => [...state.events].reverse(), [state.events])
 
   useEffect(() => () => subscription.current?.(), [])
+
+  useEffect(() => {
+    let current = true
+    void getRuntimeCapabilities()
+      .then((capabilities) => {
+        if (current) setRuntimeCapabilities(capabilities)
+      })
+      .catch(() => {
+        if (current) {
+          setRuntimeCapabilities({
+            liveAiAvailable: false,
+            gpt56Configured: false,
+            codexConfigured: false,
+            boundary: 'Runtime health could not be verified, so Live AI remains unavailable.',
+          })
+        }
+      })
+    return () => { current = false }
+  }, [])
 
   const refreshOutputs = async (jobId: string) => {
     const [jobResult, artifactResult] = await Promise.allSettled([
@@ -320,16 +467,32 @@ export default function App() {
         </div>
         <div className="mode-selector" aria-label="Execution mode">
           {Object.entries(modeCopy).map(([mode, copy]) => (
-            <label key={mode} className={executionMode === mode ? 'is-selected' : ''}>
+            <label
+              key={mode}
+              className={[
+                executionMode === mode ? 'is-selected' : '',
+                mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false ? 'is-unavailable' : '',
+              ].filter(Boolean).join(' ')}
+              title={mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
+                ? runtimeCapabilities.boundary
+                : undefined}
+            >
               <input
                 type="radio"
                 name="execution-mode"
                 value={mode}
                 checked={executionMode === mode}
-                disabled={active || starting}
+                disabled={active || starting || (mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false)}
                 onChange={() => setExecutionMode(mode as ExecutionMode)}
               />
-              <span><strong>{copy.title}</strong><small>{copy.label}</small></span>
+              <span>
+                <strong>{copy.title}</strong>
+                <small>{mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
+                  ? 'Unavailable on this deployment'
+                  : mode === 'live-ai' && runtimeCapabilities === undefined
+                    ? 'Checking runtime availability…'
+                    : copy.label}</small>
+              </span>
             </label>
           ))}
         </div>
@@ -355,6 +518,8 @@ export default function App() {
         <span><small>Mismatches</small><strong>{state.proof?.mismatchCount ?? '—'}</strong></span>
       </section>
 
+      <ProvenanceStrip state={state} mode={selectedMode} />
+
       <div className="workbench-grid">
         <div className="workbench-primary">
           <HypothesisLoom state={state} />
@@ -372,7 +537,7 @@ export default function App() {
           <div>
             <header><span>Evidence event {inspectedEvent.sequence}</span><button type="button" onClick={() => setInspectedEvent(undefined)} aria-label="Close evidence drawer">×</button></header>
             <h2>{inspectedEvent.title ?? inspectedEvent.type}</h2>
-            <p>{inspectedEvent.detail ?? inspectedEvent.payload?.message}</p>
+            <p>{displayTerminology(inspectedEvent.detail ?? inspectedEvent.payload?.message)}</p>
             <dl>
               <div><dt>Stage</dt><dd>{inspectedEvent.stage ?? 'system'}</dd></div>
               <div><dt>Actor</dt><dd>{inspectedEvent.actor ?? 'server'}</dd></div>

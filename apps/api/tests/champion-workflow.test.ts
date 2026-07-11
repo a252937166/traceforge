@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
+  createHostHiddenScenario,
   executeLegacyWorkflow,
   executeReplacementWorkflow,
   scenarios,
@@ -13,7 +14,7 @@ function scenario(id: string) {
   return found;
 }
 
-test("champion corpus exposes two observations, GPT counterexample, exact boundary, and held-out priority check", () => {
+test("writer-visible corpus exposes observations, counterexample, and exact boundary without a held-out input", () => {
   assert.deepEqual(
     scenarios.map(({ id, stage, visibility, input }) => ({
       id,
@@ -58,15 +59,24 @@ test("champion corpus exposes two observations, GPT counterexample, exact bounda
         amountCents: 50_000,
         customerTier: "STANDARD",
       },
-      {
-        id: "heldout-vip-damaged-50000",
-        stage: "held-out",
-        visibility: "hidden",
-        amountCents: 50_000,
-        customerTier: "VIP",
-      },
     ],
   );
+  assert.equal(scenarios.some(({ stage, visibility }) => stage === "held-out" || visibility === "hidden"), false);
+});
+
+test("host materializes an unpredictable priority cross-product only for final verification", () => {
+  const first = createHostHiddenScenario("host-secret-a");
+  const repeat = createHostHiddenScenario("host-secret-a");
+  const second = createHostHiddenScenario("host-secret-b");
+
+  assert.deepEqual(first, repeat);
+  assert.notEqual(first.id, second.id);
+  assert.equal(first.stage, "held-out");
+  assert.equal(first.visibility, "hidden");
+  assert.equal(first.input.customerTier, "VIP");
+  assert.equal(first.input.itemCondition, "SELLABLE");
+  assert.ok(first.input.amountCents > 50_000);
+  assert.equal(scenarios.some(({ id }) => id === first.id), false);
 });
 
 test("seeded candidate is rejected for both VIP priority and damaged disposition", () => {
@@ -110,16 +120,16 @@ test("50,000 cents is the exact threshold and outranks VIP replacement", () => {
   const exact = executeLegacyWorkflow(
     scenario("boundary-standard-damaged-50000").input,
   ).result;
-  const heldOutVip = executeLegacyWorkflow(
-    scenario("heldout-vip-damaged-50000").input,
+  const hostHiddenVip = executeLegacyWorkflow(
+    createHostHiddenScenario("threshold-priority-test").input,
   ).result;
 
   assert.equal(below.decision, "REFUND");
   assert.equal(exact.decision, "MANUAL_REVIEW");
   assert.deepEqual(exact.inventoryAfter, exact.inventoryBefore);
   assert.deepEqual(exact.sideEffects.map((effect) => effect.type), ["REVIEW_QUEUE"]);
-  assert.equal(heldOutVip.decision, "MANUAL_REVIEW");
-  assert.deepEqual(heldOutVip.inventoryAfter, heldOutVip.inventoryBefore);
+  assert.equal(hostHiddenVip.decision, "MANUAL_REVIEW");
+  assert.deepEqual(hostHiddenVip.inventoryAfter, hostHiddenVip.inventoryBefore);
 });
 
 test("candidate module has no dependency on the legacy implementation", async () => {

@@ -91,6 +91,10 @@ export interface MigrationScenarioProof {
   assertionCount: number;
   mismatchCount: number;
   mismatches: Array<{ path: string; expected: unknown; actual: unknown }>;
+  provenance: {
+    source: "model-proposed" | "host-derived" | "host-authored";
+    detail: string;
+  };
 }
 
 export interface MigrationProofBundle {
@@ -106,6 +110,13 @@ export interface MigrationProofBundle {
     sourceDigest: string;
     diffDigest: string;
     codexThreadId?: string;
+    baseCommit?: string;
+    changedFiles?: string[];
+  };
+  hostVerification?: {
+    testsPassed: number;
+    testsTotal: number;
+    source: "recorded-command-log" | "live-command-output";
   };
   coverage: {
     observed: number;
