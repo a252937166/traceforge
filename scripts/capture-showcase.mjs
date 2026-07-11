@@ -7,6 +7,13 @@ const root = resolve(import.meta.dirname, "..");
 const output = resolve(root, "../materials/screenshots/submission");
 const url = process.env.TRACEFORGE_SHOWCASE_URL ?? "https://traceforge.axiqo.xyz";
 
+const entryViewport = { width: 1440, height: 900 };
+const entryScale = 2;
+const entryPixels = {
+  width: entryViewport.width * entryScale,
+  height: entryViewport.height * entryScale,
+};
+
 const desktopViewport = { width: 1915, height: 1291 };
 const desktopScale = 2;
 const desktopPixels = {
@@ -77,18 +84,22 @@ async function absoluteTop(page, selector) {
 
 async function runRecordedMigration(page) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  const recorded = page.getByRole("radio", { name: /Replay a verified run/ });
-  if (!(await recorded.isChecked())) await recorded.click();
-  await page.getByRole("button", { name: "Run the verified migration" }).click();
+  await page.getByRole("button", { name: "Inspect a completed proof", exact: true }).click();
   await page.getByText("PASSED · 7/7 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
   await page.getByText("proof ready", { exact: true }).waitFor({ timeout: 30_000 });
   await page.evaluate(() => document.fonts.ready);
 
-  assert.equal(await recorded.isChecked(), true);
   assert.equal(await page.getByText("[object Object]", { exact: true }).count(), 0);
+  const artifacts = page.locator("details.proof-detail").filter({ hasText: "Evidence artifacts" });
+  await artifacts.locator("summary").click();
   assert.equal(await page.locator(".artifact-list a").count(), 5);
-  assert.match(await page.locator(".mode-disclosure").innerText(), /No model call is made during replay/i);
-  return page.locator(".run-controls span").innerText();
+  assert.match(await page.locator(".run-header p").innerText(), /No model call is made during replay/i);
+  return page.locator(".run-header .run-identity").innerText();
+}
+
+async function openRawEvents(page) {
+  const details = page.locator("details.proof-detail").filter({ hasText: "Raw run events" });
+  if (!(await details.getAttribute("open"))) await details.locator("summary").click();
 }
 
 async function closeEvidenceDrawer(page) {
@@ -104,6 +115,23 @@ const browser = await chromium.launch({
 });
 
 try {
+  const entryContext = await browser.newContext({
+    viewport: entryViewport,
+    deviceScaleFactor: entryScale,
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const entry = await entryContext.newPage();
+  await entry.goto(url, { waitUntil: "networkidle" });
+  await entry.getByRole("button", { name: "Start a local proof run", exact: true }).waitFor();
+  const entryLayout = await entry.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  assert.equal(entryLayout.scroll, entryLayout.client);
+  await capture(entry, "00-traceforge-judge-entry-2880x1800.png", entryPixels);
+  await entryContext.close();
+
   const desktopContext = await browser.newContext({
     viewport: desktopViewport,
     deviceScaleFactor: desktopScale,
@@ -116,18 +144,18 @@ try {
   await scrollTo(desktop, 0);
   await capture(desktop, "01-traceforge-cover-3830x2582.png", desktopPixels);
 
-  const proofSummaryTop = await absoluteTop(desktop, ".proof-summary");
-  await scrollTo(desktop, proofSummaryTop - 180);
+  const proofSummaryTop = await absoluteTop(desktop, ".run-workspace");
+  await scrollTo(desktop, proofSummaryTop - 80);
   await capture(desktop, "02-traceforge-evidence-3830x2582.png", desktopPixels);
 
+  await openRawEvents(desktop);
   await desktop.getByRole("button", { name: /Candidate 02 built by Codex/ }).click();
-  const suiteTop = await absoluteTop(desktop, ".suite-panel");
-  await scrollTo(desktop, suiteTop - 180);
+  await scrollTo(desktop, proofSummaryTop - 80);
   await capture(desktop, "03-traceforge-codex-build-3830x2582.png", desktopPixels);
 
   await closeEvidenceDrawer(desktop);
   await desktop.getByRole("button", { name: /Independent verifier decided/ }).click();
-  await scrollTo(desktop, suiteTop - 180);
+  await scrollTo(desktop, proofSummaryTop - 80);
   await capture(desktop, "04-traceforge-verifier-proof-3830x2582.png", desktopPixels);
 
   await closeEvidenceDrawer(desktop);
@@ -148,6 +176,14 @@ try {
     reducedMotion: "reduce",
   });
   const mobile = await mobileContext.newPage();
+  await mobile.goto(url, { waitUntil: "networkidle" });
+  await mobile.getByRole("button", { name: "Start a local proof run", exact: true }).waitFor();
+  const mobileEntryLayout = await mobile.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  assert.equal(mobileEntryLayout.scroll, mobileEntryLayout.client);
+  await capture(mobile, "00-traceforge-mobile-judge-entry-1170x2532.png", mobilePixels);
   const mobileRun = await runRecordedMigration(mobile);
   const widths = await mobile.evaluate(() => ({
     client: document.documentElement.clientWidth,
@@ -158,14 +194,17 @@ try {
   await scrollTo(mobile, 0);
   await capture(mobile, "06-traceforge-mobile-cover-1170x2532.png", mobilePixels);
 
-  const mobileProofTop = await absoluteTop(mobile, ".proof-summary");
+  const mobileProofTop = await absoluteTop(mobile, ".run-workspace");
   await scrollTo(mobile, mobileProofTop - 90);
   await capture(mobile, "07-traceforge-mobile-evidence-1170x2532.png", mobilePixels);
 
+  await openRawEvents(mobile);
   await mobile.getByRole("button", { name: /Independent verifier decided/ }).click();
   await capture(mobile, "08-traceforge-mobile-verifier-1170x2532.png", mobilePixels);
 
   await closeEvidenceDrawer(mobile);
+  const candidateDetails = mobile.locator("details.proof-detail").filter({ hasText: "Candidate history" });
+  if (!(await candidateDetails.getAttribute("open"))) await candidateDetails.locator("summary").click();
   const mobileCandidateTop = await absoluteTop(mobile, ".candidate-panel");
   await scrollTo(mobile, mobileCandidateTop - 180);
   await capture(mobile, "09-traceforge-mobile-build-proof-1170x2532.png", mobilePixels);
@@ -184,6 +223,7 @@ try {
   });
   const tablet = await tabletContext.newPage();
   const tabletRun = await runRecordedMigration(tablet);
+  await openRawEvents(tablet);
   await tablet.getByRole("button", { name: /Independent verifier decided/ }).click();
   await capture(
     tablet,
@@ -200,6 +240,12 @@ try {
       capturedAt: new Date().toISOString(),
       mode: "recorded-replay",
       encoding: "direct-png",
+      entry: {
+        viewport: entryViewport,
+        deviceScaleFactor: entryScale,
+        pixels: entryPixels,
+        layout: entryLayout,
+      },
       desktop: {
         run: desktopRun,
         viewport: desktopViewport,
@@ -214,6 +260,7 @@ try {
         pixels: mobilePixels,
         fullPage: mobileFullPage,
         layout: widths,
+        entryLayout: mobileEntryLayout,
       },
       tablet: {
         run: tabletRun,

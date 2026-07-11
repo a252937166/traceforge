@@ -41,15 +41,16 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const repositoryUrl = 'https://github.com/a252937166/traceforge'
-const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
-const proofVerificationUrl = 'https://github.com/a252937166/traceforge#verify-the-proof-digest-locally'
+const publishedEvidenceCommit = 'f0ede87cb763e3c9f0776f263cbd61ce63d8c770'
+const liveRunEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/live-champion-run`
+const proofVerificationUrl = `${repositoryUrl}/blob/${publishedEvidenceCommit}/README.md#verify-the-proof-digest-locally`
 const localRunnerRepository = 'a252937166/traceforge'
 const localRunnerTag = 'local-runner-v0.1.9'
 const localRunnerCommit = 'a2ce8b2394caf5d1491c2b142f99a8421f3cec2d'
 const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
 const localRunnerTagUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
-const localRunnerEvidenceUrl = `https://github.com/${localRunnerRepository}/tree/main/docs/evidence/local-runner-v0.1.9`
+const localRunnerEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/local-runner-v0.1.9`
 
 const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
 

@@ -166,7 +166,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await releaseEvidence.innerText(), /v0\.1\.9/);
     assert.equal(
       await releaseEvidence.getByRole("link", { name: /Real local run/ }).getAttribute("href"),
-      "https://github.com/a252937166/traceforge/tree/main/docs/evidence/local-runner-v0.1.9",
+      "https://github.com/a252937166/traceforge/tree/f0ede87cb763e3c9f0776f263cbd61ce63d8c770/docs/evidence/local-runner-v0.1.9",
     );
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
