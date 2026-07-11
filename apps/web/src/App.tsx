@@ -392,6 +392,7 @@ export default function App() {
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities>()
   const subscription = useRef<(() => void) | undefined>(undefined)
+  const evidenceDialogRef = useRef<HTMLDialogElement>(null)
 
   const active = state.job?.status === 'queued' || state.job?.status === 'running'
   const selectedMode = state.job?.executionMode ?? executionMode
@@ -402,6 +403,27 @@ export default function App() {
   const latestEvents = useMemo(() => [...state.events].reverse(), [state.events])
 
   useEffect(() => () => subscription.current?.(), [])
+
+  useEffect(() => {
+    const dialog = evidenceDialogRef.current
+    if (!dialog) return
+
+    if (inspectedEvent) {
+      if (!dialog.open) {
+        if (typeof dialog.showModal === 'function') dialog.showModal()
+        else dialog.setAttribute('open', '')
+      }
+      document.documentElement.classList.add('evidence-modal-open')
+    } else {
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') dialog.close()
+        else dialog.removeAttribute('open')
+      }
+      document.documentElement.classList.remove('evidence-modal-open')
+    }
+
+    return () => document.documentElement.classList.remove('evidence-modal-open')
+  }, [inspectedEvent])
 
   useEffect(() => {
     let current = true
@@ -574,19 +596,31 @@ export default function App() {
         </div>
       </div>
 
-      <dialog className="evidence-dialog" open={Boolean(inspectedEvent)} onClose={() => setInspectedEvent(undefined)}>
+      <dialog
+        ref={evidenceDialogRef}
+        className="evidence-dialog"
+        aria-labelledby="evidence-dialog-title"
+        aria-describedby="evidence-dialog-description"
+        onClose={() => setInspectedEvent(undefined)}
+        onCancel={() => setInspectedEvent(undefined)}
+      >
         {inspectedEvent && (
-          <div>
+          <div className="evidence-dialog-shell">
             <header><span>Evidence event {inspectedEvent.sequence}</span><button type="button" onClick={() => setInspectedEvent(undefined)} aria-label="Close evidence drawer">×</button></header>
-            <h2>{inspectedEvent.title ?? inspectedEvent.type}</h2>
-            <p>{displayTerminology(inspectedEvent.detail ?? inspectedEvent.payload?.message)}</p>
-            <dl>
-              <div><dt>Stage</dt><dd>{inspectedEvent.stage ?? 'system'}</dd></div>
-              <div><dt>Actor</dt><dd>{inspectedEvent.actor ?? 'server'}</dd></div>
-              <div><dt>Occurred</dt><dd>{formatTime(inspectedEvent.occurredAt)}</dd></div>
-              <div><dt>Digest</dt><dd><code>{inspectedEvent.digest ?? 'not provided'}</code></dd></div>
-            </dl>
-            <pre>{JSON.stringify(inspectedEvent, null, 2)}</pre>
+            <div className="evidence-dialog-content">
+              <h2 id="evidence-dialog-title">{inspectedEvent.title ?? inspectedEvent.type}</h2>
+              <p id="evidence-dialog-description">{displayTerminology(inspectedEvent.detail ?? inspectedEvent.payload?.message)}</p>
+              <dl>
+                <div><dt>Stage</dt><dd>{inspectedEvent.stage ?? 'system'}</dd></div>
+                <div><dt>Actor</dt><dd>{inspectedEvent.actor ?? 'server'}</dd></div>
+                <div><dt>Occurred</dt><dd>{formatTime(inspectedEvent.occurredAt)}</dd></div>
+                <div><dt>Digest</dt><dd><code>{inspectedEvent.digest ?? 'not provided'}</code></dd></div>
+              </dl>
+              <details className="evidence-raw">
+                <summary><span>Raw event JSON</span><small>Signed payload · JSON</small></summary>
+                <pre>{JSON.stringify(inspectedEvent, null, 2)}</pre>
+              </details>
+            </div>
           </div>
         )}
       </dialog>

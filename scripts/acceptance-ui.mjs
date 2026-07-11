@@ -195,6 +195,107 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(completedDisclosure, /issues a fresh proof/i);
     assert.match(completedDisclosure, /No model call is made during replay/i);
 
+    await page.setViewportSize({ width: 764, height: 843 });
+    const evidenceTrigger = page.getByRole("button", { name: /Candidate 02 built by Codex/ });
+    await evidenceTrigger.click();
+    const evidenceDialog = page.locator("dialog.evidence-dialog");
+    await evidenceDialog.waitFor({ state: "visible" });
+    const drawerClosedState = await evidenceDialog.evaluate((dialog) => {
+      const rect = dialog.getBoundingClientRect();
+      const topElement = document.elementFromPoint(window.innerWidth - 12, 32);
+      const raw = dialog.querySelector("details.evidence-raw");
+      return {
+        modal: dialog.matches(":modal"),
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        viewportWidth: window.innerWidth,
+        topElementInsideDialog: Boolean(topElement?.closest("dialog.evidence-dialog")),
+        stageRailOnTop: Boolean(topElement?.closest(".stage-rail")),
+        rawOpen: raw?.hasAttribute("open") ?? null,
+        htmlLocked: document.documentElement.classList.contains("evidence-modal-open"),
+      };
+    });
+    assert.equal(drawerClosedState.modal, true, "evidence drawer must enter the native modal top layer");
+    assert.ok(Math.abs(drawerClosedState.left) <= 0.5, "tablet evidence drawer must start at the viewport edge");
+    assert.ok(
+      Math.abs(drawerClosedState.right - drawerClosedState.viewportWidth) <= 0.5,
+      "tablet evidence drawer must end at the viewport edge",
+    );
+    assert.equal(drawerClosedState.topElementInsideDialog, true, "modal drawer must own the top visual layer");
+    assert.equal(drawerClosedState.stageRailOnTop, false, "sticky stage rail must never cross the modal drawer");
+    assert.equal(drawerClosedState.rawOpen, false, "raw event JSON must be collapsed by default");
+    assert.equal(drawerClosedState.htmlLocked, true, "the document must lock background scrolling while evidence is open");
+
+    await evidenceDialog.locator("summary").click();
+    const rawLayout = await evidenceDialog.evaluate((dialog) => {
+      const pre = dialog.querySelector(".evidence-raw pre");
+      const content = dialog.querySelector(".evidence-dialog-content");
+      return {
+        rawOpen: dialog.querySelector("details.evidence-raw")?.hasAttribute("open") ?? false,
+        preClientWidth: pre?.clientWidth ?? 0,
+        preScrollWidth: pre?.scrollWidth ?? 0,
+        dialogClientWidth: dialog.clientWidth,
+        dialogScrollWidth: dialog.scrollWidth,
+        contentClientHeight: content?.clientHeight ?? 0,
+        contentScrollHeight: content?.scrollHeight ?? 0,
+      };
+    });
+    assert.equal(rawLayout.rawOpen, true, "raw event JSON must expand on request");
+    assert.ok(rawLayout.preClientWidth > 0, "expanded raw payload must have a measurable content width");
+    assert.ok(
+      rawLayout.preScrollWidth <= rawLayout.preClientWidth,
+      "long raw JSON values must wrap without horizontal scrolling",
+    );
+    assert.ok(
+      rawLayout.dialogScrollWidth <= rawLayout.dialogClientWidth,
+      "evidence drawer must not have horizontal overflow",
+    );
+    assert.ok(
+      rawLayout.contentScrollHeight > rawLayout.contentClientHeight,
+      "a complex evidence payload must scroll inside the drawer rather than extending the page",
+    );
+
+    const scrolledLayout = await evidenceDialog.evaluate((dialog) => {
+      const content = dialog.querySelector(".evidence-dialog-content");
+      const header = dialog.querySelector(".evidence-dialog-shell > header");
+      const close = dialog.querySelector('button[aria-label="Close evidence drawer"]');
+      if (content) content.scrollTop = content.scrollHeight;
+      const dialogRect = dialog.getBoundingClientRect();
+      const headerRect = header?.getBoundingClientRect();
+      const closeRect = close?.getBoundingClientRect();
+      const closeTarget = closeRect
+        ? document.elementFromPoint(closeRect.left + closeRect.width / 2, closeRect.top + closeRect.height / 2)
+        : null;
+      return {
+        contentScrollTop: content?.scrollTop ?? 0,
+        headerTop: headerRect?.top ?? -1,
+        dialogTop: dialogRect.top,
+        closeButtonOwnsPoint: Boolean(closeTarget?.closest('button[aria-label="Close evidence drawer"]')),
+      };
+    });
+    assert.ok(scrolledLayout.contentScrollTop > 0, "complex raw evidence must be vertically scrollable");
+    assert.ok(
+      Math.abs(scrolledLayout.headerTop - scrolledLayout.dialogTop) <= 0.5,
+      "the evidence header must remain fixed while raw evidence scrolls",
+    );
+    assert.equal(scrolledLayout.closeButtonOwnsPoint, true, "the close control must stay clickable after scrolling raw evidence");
+
+    await evidenceDialog.getByRole("button", { name: "Close evidence drawer" }).click();
+    await evidenceDialog.waitFor({ state: "hidden" });
+    assert.equal(
+      await page.evaluate(() => document.documentElement.classList.contains("evidence-modal-open")),
+      false,
+      "closing evidence must unlock the document",
+    );
+    assert.equal(await evidenceTrigger.evaluate((button) => document.activeElement === button), true, "close must restore focus to the event trigger");
+
+    await evidenceTrigger.click();
+    await evidenceDialog.waitFor({ state: "visible" });
+    await page.keyboard.press("Escape");
+    await evidenceDialog.waitFor({ state: "hidden" });
+    assert.equal(await evidenceTrigger.evaluate((button) => document.activeElement === button), true, "Escape must restore focus to the event trigger");
+
     const mobile = await browser.newPage({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 3,
@@ -261,6 +362,14 @@ async function runIncrementalBrowserAcceptance(webBase) {
         desktopCtaBox,
         mobileCtaBox,
         evidenceLinkVisible: true,
+      },
+      evidenceDrawer: {
+        viewport: { width: 764, height: 843 },
+        closedState: drawerClosedState,
+        expandedRawLayout: rawLayout,
+        scrolledRawLayout: scrolledLayout,
+        closeRestoredFocus: true,
+        escapeRestoredFocus: true,
       },
       mobileStageRail,
     };

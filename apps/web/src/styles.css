@@ -21,6 +21,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html.evidence-modal-open {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -1151,27 +1155,34 @@ pre,
 .evidence-dialog {
   position: fixed;
   inset: 0 0 0 auto;
-  width: min(620px, 92vw);
+  width: min(640px, calc(100vw - 32px));
   max-width: none;
-  height: 100vh;
+  height: 100dvh;
   max-height: none;
   margin: 0;
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 0;
   border-left: 1px solid var(--graphite);
   background: var(--surface);
   color: var(--graphite);
-  box-shadow: -18px 0 50px color-mix(in srgb, var(--graphite) 18%, transparent);
+  box-shadow: -24px 0 72px color-mix(in srgb, var(--graphite) 28%, transparent);
+  overscroll-behavior: contain;
 }
 
 .evidence-dialog::backdrop {
-  background: color-mix(in srgb, var(--graphite) 38%, transparent);
+  background: color-mix(in srgb, var(--graphite) 64%, transparent);
+  backdrop-filter: blur(2px);
 }
 
-.evidence-dialog > div > header {
-  position: sticky;
-  top: 0;
+.evidence-dialog-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.evidence-dialog-shell > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1183,9 +1194,10 @@ pre,
   font-size: 0.7rem;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+  z-index: 1;
 }
 
-.evidence-dialog header button {
+.evidence-dialog-shell > header button {
   width: 64px;
   min-height: 64px;
   border: 0;
@@ -1196,20 +1208,31 @@ pre,
   cursor: pointer;
 }
 
-.evidence-dialog header button:hover {
+.evidence-dialog-shell > header button:hover {
   background: var(--mist);
+}
+
+.evidence-dialog-content {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .evidence-dialog h2 {
   margin: 36px 32px 10px;
   font-size: clamp(1.6rem, 3vw, 2.6rem);
   letter-spacing: -0.04em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
-.evidence-dialog > div > p {
+.evidence-dialog-content > p {
   margin: 0 32px 28px;
   color: color-mix(in srgb, var(--graphite) 68%, transparent);
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .evidence-dialog dl {
@@ -1239,15 +1262,70 @@ pre,
   font-size: 0.76rem;
 }
 
-.evidence-dialog pre {
+.evidence-dialog dd code {
+  word-break: break-word;
+}
+
+.evidence-raw {
+  margin: 0 32px 32px;
+  overflow: hidden;
+  border: 1px solid var(--graphite);
+}
+
+.evidence-raw summary {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 14px;
+  background: var(--mist);
+  cursor: pointer;
+  list-style: none;
+}
+
+.evidence-raw summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-raw summary::after {
+  color: var(--cobalt);
+  content: "+";
+  font-family: ui-monospace, monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.evidence-raw[open] summary::after {
+  content: "−";
+}
+
+.evidence-raw summary span {
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.evidence-raw summary small {
+  color: color-mix(in srgb, var(--graphite) 56%, transparent);
+  font-size: 0.65rem;
+}
+
+.evidence-raw pre {
+  max-width: 100%;
   margin: 0;
-  padding: 26px 32px 48px;
-  overflow-x: auto;
+  padding: 22px 18px 28px;
+  overflow: hidden;
   border-top: 1px solid var(--graphite);
   background: var(--graphite);
   color: var(--surface);
   font-size: 0.69rem;
   line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 @media (max-width: 1120px) {
@@ -1289,6 +1367,11 @@ pre,
   .migration-workbench {
     padding-right: 16px;
     padding-left: 16px;
+  }
+
+  .evidence-dialog {
+    width: 100vw;
+    border-left: 0;
   }
 
   .mode-selector {
@@ -1352,6 +1435,43 @@ pre,
 @media (max-width: 540px) {
   .migration-workbench {
     padding: 0 12px 40px;
+  }
+
+  .evidence-dialog-shell > header {
+    min-height: 56px;
+    padding-left: 18px;
+  }
+
+  .evidence-dialog-shell > header button {
+    width: 56px;
+    min-height: 56px;
+  }
+
+  .evidence-dialog h2 {
+    margin: 26px 20px 8px;
+  }
+
+  .evidence-dialog-content > p,
+  .evidence-dialog dl {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+
+  .evidence-dialog dl > div {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .evidence-raw {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+
+  .evidence-raw summary {
+    grid-template-columns: 1fr auto;
+  }
+
+  .evidence-raw summary small {
+    display: none;
   }
 
   .hero {
@@ -1598,7 +1718,7 @@ pre,
   }
 
   .evidence-dialog h2,
-  .evidence-dialog > div > p,
+  .evidence-dialog-content > p,
   .evidence-dialog dl {
     margin-right: 20px;
     margin-left: 20px;

@@ -21,6 +21,14 @@ const mobilePixels = {
   height: mobileViewport.height * mobileScale,
 };
 
+// Matches the DPR 2 viewport from the original drawer-overlap report.
+const tabletViewport = { width: 764, height: 843 };
+const tabletScale = 2;
+const tabletPixels = {
+  width: tabletViewport.width * tabletScale,
+  height: tabletViewport.height * tabletScale,
+};
+
 await mkdir(output, { recursive: true });
 
 function pngDimensions(buffer) {
@@ -85,8 +93,7 @@ async function runRecordedMigration(page) {
 
 async function closeEvidenceDrawer(page) {
   const close = page.getByRole("button", { name: "Close evidence drawer" });
-  // The sticky stage rail can overlap the top-right close control at narrow widths.
-  await close.evaluate((button) => button.click());
+  await close.click();
   await close.waitFor({ state: "hidden" });
 }
 
@@ -169,6 +176,23 @@ try {
   );
   await mobileContext.close();
 
+  const tabletContext = await browser.newContext({
+    viewport: tabletViewport,
+    deviceScaleFactor: tabletScale,
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  const tablet = await tabletContext.newPage();
+  const tabletRun = await runRecordedMigration(tablet);
+  await tablet.getByRole("button", { name: /Independent verifier decided/ }).click();
+  await capture(
+    tablet,
+    "11-traceforge-tablet-evidence-1528x1686.png",
+    tabletPixels,
+  );
+  await closeEvidenceDrawer(tablet);
+  await tabletContext.close();
+
   await writeFile(
     resolve(output, "capture-manifest.json"),
     `${JSON.stringify({
@@ -190,6 +214,13 @@ try {
         pixels: mobilePixels,
         fullPage: mobileFullPage,
         layout: widths,
+      },
+      tablet: {
+        run: tabletRun,
+        viewport: tabletViewport,
+        deviceScaleFactor: tabletScale,
+        pixels: tabletPixels,
+        regression: "original evidence-drawer overlap viewport",
       },
     }, null, 2)}\n`,
     "utf8",
