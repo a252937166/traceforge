@@ -1,6 +1,6 @@
-export const LOCAL_RUNNER_VERSION = "0.1.2" as const;
-export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.2" as const;
-export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.2" as const;
+export const LOCAL_RUNNER_VERSION = "0.1.3" as const;
+export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.3" as const;
+export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.3" as const;
 
 export interface LocalRunnerManifest {
   version: "traceforge.local-demo.v1";

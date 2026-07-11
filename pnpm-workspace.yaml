@@ -1,6 +1,13 @@
 packages:
   - apps/*
 
+# Judges may run an x64 Node binary under Rosetta on an arm64 Mac (or switch
+# Node architectures between launches). Keep both native optional variants so
+# tsx/esbuild remains reproducible instead of depending on the kernel arch.
+supportedArchitectures:
+  cpu:
+    - x64
+    - arm64
+
 onlyBuiltDependencies:
   - esbuild
-

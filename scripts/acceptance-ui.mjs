@@ -55,7 +55,7 @@ async function buildAndReadStaticContract() {
     "Replay a verified run",
     "Host-only proof",
     "Build live with my Codex",
-    "local-runner-v0.1.2",
+    "local-runner-v0.1.3",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
