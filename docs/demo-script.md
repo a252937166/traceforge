@@ -1,6 +1,6 @@
 # 100-second demo script
 
-Use **Recorded replay** for the judged video so the complete experiment fits in 100 seconds. Keep the disclosure visible: the archaeology and build events come from a successful real run completed on 2026-07-11, while the host verifier executes the six-scenario suite again. Never describe replayed events as live calls.
+Use **Replay a verified run** for the judged video so the complete experiment fits in 100 seconds. Keep the disclosure visible: the archaeology and build events come from a successful real run completed on 2026-07-11, while the host verifier executes the six-scenario suite again and issues a fresh proof. Never describe replayed events as live calls.
 
 ## 0–9 seconds — the migration risk
 
@@ -12,7 +12,7 @@ Use **Recorded replay** for the judged video so the complete experiment fits in 
 
 ## 9–17 seconds — make the truth mode explicit
 
-**Screen:** Select **Recorded replay — verified recording, not live**, then click **Start migration**. Keep the Live AI availability indicator in frame.
+**Screen:** Keep **Replay a verified run — interactive replay, recorded AI, fresh proof** selected, then click **Run the verified migration**. Keep the secured New live AI run boundary and evidence link in frame.
 
 **Narration:**
 

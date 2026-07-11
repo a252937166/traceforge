@@ -22,22 +22,25 @@ import {
 } from './migration-types'
 
 const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: string }> = {
-  'live-ai': {
-    title: 'Live AI',
-    label: 'GPT-5.6 + Codex · live',
-    detail: 'Calls the configured models now. If either model is unavailable, the run stops and reports the failure.',
-  },
   'recorded-replay': {
-    title: 'Recorded replay',
-    label: 'Verified recording · not live',
-    detail: 'Replays captured model events, then re-runs host verification against the recorded candidate.',
+    title: 'Replay a verified run',
+    label: 'Interactive replay · recorded AI, fresh proof',
+    detail: 'Streams the captured GPT-5.6 and Codex events, executes the candidate, and issues a new host-owned proof bundle.',
   },
   'deterministic-only': {
-    title: 'Deterministic proof',
+    title: 'Host-only proof',
     label: 'Host verifier · no model',
     detail: 'Runs the deterministic workflow and proof path only. No GPT or Codex execution is claimed.',
   },
+  'live-ai': {
+    title: 'New live AI run',
+    label: 'GPT-5.6 + Codex · credentialled',
+    detail: 'Calls the configured models now. If either model is unavailable, the run stops and reports the failure.',
+  },
 }
+
+const modeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only', 'live-ai']
+const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 
 function formatTime(value?: string): string {
   if (!value) return 'Pending'
@@ -93,10 +96,31 @@ function scenarioPartitionLabel(scenario: NonNullable<ProofBundle['scenarios']>[
 function modeDisclosure(mode: ExecutionMode, state: MigrationState): string {
   if (mode === 'recorded-replay') {
     return state.job?.replay
-      ? `${state.job.replay.disclosure} Recorded ${formatTime(state.job.replay.recordedAt)}.`
-      : 'This mode is not live. Recording time and source provenance must arrive from the server before results are shown.'
+      ? `The authenticated model work was recorded ${formatTime(state.job.replay.recordedAt)}. This replay streams those provenance-bound events, then the host executes all six scenarios and issues a fresh proof. No model call is made during replay.`
+      : 'Run the complete migration now. GPT-5.6 and Codex events replay with their original provenance; the host then executes all six scenarios and issues a fresh proof. No model call is claimed during replay.'
   }
   return modeCopy[mode].detail
+}
+
+function actionLabel(mode: ExecutionMode, again: boolean): string {
+  if (mode === 'recorded-replay') return again ? 'Run the verified migration again' : 'Run the verified migration'
+  if (mode === 'deterministic-only') return again ? 'Run the host proof again' : 'Run the host proof'
+  return again ? 'Start a new live AI run' : 'Start live AI migration'
+}
+
+function actionHelper(mode: ExecutionMode): string {
+  if (mode === 'recorded-replay') return 'No sign-in · server-paced SSE · fresh proof bundle'
+  if (mode === 'deterministic-only') return 'No model · deterministic execution · fresh proof bundle'
+  return 'Requires secured GPT-5.6 and Codex access'
+}
+
+function transportLabel(transport: MigrationTransport, state: MigrationState): string {
+  if (transport === 'sse') return 'SSE live'
+  if (transport === 'polling') return 'recovering'
+  if (transport === 'connecting') return 'connecting'
+  if (state.job?.status === 'passed') return 'proof ready'
+  if (state.job?.status === 'failed') return 'stopped'
+  return 'ready'
 }
 
 function StageRail({ state }: { state: MigrationState }) {
@@ -465,7 +489,7 @@ export default function App() {
       <header className="hero">
         <nav aria-label="TraceForge identity">
           <a className="wordmark" href="#top" aria-label="TraceForge home">TRACEFORGE <span>/ MIGRATION LOOM</span></a>
-          <span className={`transport transport-${transport}`}>{transport}</span>
+          <span className={`transport transport-${transport}`}>{transportLabel(transport, state)}</span>
         </nav>
         <div className="hero-copy" id="top">
           <span className="eyebrow">Behavior → contract → software → proof</span>
@@ -473,45 +497,56 @@ export default function App() {
           <p>GPT-5.6 proposes and challenges rules from evidence. Codex rebuilds the bounded workflow. An independent host verifier proves what matches—and exposes what does not.</p>
         </div>
         <div className="mode-selector" aria-label="Execution mode">
-          {Object.entries(modeCopy).map(([mode, copy]) => (
-            <label
-              key={mode}
-              className={[
-                executionMode === mode ? 'is-selected' : '',
-                mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false ? 'is-unavailable' : '',
-              ].filter(Boolean).join(' ')}
-              title={mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
-                ? runtimeCapabilities.boundary
-                : undefined}
-            >
-              <input
-                type="radio"
-                name="execution-mode"
-                value={mode}
-                checked={executionMode === mode}
-                disabled={active || starting || (mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false)}
-                onChange={() => setExecutionMode(mode as ExecutionMode)}
-              />
-              <span>
-                <strong>{copy.title}</strong>
-                <small>{mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
-                  ? 'Unavailable on this deployment'
-                  : mode === 'live-ai' && runtimeCapabilities === undefined
-                    ? 'Checking runtime availability…'
-                    : copy.label}</small>
-              </span>
-            </label>
-          ))}
-        </div>
-        <div className={`mode-disclosure mode-${selectedMode}`}>
-          <strong>{modeCopy[selectedMode].label}</strong>
-          <p>{modeDisclosure(selectedMode, state)}</p>
+          {modeOrder.map((mode) => {
+            const copy = modeCopy[mode]
+            const liveUnavailable = mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
+            return (
+              <label
+                key={mode}
+                className={[
+                  executionMode === mode ? 'is-selected' : '',
+                  liveUnavailable ? 'is-unavailable' : '',
+                ].filter(Boolean).join(' ')}
+                title={liveUnavailable ? runtimeCapabilities.boundary : undefined}
+              >
+                <input
+                  type="radio"
+                  name="execution-mode"
+                  value={mode}
+                  checked={executionMode === mode}
+                  disabled={active || starting || liveUnavailable}
+                  onChange={() => setExecutionMode(mode)}
+                />
+                <span>
+                  <strong>{copy.title}</strong>
+                  <small>{liveUnavailable
+                    ? 'Fresh run requires secured model access'
+                    : mode === 'live-ai' && runtimeCapabilities === undefined
+                      ? 'Checking secured runtime…'
+                      : copy.label}</small>
+                </span>
+              </label>
+            )
+          })}
         </div>
         <div className="run-controls">
           <button className="primary-action" type="button" onClick={begin} disabled={active || starting}>
-            {starting ? 'Starting…' : active ? 'Migration running' : state.job ? 'Start a new migration' : 'Start migration'}
+            {starting
+              ? 'Starting…'
+              : active
+                ? 'Migration running'
+                : actionLabel(executionMode, state.job?.executionMode === executionMode)}
           </button>
-          <span>{state.job ? `Job ${state.job.id} · ${state.job.status}` : 'No result is preloaded.'}</span>
+          <span>{state.job ? `Job ${state.job.id} · ${state.job.status}` : actionHelper(executionMode)}</span>
+        </div>
+        <div className={`mode-disclosure mode-${executionMode}`}>
+          <strong>{modeCopy[executionMode].label}</strong>
+          <div className="mode-disclosure-body">
+            <p>{modeDisclosure(executionMode, state)}</p>
+            {executionMode === 'recorded-replay' && (
+              <a href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">Inspect the authenticated live-run evidence ↗</a>
+            )}
+          </div>
         </div>
         {error && <div className="error-banner" role="alert"><strong>Run stopped</strong><span>{error}</span></div>}
       </header>

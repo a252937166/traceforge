@@ -91,7 +91,7 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
 
 async function startMigration() {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('button', { name: 'Start migration' }))
+  await user.click(screen.getByRole('button', { name: 'Run the verified migration' }))
   await screen.findByText(/Job migration-01/)
   return user
 }
@@ -126,7 +126,7 @@ describe('TraceForge Migration Loom', () => {
     for (const stage of ['observe', 'infer', 'challenge', 'build', 'verify']) {
       expect(within(rail).getByText(stage)).toBeInTheDocument()
     }
-    expect(screen.getByText('No result is preloaded.')).toBeInTheDocument()
+    expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
     expect(screen.getByText('No proof issued')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Server-reported provenance' })).toHaveTextContent('Not reported')
     expect(screen.queryByText(/sample success/i)).not.toBeInTheDocument()
@@ -208,10 +208,21 @@ describe('TraceForge Migration Loom', () => {
   it('offers three mutually explicit execution modes', () => {
     render(<App />)
 
-    expect(screen.getByRole('radio', { name: /Live AI/ })).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: /Recorded replay/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /Deterministic proof/ })).not.toBeChecked()
-    expect(screen.getByText(/This mode is not live/)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /New live AI run/i })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Host-only proof/ })).not.toBeChecked()
+    expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual([
+      'recorded-replay',
+      'deterministic-only',
+      'live-ai',
+    ])
+    expect(screen.getByText(/No model call is claimed during replay/)).toBeInTheDocument()
+    expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
+    expect(screen.getByRole('link', { name: /Inspect the authenticated live-run evidence/ })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/docs/evidence/live-champion-run'),
+    )
   })
 
   it('stops a failed live run without silently substituting another mode', async () => {
@@ -225,8 +236,8 @@ describe('TraceForge Migration Loom', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    await userEvent.click(screen.getByRole('radio', { name: /Live AI/ }))
-    await userEvent.click(screen.getByRole('button', { name: 'Start migration' }))
+    await userEvent.click(screen.getByRole('radio', { name: /New live AI run/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start live AI migration' }))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('GPT-5.6 is unavailable.')
@@ -244,9 +255,11 @@ describe('TraceForge Migration Loom', () => {
     })))
     render(<App />)
 
-    const live = screen.getByRole('radio', { name: /Live AI/ })
+    const live = screen.getByRole('radio', { name: /New live AI run/i })
     await waitFor(() => expect(live).toBeDisabled())
-    expect(screen.getByText('Unavailable on this deployment')).toBeInTheDocument()
+    expect(screen.getByText('Fresh run requires secured model access')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
     expect(live.closest('label')).toHaveAttribute('title', expect.stringContaining('Codex execution is disabled.'))
   })
 
@@ -255,11 +268,11 @@ describe('TraceForge Migration Loom', () => {
     render(<App />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('radio', { name: /Recorded replay/ }))
-    await user.click(screen.getByRole('button', { name: 'Start migration' }))
+    await user.click(screen.getByRole('radio', { name: /Replay a verified run/ }))
+    await user.click(screen.getByRole('button', { name: 'Run the verified migration' }))
 
-    expect(await screen.findByText(/This mode is not live|Recorded execution/)).toBeInTheDocument()
-    expect(screen.getByText(/Recorded 7\/1[01]\/2026|Recorded 2026/)).toBeInTheDocument()
+    expect(await screen.findByText(/authenticated model work was recorded/)).toBeInTheDocument()
+    expect(screen.getByText(/host executes all six scenarios and issues a fresh proof/)).toBeInTheDocument()
     const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
     expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({
       executionMode: 'recorded-replay',
@@ -271,8 +284,8 @@ describe('TraceForge Migration Loom', () => {
     render(<App />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('radio', { name: /Deterministic proof/ }))
-    await user.click(screen.getByRole('button', { name: 'Start migration' }))
+    await user.click(screen.getByRole('radio', { name: /Host-only proof/ }))
+    await user.click(screen.getByRole('button', { name: 'Run the host proof' }))
 
     expect(await screen.findByText(/Job migration-01/)).toBeInTheDocument()
     expect(screen.getAllByText('No model').length).toBeGreaterThan(0)
@@ -290,7 +303,7 @@ describe('TraceForge Migration Loom', () => {
 
     const source = FakeEventSource.instances[0]
     source?.open()
-    expect(await screen.findByText('sse')).toBeInTheDocument()
+    expect(await screen.findByText('SSE live')).toBeInTheDocument()
 
     source?.emit({
       id: 'evt-infer-started',
@@ -336,7 +349,7 @@ describe('TraceForge Migration Loom', () => {
     source?.fail()
 
     await waitFor(() => expect(source?.closed).toBe(true))
-    expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    expect(screen.queryByText('recovering')).not.toBeInTheDocument()
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).includes('/events?') && String(input).includes('format=json')),
     ).toBe(false)

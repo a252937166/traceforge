@@ -71,10 +71,10 @@ After the turn, the host ran `42/42` candidate-safe tests. Four replay-source gu
 ## Truthful live, replay, and deterministic modes
 
 - **Live AI** performs fresh GPT-5.6 and Codex work. If either adapter is unavailable, the job fails; TraceForge never substitutes another result.
-- **Recorded replay** visibly replays the successful source run with its original timestamp and provenance. No model call occurs during playback, but the host suite executes again and issues fresh artifacts.
-- **Deterministic proof** skips all model stages and claims only the host verification it actually runs.
+- **Replay a verified run** visibly streams the successful source run with its original timestamp and provenance. No model call occurs during playback, but the host suite executes again and issues fresh artifacts.
+- **Host-only proof** skips all model stages and claims only the host verification it actually runs.
 
-The public deployment keeps write-capable live adapters disabled. Its health response drives an explicit **Live AI unavailable** state instead of presenting a disabled backend as ready.
+The public deployment keeps write-capable live adapters disabled. Its health response presents **New live AI run** as a deliberately secured capability, while the actionable verified replay remains selected and immediately runnable.
 
 ## Challenges we ran into
 

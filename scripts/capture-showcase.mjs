@@ -69,17 +69,17 @@ async function absoluteTop(page, selector) {
 
 async function runRecordedMigration(page) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  const recorded = page.getByRole("radio", { name: /Recorded replay/ });
+  const recorded = page.getByRole("radio", { name: /Replay a verified run/ });
   if (!(await recorded.isChecked())) await recorded.click();
-  await page.getByRole("button", { name: "Start migration" }).click();
+  await page.getByRole("button", { name: "Run the verified migration" }).click();
   await page.getByText("PASSED · 6/6 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
-  await page.getByText("closed", { exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByText("proof ready", { exact: true }).waitFor({ timeout: 30_000 });
   await page.evaluate(() => document.fonts.ready);
 
   assert.equal(await recorded.isChecked(), true);
   assert.equal(await page.getByText("[object Object]", { exact: true }).count(), 0);
   assert.equal(await page.locator(".artifact-list a").count(), 5);
-  assert.match(await page.locator(".mode-disclosure").innerText(), /not live/i);
+  assert.match(await page.locator(".mode-disclosure").innerText(), /No model call is made during replay/i);
   return page.locator(".run-controls span").innerText();
 }
 

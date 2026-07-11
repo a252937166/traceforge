@@ -32,7 +32,7 @@ The checked-in [champion run evidence](docs/evidence/live-champion-run/README.md
 - `6/6` passing scenarios, `30/30` deterministic assertions, and zero mismatches;
 - proof digest `sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241`.
 
-The checked-in evidence directory is the successful **live-ai** source run. The product's **recorded replay** is derived from that run and remains explicitly labeled as not live: it replays the disclosed model events, then executes the differential suite again and issues fresh artifacts. No GPT or Codex call is implied to be running during replay.
+The checked-in evidence directory is the successful **live-ai** source run. The public UI leads with **Replay a verified run** (`recorded-replay`): it streams the disclosed model events with their original provenance, then executes the differential suite again and issues fresh artifacts. No GPT or Codex call is implied to be running during replay. A new live run remains a secured, credentialled capability rather than an anonymous public trigger.
 
 Verify the proof digest locally:
 

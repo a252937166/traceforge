@@ -52,11 +52,11 @@ async function buildAndReadStaticContract() {
   for (const token of [
     "TRACEFORGE",
     "MIGRATION LOOM",
-    "Recorded replay",
-    "Deterministic proof",
+    "Replay a verified run",
+    "Host-only proof",
     "Rules must survive a counterexample",
     "Download the evidence",
-    "Start migration",
+    "Run the verified migration",
     "live-ai",
     "recorded-replay",
     "deterministic-only",
@@ -78,7 +78,7 @@ async function buildAndReadStaticContract() {
 
 async function runIncrementalBrowserAcceptance(webBase) {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const pollingRequests = [];
   const pageErrors = [];
   let sseResponse;
@@ -139,9 +139,30 @@ async function runIncrementalBrowserAcceptance(webBase) {
 
   try {
     await page.goto(webBase, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Start migration", exact: true }).click();
+    const recordedMode = page.getByRole("radio", { name: /Replay a verified run/ });
+    const liveMode = page.getByRole("radio", { name: /New live AI run/ });
+    const judgeCta = page.getByRole("button", { name: "Run the verified migration", exact: true });
+    assert.equal(await recordedMode.isChecked(), true, "the public judge demo must be selected by default");
+    assert.equal(await liveMode.isDisabled(), true, "the unsecured public deployment must keep fresh Live AI locked");
+    assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
+    const desktopCtaBox = await judgeCta.boundingBox();
+    assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
+    assert.ok(
+      desktopCtaBox.y + desktopCtaBox.height <= 900,
+      "the judge demo CTA must remain in the 1440x900 first viewport",
+    );
+    const initialDisclosure = await page.locator(".mode-disclosure").innerText();
+    assert.match(initialDisclosure, /recorded AI, fresh proof/i);
+    assert.match(initialDisclosure, /No model call is claimed during replay/i);
+    assert.equal(
+      await page.getByRole("link", { name: /Inspect the authenticated live-run evidence/ }).count(),
+      1,
+      "the public demo must link to its source live-run evidence",
+    );
+
+    await judgeCta.click();
     await page.waitForFunction(
-      () => window.__traceforgeAcceptance.transportStates.includes("sse"),
+      () => window.__traceforgeAcceptance.transportStates.includes("SSE live"),
       undefined,
       { timeout: 10_000 },
     );
@@ -151,7 +172,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
 
     const trace = await page.evaluate(() => window.__traceforgeAcceptance);
 
-    assert.ok(trace.transportStates.includes("sse"), "transport must enter sse while the migration is running");
+    assert.ok(trace.transportStates.includes("SSE live"), "transport must visibly enter SSE live while the migration is running");
     assert.ok(
       trace.inferActiveRenderedBeforeTerminal,
       "Infer must render active before Migration completed appears",
@@ -161,7 +182,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
       "a hypothesis must render before Migration completed appears",
     );
     assert.equal(pollingRequests.length, 0, "a healthy SSE run must not issue the JSON polling fallback");
-    assert.equal(trace.transportStates.includes("polling"), false, "transport must never render polling on a healthy run");
+    assert.equal(trace.transportStates.includes("recovering"), false, "transport must never render polling recovery on a healthy run");
     assert.equal(pageErrors.length, 0, `browser emitted page errors: ${pageErrors.join("; ")}`);
     assert.equal(sseResponse?.status, 200, "browser SSE request must return HTTP 200");
     assert.match(sseResponse?.contentType ?? "", /text\/event-stream/);
@@ -169,12 +190,27 @@ async function runIncrementalBrowserAcceptance(webBase) {
     const eventCountLabel = await page.locator(".event-console .section-heading small").textContent();
     const eventCount = Number.parseInt(eventCountLabel ?? "0", 10);
     assert.ok(eventCount >= 25, "browser must incrementally receive the complete server event ledger");
+    const completedDisclosure = await page.locator(".mode-disclosure").innerText();
+    assert.match(completedDisclosure, /authenticated model work was recorded/i);
+    assert.match(completedDisclosure, /issues a fresh proof/i);
+    assert.match(completedDisclosure, /No model call is made during replay/i);
 
     const mobile = await browser.newPage({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 3,
     });
     await mobile.goto(webBase, { waitUntil: "networkidle" });
+    const mobileRecordedMode = mobile.getByRole("radio", { name: /Replay a verified run/ });
+    const mobileLiveMode = mobile.getByRole("radio", { name: /New live AI run/ });
+    const mobileJudgeCta = mobile.getByRole("button", { name: "Run the verified migration", exact: true });
+    assert.equal(await mobileRecordedMode.isChecked(), true, "mobile must default to the actionable judge demo");
+    assert.equal(await mobileLiveMode.isDisabled(), true, "mobile must keep the unsecured Live AI trigger locked");
+    const mobileCtaBox = await mobileJudgeCta.boundingBox();
+    assert.ok(mobileCtaBox, "mobile judge CTA must be rendered");
+    assert.ok(
+      mobileCtaBox.y + mobileCtaBox.height <= 844,
+      "mobile judge CTA must remain in the 390x844 first viewport",
+    );
     const mobileStageRail = await mobile.locator(".stage-rail").evaluate((rail) => {
       const railRect = rail.getBoundingClientRect();
       const items = [...rail.querySelectorAll("li")].map((item) => {
@@ -219,6 +255,13 @@ async function runIncrementalBrowserAcceptance(webBase) {
       hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
       pollingFallbackRequests: pollingRequests,
       finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
+      initialExperience: {
+        selectedMode: await recordedMode.getAttribute("value"),
+        liveAiLocked: await liveMode.isDisabled(),
+        desktopCtaBox,
+        mobileCtaBox,
+        evidenceLinkVisible: true,
+      },
       mobileStageRail,
     };
   } catch (error) {
