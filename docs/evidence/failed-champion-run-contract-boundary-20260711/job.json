@@ -1,0 +1,31 @@
+{
+  "id": "migration_572dcbf9-0f53-4750-b916-b6dc2ed04066",
+  "executionMode": "live-ai",
+  "scenarioIds": [
+    "observed-standard-damaged-4500",
+    "observed-vip-damaged-12000",
+    "counterexample-vip-damaged-50000",
+    "boundary-standard-damaged-49999",
+    "boundary-standard-damaged-50000"
+  ],
+  "status": "failed",
+  "currentStage": "build",
+  "streamVersion": 25,
+  "model": "gpt-5.6-sol",
+  "modelId": "gpt-5.6-sol",
+  "createdAt": "2026-07-11T06:00:43.505Z",
+  "updatedAt": "2026-07-11T06:06:28.159Z",
+  "links": {
+    "self": "/api/migrations/migration_572dcbf9-0f53-4750-b916-b6dc2ed04066",
+    "events": "/api/migrations/migration_572dcbf9-0f53-4750-b916-b6dc2ed04066/events",
+    "proof": "/api/migrations/migration_572dcbf9-0f53-4750-b916-b6dc2ed04066/proof",
+    "artifacts": "/api/migrations/migration_572dcbf9-0f53-4750-b916-b6dc2ed04066/artifacts"
+  },
+  "startedAt": "2026-07-11T06:00:43.506Z",
+  "error": {
+    "code": "MIGRATION_FAILED",
+    "message": "CODEX_CANDIDATE_VERIFICATION_FAILED",
+    "stage": "build"
+  },
+  "completedAt": "2026-07-11T06:06:28.158Z"
+}

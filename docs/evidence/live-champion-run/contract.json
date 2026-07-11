@@ -1,0 +1,157 @@
+{
+  "id": "contract-live-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+  "scope": "Evidence-bounded Web returns workflow",
+  "rules": [
+    {
+      "ruleId": "RULE-HIGH-VALUE-REVIEW",
+      "statement": "Priority 1: within the observed domain of DAMAGED returns for STANDARD and VIP customers, amountCents greater than or equal to 50000 produces MANUAL_REVIEW, status PENDING_REVIEW, no inventory mutation, and a HIGH_VALUE review-queue side effect. This rule runs before tier-specific rules; behavior for other conditions or tiers is unknown.",
+      "priority": 1,
+      "evidenceIds": [
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_002",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_005",
+        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004",
+        "ev_trace_1b4a473b-bd84-4d0b-a894-717c9f811747_006",
+        "ev_trace_f8cbae6b-87a1-4de4-bf78-dda41e2a1029_005"
+      ],
+      "confidence": 1
+    },
+    {
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "statement": "Priority 2: after the high-value rule, a VIP, DAMAGED return with an observed valid amount below 50000 produces REPLACEMENT, status REPLACEMENT_ISSUED, refundCents 0, sellable-minus-one, quarantine-plus-one, and a shipment side effect. Behavior for other conditions and unobserved amount validity domains is unknown.",
+      "priority": 2,
+      "evidenceIds": [
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_002",
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_004",
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_005",
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
+        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004"
+      ],
+      "confidence": 1
+    },
+    {
+      "ruleId": "RULE-STANDARD-REFUND",
+      "statement": "Priority 3: after the high-value rule, a STANDARD, DAMAGED return with an observed valid amount below 50000 produces REFUND for the full amount, status REFUNDED, unchanged sellable inventory, quarantine-plus-one, and a refund-ledger side effect. Behavior for other conditions and unobserved amount validity domains is unknown.",
+      "priority": 3,
+      "evidenceIds": [
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_006",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004"
+      ],
+      "confidence": 1
+    }
+  ],
+  "findings": [
+    {
+      "findingId": "FIND-INITIAL-CONTRACT-OMITS-HIGH-VALUE",
+      "type": "COVERAGE_GAP",
+      "severity": "BLOCKING",
+      "claim": "The initial two-rule contract omits RULE-HIGH-VALUE-REVIEW. Fresh traces establish a 50000-cent boundary: STANDARD/DAMAGED returns refund at 49999 and enter manual review at 50000, while VIP/DAMAGED at 50000 also enters manual review instead of replacement.",
+      "ruleIds": [
+        "RULE-HIGH-VALUE-REVIEW",
+        "RULE-VIP-REPLACEMENT",
+        "RULE-STANDARD-REFUND"
+      ],
+      "evidenceIds": [
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_002",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_004",
+        "ev_trace_5d452654-88b8-4250-a343-622394dbeea3_005",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_002",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_004",
+        "ev_trace_c9844542-98ec-47e5-a569-0a73e08b2237_005",
+        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_002",
+        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_004",
+        "ev_trace_277c7598-11bd-455e-bdee-d858977950b2_005"
+      ],
+      "requiredAction": "Add the 50000-cent high-value rule at priority 1, ahead of the VIP and STANDARD rules."
+    },
+    {
+      "findingId": "FIND-INVENTORY-EFFECT-NOT-SINGULAR",
+      "type": "COVERAGE_GAP",
+      "severity": "WARNING",
+      "claim": "VIP replacement has a composite inventory effect: quarantine increases by one and sellable inventory decreases by one. A contract field that permits only one inventory effect cannot represent the observed behavior completely.",
+      "ruleIds": [
+        "RULE-VIP-REPLACEMENT"
+      ],
+      "evidenceIds": [
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_003",
+        "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006"
+      ],
+      "requiredAction": "Represent replacement inventory mutations as two effects, or define one composite effect containing sellable-minus-one and quarantine-plus-one."
+    },
+    {
+      "findingId": "FIND-OUTSIDE-OBSERVED-DOMAIN",
+      "type": "UNKNOWN",
+      "severity": "WARNING",
+      "claim": "The traces do not establish behavior for item conditions other than DAMAGED, customer tiers other than STANDARD and VIP, or invalid and out-of-range amounts.",
+      "ruleIds": [
+        "RULE-HIGH-VALUE-REVIEW",
+        "RULE-VIP-REPLACEMENT",
+        "RULE-STANDARD-REFUND"
+      ],
+      "evidenceIds": [],
+      "requiredAction": "Keep these inputs outside the reconstructed contract until additional traces establish their behavior."
+    }
+  ],
+  "unknowns": [
+    {
+      "unknownId": "UNK-DECISION-DRIVER",
+      "question": "Are the different decisions caused by customer tier, amount, their interaction, or another unobserved rule predicate?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-AMOUNT-BOUNDARIES",
+      "question": "Do amount thresholds exist, and if so, what are their boundary values and precedence relative to customer tier?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-CONDITION-GENERALITY",
+      "question": "Do these rules apply to item conditions other than DAMAGED?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-OVERLAP-PRECEDENCE",
+      "question": "Can both rules match one input, and what precedence resolves such an overlap?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-INVENTORY-COMPOSITE-EFFECT",
+      "question": "How should the VIP replacement's simultaneous sellable-minus-one and quarantine-plus-one mutation be represented when predicted.inventoryEffect permits only one effect?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-VIP-REPLACEMENT"
+      ]
+    }
+  ],
+  "disposition": "READY_FOR_BUILD",
+  "criticThreadId": "019f4fd7-1f71-79c2-b461-33647571d2a7"
+}

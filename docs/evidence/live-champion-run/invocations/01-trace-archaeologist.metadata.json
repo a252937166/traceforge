@@ -1,0 +1,46 @@
+{
+  "order": 1,
+  "role": "trace-archaeologist",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "authPath": "codex-chatgpt",
+  "threadId": "019f4fd5-00a1-76c3-bf42-5e821800ad3c",
+  "startedAt": "2026-07-11T06:19:48.545Z",
+  "completedAt": "2026-07-11T06:20:37.550Z",
+  "durationMs": 49010,
+  "timeToFirstTokenMs": 23127,
+  "usage": {
+    "input_tokens": 21601,
+    "cached_input_tokens": 7936,
+    "output_tokens": 1335,
+    "reasoning_output_tokens": 252,
+    "total_tokens": 22936
+  },
+  "inputTraceIds": [
+    "trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1",
+    "trace_f112fc1e-9be7-4881-822e-d4fd12a6866b"
+  ],
+  "inputEvidenceDigests": [
+    "sha256:ef79582117da62fd388b9f347acef2b24cb6e1358d043f63e5b78af7f1f407e1",
+    "sha256:303d650e5bb875dcafc1341836bc6d55af7bd4e01a02b0d6a719c1998621a204",
+    "sha256:7984e9547e44007662a2e5784095249aa0fa3ae68645c3cf98c56b91b09326bd",
+    "sha256:1907988db90b3e91ec827f72265754e3206d49c196d1fa3774e8857cba4186aa",
+    "sha256:3ceedcb3eb1766cd2b7b4c9185f2808dbd31ea940a513541b8fa3d519addadcb",
+    "sha256:f81c010a8fb73b0d25748d6fce6a1777e2b01001198e4db7bbc854aaa98dbace",
+    "sha256:f8bb2072a027379bcae82e06059b410f4aeccc53ea06766acbb1fff9bcfc25cc",
+    "sha256:24306070a24c1305fe4d82d2fc5d5f2f80b207cab30664a523b5c5177b8a819a",
+    "sha256:1791c3ab3cd4495898c002028552370b292586c7e2111092724adaec868c9d44",
+    "sha256:59ce44d51d490348a93ab94a3a3e464d1642737e1b21e7c6b1f2536d1409eb75",
+    "sha256:0f37b3f431401ee60c917b0d1e69e694274878879dc1b0cbb3f300bc3929ad5d",
+    "sha256:8c3996811f8762420a8f131d853a45b7097adb712a8195480352fcab10b0b2d0",
+    "sha256:db885560af495b01e7f04cc4ad524d38b1046ff75ddc476b74eda024cace581c",
+    "sha256:f3013f5a17e4c707b006ddc2463134dae8cac33acbaf1badb03afa4337b95d0d",
+    "sha256:2b98626a9cf5d465995e5e718b285c8025867f56dec76c59ef587ce541a57660",
+    "sha256:9211f82b9333641ee3ddb246c1282649cdd8384483533b02336bd28e6d955dfd"
+  ],
+  "inputDigest": "sha256:a1a33f9c32714225432173b3c64110b11ea87319fa6dd2cd26189d04ffef970a",
+  "outputDigest": "sha256:e5e8a7cafaac357245af5eafeb64805901ae41c29de7ea66164311eee765263e",
+  "schemaVersion": "traceforge.behavior-archaeology.v1",
+  "status": "succeeded",
+  "sourceSession": "019f4fd5-00a1-76c3-bf42-5e821800ad3c.jsonl"
+}

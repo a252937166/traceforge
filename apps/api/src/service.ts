@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { executeWorkflow, findScenario, scenarios, validateWorkflowInput } from "./domain.js";
+import {
+  createHostHiddenScenario,
+  executeWorkflow,
+  findScenario,
+  scenarios,
+  validateWorkflowInput,
+} from "./domain.js";
 import { sha256Digest } from "./digest.js";
 import { ArtifactStore } from "./store.js";
 import type {
@@ -10,6 +16,7 @@ import type {
   EvidenceRecord,
   ProofBundle,
   ReturnWorkflowInput,
+  Scenario,
   SystemName,
   VerificationMismatch,
   WorkflowTrace,
@@ -50,7 +57,7 @@ export class TraceForgeService {
   capture(
     system: SystemName,
     rawInput: unknown,
-    candidateVersion: CandidateVersion = "buggy",
+    candidateVersion: CandidateVersion = "seeded",
     scenarioId?: string,
   ): WorkflowTrace {
     const input = validateWorkflowInput(rawInput);
@@ -191,10 +198,12 @@ export class TraceForgeService {
     scenarioId?: string;
     input?: ReturnWorkflowInput;
     candidateVersion?: CandidateVersion;
+    scenario?: Scenario;
   }): DemoRunResponse {
-    const candidateVersion = options.candidateVersion ?? "buggy";
-    const scenario = options.scenarioId ? findScenario(options.scenarioId) : undefined;
-    if (options.scenarioId && !scenario) {
+    const candidateVersion = options.candidateVersion ?? "seeded";
+    const scenario = options.scenario
+      ?? (options.scenarioId ? findScenario(options.scenarioId) : undefined);
+    if (options.scenarioId && !scenario && !options.input) {
       throw new Error(`unknown scenarioId: ${options.scenarioId}`);
     }
     const input = options.input ?? scenario?.input ?? scenarios[0]?.input;
@@ -332,9 +341,12 @@ export class TraceForgeService {
     };
   }
 
-  runSuite(candidateVersion: CandidateVersion = "buggy") {
-    const runs = scenarios.map((scenario) =>
-      this.runDemo({ scenarioId: scenario.id, candidateVersion }),
+  private runScenarioCorpus(
+    candidateVersion: CandidateVersion,
+    corpus: Scenario[],
+  ) {
+    const runs = corpus.map((scenario) =>
+      this.runDemo({ scenario, candidateVersion }),
     );
     return {
       candidateVersion,
@@ -346,5 +358,21 @@ export class TraceForgeService {
       },
       runs: runs.map(({ runId, status, proofBundle }) => ({ runId, status, proofBundle })),
     };
+  }
+
+  /** Only evidence disclosed to the writer; no host-hidden input exists yet. */
+  runVisibleSuite(candidateVersion: CandidateVersion = "seeded") {
+    return this.runScenarioCorpus(candidateVersion, scenarios);
+  }
+
+  /**
+   * Final host verifier. The hidden scenario is materialized at call time, so
+   * a preceding model turn cannot inspect its concrete input.
+   */
+  runSuite(candidateVersion: CandidateVersion = "seeded", hiddenNonce?: string) {
+    return this.runScenarioCorpus(candidateVersion, [
+      ...scenarios,
+      createHostHiddenScenario(hiddenNonce),
+    ]);
   }
 }

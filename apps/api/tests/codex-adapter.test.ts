@@ -1,19 +1,32 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import {
   buildChildEnvironment,
+  buildCodexClientOptions,
+  buildCodexRepairPrompt,
   buildCodexStatus,
+  BEHAVIOR_CONTRACT_PATH,
   changedFilesIn,
-  GENERATED_REPAIR_PATH,
-  parseGeneratedVerificationRun,
+  CODEX_REPAIR_MODEL,
+  codexRepairInputEvidence,
+  FAILED_PROOFS_PATH,
+  GENERATED_CANDIDATE_PATH,
+  parseGeneratedVerificationSuite,
   runCommand,
   validateChangedFiles,
-  validateGeneratedRepairProvenance,
+  validateCodexRepairInput,
+  validateGeneratedSuite,
+  verifyCodexRepairInputFiles,
+  VISIBLE_SCENARIOS_PATH,
+  writeCodexRepairInputFiles,
+  type CodexRepairInput,
+  type GeneratedCandidateSuiteEvidence,
 } from "../src/codex-adapter.js";
 import { buildAllowedOrigins } from "../src/app.js";
+import { createHostHiddenScenario, scenarios } from "../src/scenarios.js";
 import { TraceForgeService } from "../src/service.js";
 import { ArtifactStore } from "../src/store.js";
 
@@ -34,6 +47,7 @@ test("Codex status distinguishes SDK installation from explicit execution enable
     { installed: missing.installed, enabled: missing.enabled, configured: missing.configured, mode: missing.mode },
     { installed: false, enabled: true, configured: false, mode: "missing-sdk" },
   );
+  assert.match(enabled.truthfulBoundary, new RegExp(CODEX_REPAIR_MODEL.replace(".", "\\.")));
 });
 
 test("verification command environment can explicitly disable recursive Codex execution", async () => {
@@ -58,6 +72,7 @@ test("child processes receive only operational environment variables and explici
       CODEX_API_KEY: "must-not-be-inherited",
       DATABASE_URL: "must-not-be-inherited",
       GITHUB_TOKEN: "must-not-be-inherited",
+      TRACEFORGE_CODEX_API_KEY: "must-not-be-inherited-by-child",
       HTTPS_PROXY: "http://127.0.0.1:58591",
       HTTP_PROXY: "http://user:secret@proxy.example:8080",
       ALL_PROXY: "socks5://localhost:1080",
@@ -74,26 +89,87 @@ test("child processes receive only operational environment variables and explici
   assert.equal(environment.CODEX_API_KEY, undefined);
   assert.equal(environment.DATABASE_URL, undefined);
   assert.equal(environment.GITHUB_TOKEN, undefined);
+  assert.equal(environment.TRACEFORGE_CODEX_API_KEY, undefined);
   assert.equal(environment.HTTPS_PROXY, "http://127.0.0.1:58591");
   assert.equal(environment.ALL_PROXY, "socks5://localhost:1080");
   assert.equal(environment.NO_PROXY, "127.0.0.1,localhost");
   assert.equal(environment.HTTP_PROXY, undefined);
 });
 
-test("generated verification parser returns the fresh full demo run", () => {
-  const run = {
-    runId: "run_fresh",
+test("Codex SDK reuses ChatGPT login unless the TraceForge-specific key is explicit", () => {
+  const chatGptLogin = buildCodexClientOptions({
+    HOME: "/safe/home",
+    CODEX_HOME: "/safe/codex",
+    OPENAI_API_KEY: "stale-openai-key",
+    CODEX_API_KEY: "stale-codex-key",
+  });
+  assert.equal(chatGptLogin.apiKey, undefined);
+  assert.equal(chatGptLogin.env.OPENAI_API_KEY, undefined);
+  assert.equal(chatGptLogin.env.CODEX_API_KEY, undefined);
+
+  const explicit = buildCodexClientOptions({
+    HOME: "/safe/home",
+    TRACEFORGE_CODEX_API_KEY: "traceforge-explicit-key",
+    TRACEFORGE_CODEX_BASE_URL: "https://codex.example.invalid/v1",
+    OPENAI_API_KEY: "must-still-be-ignored",
+  });
+  assert.equal(explicit.apiKey, "traceforge-explicit-key");
+  assert.equal(explicit.baseUrl, "https://codex.example.invalid/v1");
+  assert.equal(explicit.env.OPENAI_API_KEY, undefined);
+  assert.equal(explicit.env.TRACEFORGE_CODEX_API_KEY, undefined);
+});
+
+function passingSuite(repairInputDigest = `sha256:${"f".repeat(64)}`): GeneratedCandidateSuiteEvidence {
+  const ids = [
+    "observed-standard-damaged-4500",
+    "observed-vip-damaged-12000",
+    "counterexample-vip-damaged-50000",
+    "boundary-standard-damaged-49999",
+    "boundary-standard-damaged-50000",
+    "host-hidden-verifier-only",
+  ];
+  return {
+    repairInputDigest,
+    candidateVersion: "generated",
     status: "PASSED",
-    proofBundle: { digest: "sha256:fresh" },
+    expectedScenarioIds: ids,
+    summary: { total: 6, passed: 6, failed: 0 },
+    runs: ids.map((scenarioId, index) => ({
+      scenarioId,
+      partition: index === 5
+        ? "held-out"
+        : index < 2
+          ? "observed"
+          : index === 2
+            ? "counterexample"
+            : "boundary",
+      runId: `run_fresh_${index}`,
+      status: "PASSED",
+      implementationId: "replacement.return-workflow.generated-candidate",
+      proofId: `proof_fresh_${index}`,
+      proofDigest: `sha256:${String(index + 1).repeat(64)}`,
+      legacyTraceId: `trace_legacy_${index}`,
+      candidateTraceId: `trace_candidate_${index}`,
+      assertionCount: 5,
+      mismatchCount: 0,
+      proofPersisted: true,
+    })),
   };
-  const parsed = parseGeneratedVerificationRun(`pnpm banner\n${JSON.stringify({ status: "PASSED", run })}\n`);
-  assert.equal(parsed.runId, "run_fresh");
-  assert.equal(parsed.proofBundle.digest, "sha256:fresh");
+}
+
+test("generated verification parser returns fresh six-scenario suite evidence", () => {
+  const suite = passingSuite();
+  const parsed = parseGeneratedVerificationSuite(
+    `pnpm banner\n${JSON.stringify({ suite, validation: { passed: true } })}\n`,
+  );
+  assert.equal(parsed.status, "PASSED");
+  assert.equal(parsed.runs.length, 6);
+  assert.equal(parsed.runs[5]?.scenarioId, "host-hidden-verifier-only");
 });
 
 test("change whitelist requires the generated candidate and rejects every other path", () => {
-  const valid = validateChangedFiles([GENERATED_REPAIR_PATH]);
-  const unexpected = validateChangedFiles([GENERATED_REPAIR_PATH, "apps/api/src/domain.ts"]);
+  const valid = validateChangedFiles([GENERATED_CANDIDATE_PATH]);
+  const unexpected = validateChangedFiles([GENERATED_CANDIDATE_PATH, "apps/api/src/domain.ts"]);
   const missing = validateChangedFiles([]);
 
   assert.equal(valid.passed, true);
@@ -106,11 +182,11 @@ test("change whitelist requires the generated candidate and rejects every other 
 
 test("change collection rejects verifier-relevant ignored-path tampering", async () => {
   const repository = await mkdtemp(join(tmpdir(), "traceforge-whitelist-"));
-  const candidate = join(repository, GENERATED_REPAIR_PATH);
+  const candidate = join(repository, GENERATED_CANDIDATE_PATH);
   try {
     await mkdir(dirname(candidate), { recursive: true });
     await writeFile(join(repository, ".gitignore"), "node_modules/\n.env\n.traceforge/\n", "utf8");
-    await writeFile(candidate, "export const generatedRepair = 'baseline';\n", "utf8");
+    await writeFile(candidate, "export function executeGeneratedReturnWorkflow() {}\n", "utf8");
     for (const args of [
       ["init", "-q"],
       ["add", "."],
@@ -120,7 +196,7 @@ test("change collection rejects verifier-relevant ignored-path tampering", async
       assert.equal(result.exitCode, 0, result.stderr || result.stdout);
     }
 
-    await writeFile(candidate, "export const generatedRepair = 'candidate';\n", "utf8");
+    await writeFile(candidate, "export function executeGeneratedReturnWorkflow() { return 'repaired'; }\n", "utf8");
     await mkdir(join(repository, ".traceforge"), { recursive: true });
     await writeFile(join(repository, ".traceforge", "proof-input.json"), "{}\n", "utf8");
     await mkdir(join(repository, "node_modules"), { recursive: true });
@@ -129,7 +205,7 @@ test("change collection rejects verifier-relevant ignored-path tampering", async
 
     const changed = await changedFilesIn(repository);
     const validation = validateChangedFiles(changed);
-    assert.equal(changed.includes(GENERATED_REPAIR_PATH), true);
+    assert.equal(changed.includes(GENERATED_CANDIDATE_PATH), true);
     assert.equal(changed.includes("node_modules/"), true);
     assert.equal(changed.includes(".env"), true);
     assert.equal(changed.includes(".traceforge/"), false);
@@ -140,41 +216,103 @@ test("change collection rejects verifier-relevant ignored-path tampering", async
   }
 });
 
-test("generated repair provenance must identify Codex and the exact failed proof digest", () => {
+test("generated suite is linked to the complete repair input and requires a unique host-hidden proof", () => {
+  const repairInputDigest = `sha256:${"f".repeat(64)}`;
+  const validSuite = passingSuite(repairInputDigest);
+  assert.equal(validateGeneratedSuite(validSuite, repairInputDigest).passed, true);
+
+  const wrongSource = validateGeneratedSuite(
+    validSuite,
+    `sha256:${"e".repeat(64)}`,
+  );
+  assert.equal(wrongSource.passed, false);
+  assert.match(wrongSource.problems.join("; "), /repairInputDigest/);
+
+  const duplicatedProof = structuredClone(validSuite);
+  const firstProof = duplicatedProof.runs[0];
+  const secondProof = duplicatedProof.runs[1];
+  assert.ok(firstProof && secondProof);
+  secondProof.proofId = firstProof.proofId;
+  secondProof.proofDigest = firstProof.proofDigest;
+  const duplicated = validateGeneratedSuite(duplicatedProof, repairInputDigest);
+  assert.equal(duplicated.passed, false);
+  assert.match(duplicated.problems.join("; "), /unique/);
+});
+
+function repairInputFixture(): { input: CodexRepairInput; close: () => void } {
   const store = new ArtifactStore(":memory:");
+  const service = new TraceForgeService(store);
+  const failedProofs = service.runVisibleSuite("seeded").runs
+    .filter(({ status }) => status === "FAILED")
+    .map(({ proofBundle }) => proofBundle);
+  return {
+    input: {
+      behaviorContract: { id: "contract-gpt56-test", rules: [{ statement: "evidence-derived" }] },
+      failedProofs,
+      visibleScenarios: scenarios,
+    },
+    close: () => store.close(),
+  };
+}
+
+test("Codex repair prompt points to evidence artifacts without embedding workflow answers or final scenario names", () => {
+  const prompt = buildCodexRepairPrompt();
+  assert.match(prompt, new RegExp(BEHAVIOR_CONTRACT_PATH.replaceAll(".", "\\.")));
+  assert.match(prompt, new RegExp(FAILED_PROOFS_PATH.replaceAll(".", "\\.")));
+  assert.match(prompt, new RegExp(VISIBLE_SCENARIOS_PATH.replaceAll(".", "\\.")));
+  assert.doesNotMatch(prompt, /50[,_]000|49[,_]999|100[,_]000|VIP-at|quarantine|heldout-vip|boundary-standard|counterexample-standard/i);
+});
+
+test("repair input persists the GPT contract, every failed proof, and only disclosed scenarios", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "traceforge-repair-input-"));
+  const fixture = repairInputFixture();
   try {
-    const run = new TraceForgeService(store).runDemo({
-      scenarioId: "damaged-small-refund",
-      candidateVersion: "generated",
-    });
-    const evidence = run.traces.replacement.evidence.find(
-      (entry) => entry.type === "repair.configuration",
-    );
-    assert.ok(evidence);
-    const failedProofDigest = `sha256:${"a".repeat(64)}`;
-    evidence.payload = {
-      damagedRefundDestination: "QUARANTINE",
-      metadata: {
-        status: "codex-generated",
-        sourceProofDigest: failedProofDigest,
-        summary: "Route damaged refunds to quarantine.",
-      },
-    };
-
-    const valid = validateGeneratedRepairProvenance(run, failedProofDigest);
-    const wrongSource = validateGeneratedRepairProvenance(run, `sha256:${"b".repeat(64)}`);
-    assert.equal(valid.passed, true);
-    assert.equal(valid.evidenceId, evidence.evidenceId);
-    assert.equal(wrongSource.passed, false);
-    assert.match(wrongSource.problems.join("; "), /sourceProofDigest/);
-
-    const metadata = (evidence.payload as { metadata: { status: string } }).metadata;
-    metadata.status = "unconfigured";
-    const unconfigured = validateGeneratedRepairProvenance(run, failedProofDigest);
-    assert.equal(unconfigured.passed, false);
-    assert.match(unconfigured.problems.join("; "), /metadata\.status/);
+    const evidence = await writeCodexRepairInputFiles(directory, fixture.input);
+    await verifyCodexRepairInputFiles(directory, evidence);
+    assert.deepEqual(evidence, codexRepairInputEvidence(fixture.input));
+    assert.equal(evidence.failedProofDigests.length, fixture.input.failedProofs.length);
+    assert.ok(evidence.failedProofDigests.length > 1);
+    const contract = JSON.parse(await readFile(join(directory, BEHAVIOR_CONTRACT_PATH), "utf8"));
+    const failedProofs = JSON.parse(await readFile(join(directory, FAILED_PROOFS_PATH), "utf8"));
+    const visibleScenarios = JSON.parse(await readFile(join(directory, VISIBLE_SCENARIOS_PATH), "utf8"));
+    assert.equal(contract.id, "contract-gpt56-test");
+    assert.deepEqual(failedProofs.map(({ proofId }: { proofId: string }) => proofId), fixture.input.failedProofs.map(({ proofId }) => proofId));
+    assert.deepEqual(visibleScenarios.map(({ id }: { id: string }) => id), scenarios.map(({ id }) => id));
+    assert.equal(visibleScenarios.some(({ visibility }: { visibility: string }) => visibility === "hidden"), false);
   } finally {
-    store.close();
+    fixture.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("host detects any mutation to the immutable Codex evidence files", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "traceforge-repair-tamper-"));
+  const fixture = repairInputFixture();
+  try {
+    const evidence = await writeCodexRepairInputFiles(directory, fixture.input);
+    await writeFile(join(directory, FAILED_PROOFS_PATH), "[]\n", "utf8");
+    await assert.rejects(
+      verifyCodexRepairInputFiles(directory, evidence),
+      /CODEX_REPAIR_INPUT_TAMPERED/,
+    );
+  } finally {
+    fixture.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("repair input rejects any host-hidden scenario before Codex starts", () => {
+  const fixture = repairInputFixture();
+  try {
+    assert.throws(
+      () => validateCodexRepairInput({
+        ...fixture.input,
+        visibleScenarios: [...fixture.input.visibleScenarios, createHostHiddenScenario("must-stay-hidden")],
+      }),
+      /CODEX_REPAIR_REJECTS_HIDDEN_SCENARIOS/,
+    );
+  } finally {
+    fixture.close();
   }
 });
 

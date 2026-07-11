@@ -1,0 +1,31 @@
+{
+  "id": "migration_620c17c2-0811-459f-87ed-59918b8f3a95",
+  "executionMode": "live-ai",
+  "scenarioIds": [
+    "observed-standard-damaged-4500",
+    "observed-vip-damaged-12000",
+    "counterexample-vip-damaged-50000",
+    "boundary-standard-damaged-49999",
+    "boundary-standard-damaged-50000"
+  ],
+  "status": "failed",
+  "currentStage": "build",
+  "streamVersion": 25,
+  "model": "gpt-5.6-sol",
+  "modelId": "gpt-5.6-sol",
+  "createdAt": "2026-07-11T05:44:42.879Z",
+  "updatedAt": "2026-07-11T05:59:20.448Z",
+  "links": {
+    "self": "/api/migrations/migration_620c17c2-0811-459f-87ed-59918b8f3a95",
+    "events": "/api/migrations/migration_620c17c2-0811-459f-87ed-59918b8f3a95/events",
+    "proof": "/api/migrations/migration_620c17c2-0811-459f-87ed-59918b8f3a95/proof",
+    "artifacts": "/api/migrations/migration_620c17c2-0811-459f-87ed-59918b8f3a95/artifacts"
+  },
+  "startedAt": "2026-07-11T05:44:42.887Z",
+  "error": {
+    "code": "MIGRATION_FAILED",
+    "message": "Codex Exec exited with signal SIGTERM: Reading prompt from stdin...\n",
+    "stage": "build"
+  },
+  "completedAt": "2026-07-11T05:59:20.447Z"
+}

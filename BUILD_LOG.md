@@ -1,46 +1,47 @@
 # Build log
 
-This file records how Codex participated in the project and separates shipped behavior from planned integrations.
+This log separates development-time Codex assistance, product-runtime model execution, recorded evidence, and deterministic host verification.
 
-## 2026-07-10 — foundation
+## 2026-07-10 — evidence-bounded foundation
 
-- Chose a narrow proof-carrying modernization wedge instead of a generic code generator.
-- Defined a controlled returns workflow with observable API and SQLite side effects.
-- Split responsibilities: read-only behavior archaeology, a single code writer, and an independent deterministic verifier.
-- Used development-time Codex subagents to implement the API/verifier and console in parallel; this is not evidence of product-runtime multi-agent execution.
-- Kept registration legal confirmations pending because the official rules are not yet published.
+- Chose a narrow workflow-modernization laboratory instead of a general code generator.
+- Implemented independent legacy and replacement workflow modules with SQLite-backed inventory and return state.
+- Kept the verifier outside every model turn and limited claims to executed fields and scenarios.
+- Used development-time Codex agents to implement and review the initial API and web surfaces in parallel. This is not presented as product-runtime evidence.
 
-## 2026-07-10 — first executable proof loop
+## 2026-07-10 — product loop rebuilt after judge review
 
-- Registered the existing Devpost account for OpenAI Build Week; project submissions remain closed until July 13 at 09:00 PDT.
-- Added distinct in-process legacy and replacement workflow paths with separate implementation IDs.
-- Persisted inventory and return state in one SQLite database partitioned by system and read both snapshots back before comparison.
-- Demonstrated the controlled replacement mutation: sellable `10 → 11` and quarantine `0 → 0`, while legacy produces `10 → 10` and `0 → 1`.
-- Re-ran the reference-fixed candidate and sealed a `PASSED` proof only after five deterministic assertions reported zero differences.
-- Added stable-key SHA-256 digests for evidence and proof bundles, plus JSON Schema validation against checked-in repository schemas.
-- Kept the Codex repair adapter explicitly unconfigured (`501`) so the deterministic reference patch cannot be mistaken for a live model-generated change.
+- Replaced the earlier linear demo with Observe → Infer → Challenge → Build → Verify.
+- Added SQLite migration jobs, sequence-numbered append-only events, SSE replay, downloadable artifacts, and proof-digest recomputation.
+- Added three explicit modes: fresh model execution, disclosed recorded replay, and host-only deterministic verification. A failed fresh run remains failed.
+- Expanded the suite to six partitions: two observed, one counterexample, two adjacent boundary cases, and one held-out tier-priority case.
 
-## 2026-07-10 — isolated Codex repair exercised
+## 2026-07-10 — real GPT-5.6 Sol archaeology
 
-- Added `@openai/codex-sdk` behind explicit `TRACEFORGE_ENABLE_CODEX=1` enablement.
-- Restricted the SDK turn to a retained detached worktree and the single writable file `apps/api/src/candidates/generated-repair.ts`.
-- Kept installation, API tests, generated-candidate verification, and proof sealing in the host process; the SDK cannot edit the verifier or accept its own result.
-- Preserved the first real SDK attempt as a failed verification: the generated candidate passed with zero mismatches, but an API test incorrectly compared the active generated configuration with the immutable baseline. The endpoint correctly returned `422`.
-- Corrected that host test in commit `d78c368`, retried from the same failed proof, and received a fresh `PASSED` generated run with zero mismatches. The successful SDK thread, token usage, diff, proof IDs, digests, exit codes, and retained worktree are recorded in `docs/evidence/codex-repair-run.md`.
-- Connected the web console to the repair endpoint. Only an integrity-complete HTTP `200` can seal; `422`, `502`, network failure, timeout, reused IDs, malformed evidence, or whitelist failure stay unresolved. Only `501` activates the labelled reference fallback.
+- Ran a read-only Behavior Archaeologist, two Counterexample Hunter turns, and a Contract Critic with schema-constrained output and evidence-ID allowlists.
+- Let the host—not the model—execute proposed inputs and binary-search the exact 50,000-cent review boundary.
+- Preserved the initial over-generalizations, the counterexamples that falsified them, and the refined priority rule.
+- Recorded source migration `migration_57dcf6ff-c7b0-4842-8a66-a74e08565b7b` and four model thread IDs in `docs/evidence/live-champion-run/`.
+
+## 2026-07-10 — real Codex full-module repair
+
+- Seeded two defects in `apps/api/src/candidates/generated-return-workflow.ts`: VIP priority and damaged-inventory disposition.
+- Started Codex from base commit `899ff7ac5f6151b58129559a1d760177a1243136` in a detached worktree with a one-file allowlist.
+- Codex thread `019f4d12-9228-78c1-95fc-3a13d8e1919f` replaced the complete decision/side-effect module rather than toggling a configuration value.
+- The host accepted the candidate only after 37 API tests and all six differential scenarios passed.
+- The accepted source digest is `sha256:33dae444638bf3e7015aa743711358a19e330ca98d1fec8b98d044a106132773`.
+
+## 2026-07-11 — judge-facing Migration Loom
+
+- Rebuilt the web interface as a cold, high-contrast evidence instrument with a five-stage rail, hypothesis threads, visible falsification, candidate ledger, scenario matrix, event console, and artifact dock.
+- Removed timer-driven progress and any client-manufactured successful output.
+- Made recorded replay the public-safe default while keeping fresh model work one explicit selection away.
+- Browser-tested the real local API at desktop width and 390px; corrected terminal transport state, structured inventory rendering, and mobile overflow.
 
 ## Evidence policy
 
-- Do not describe deterministic fixtures as model output.
-- Do not describe a local diff as a GitHub pull request.
-- Do not call covered-scenario conformance “full equivalence.”
-- Preserve failed verification as part of the proof story.
-
-## 2026-07-10 — proof dossier redesign
-
-- Replaced the miniature blue engineering console with a warm, paper-like migration dossier built around readable evidence rather than decorative chrome.
-- Added a four-stage summary for old-system capture, detected difference, repair writer, and independent proof.
-- Kept legacy behavior, the broken replacement, and the repaired candidate visible together so a green result never erases the red failure that motivated the change.
-- Promoted provenance, proof status, fresh IDs, assertions, and remaining differences to first-level visual information.
-- Turned evidence rows into keyboard-focusable expandable records and added a semantic progress bar, visible focus treatment, reduced-motion handling, and responsive layouts.
-- Verified the live `501` reference-fallback flow in the browser, checked the desktop proof-sealed state, and audited the 390-pixel layout for horizontal overflow and sub-10-pixel visible text.
+- A recorded replay is always labelled with its original timestamp and never described as a current model call.
+- A SHA-256 digest is reproducible integrity metadata, not a cryptographic signature.
+- A six-scenario pass is covered-scenario conformance, not universal equivalence.
+- Failed model or verifier runs remain visible evidence; no other execution mode is substituted automatically.
+- Codex never applies, commits, pushes, merges, deploys, or judges its own candidate.

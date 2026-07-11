@@ -1,0 +1,62 @@
+[
+  {
+    "id": "artifact_54b8e582-65cf-4db4-b498-ec3b051d052c",
+    "migrationId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "label": "commands.json",
+    "filename": "commands.json",
+    "kind": "command-log",
+    "mimeType": "application/json",
+    "digest": "sha256:b9c0556463790bdb7f054a2ff89f4e197bcb23f8813279a42f622b6ef8586378",
+    "byteLength": 17598,
+    "href": "/api/migrations/migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996/downloads/commands.json",
+    "createdAt": "2026-07-11T06:25:27.751Z"
+  },
+  {
+    "id": "artifact_9f62d9f0-bee4-4998-9db3-320591f10933",
+    "migrationId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "label": "candidate.diff",
+    "filename": "candidate.diff",
+    "kind": "diff",
+    "mimeType": "text/x-diff",
+    "digest": "sha256:99d556cd803383557773258d55cdddac12d0aad3c631d31171ceaf27c7e9f49c",
+    "byteLength": 3269,
+    "href": "/api/migrations/migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996/downloads/candidate.diff",
+    "createdAt": "2026-07-11T06:25:27.751Z"
+  },
+  {
+    "id": "artifact_a509ef39-83fc-4f41-88bd-c2c9a0d219d4",
+    "migrationId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "label": "contract.json",
+    "filename": "contract.json",
+    "kind": "contract",
+    "mimeType": "application/json",
+    "digest": "sha256:8383fa1c9fbe64982204a227223aceadc6fc63e5092fa7b228256533aec5a1d7",
+    "byteLength": 7427,
+    "href": "/api/migrations/migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996/downloads/contract.json",
+    "createdAt": "2026-07-11T06:25:27.751Z"
+  },
+  {
+    "id": "artifact_e27fba8a-c172-4c7e-b2a6-83163ec9c3de",
+    "migrationId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "label": "evidence.jsonl",
+    "filename": "evidence.jsonl",
+    "kind": "evidence",
+    "mimeType": "application/x-ndjson",
+    "digest": "sha256:88d86cd517a8584c6176bf1bc0fd88c81eb004ac0983fb8ff30192b2bec6409f",
+    "byteLength": 85619,
+    "href": "/api/migrations/migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996/downloads/evidence.jsonl",
+    "createdAt": "2026-07-11T06:25:27.751Z"
+  },
+  {
+    "id": "artifact_f9939ea1-da9c-4486-a070-fff0c062ccf9",
+    "migrationId": "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "label": "proof.json",
+    "filename": "proof.json",
+    "kind": "proof",
+    "mimeType": "application/json",
+    "digest": "sha256:6d7e2ef110afb81803e1c53139838f6b8a3897a9cbd66e9379a532a75b5ab5e6",
+    "byteLength": 31620,
+    "href": "/api/migrations/migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996/downloads/proof.json",
+    "createdAt": "2026-07-11T06:25:27.751Z"
+  }
+]

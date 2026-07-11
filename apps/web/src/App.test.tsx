@@ -1,58 +1,9 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import App from './App'
-
-function demoRun(
-  candidateVersion: 'buggy' | 'fixed' | 'generated',
-  options: { runId?: string; proofId?: string } = {},
-) {
-  const failed = candidateVersion === 'buggy'
-  const digestCharacter = candidateVersion === 'buggy' ? 'a' : candidateVersion === 'fixed' ? 'b' : 'c'
-  return {
-    runId: options.runId ?? `run_${candidateVersion}`,
-    status: failed ? 'FAILED' : 'PASSED',
-    source: 'deterministic-local-demo',
-    events: [
-      {
-        type: 'legacy.input.captured',
-        title: 'Workflow input captured',
-        detail: 'RET-1001 · STANDARD · DAMAGED · 4500 cents',
-        evidenceId: `ev_${candidateVersion}_001`,
-        digest: `sha256:${candidateVersion}001`,
-      },
-      {
-        type: failed ? 'verifier.mismatch' : 'replacement.state.after',
-        title: failed ? 'Mismatch: inventory.sellable' : 'Inventory snapshot after',
-        detail: failed ? 'candidate produced 11' : '10 sellable, 1 quarantined',
-        evidenceId: `ev_${candidateVersion}_002`,
-        digest: `sha256:${candidateVersion}002`,
-      },
-    ],
-    rules: [
-      {
-        ruleId: 'RULE-DAMAGED-DISPOSITION',
-        statement: 'Damaged items enter quarantine.',
-        confidence: 1,
-        evidenceIds: [`ev_${candidateVersion}_002`],
-      },
-    ],
-    proofs: [
-      { proofId: 'a1', status: 'PASSED' },
-      { proofId: 'a2', status: failed ? 'FAILED' : 'PASSED' },
-    ],
-    proofBundle: {
-      proofId: options.proofId ?? `proof_${candidateVersion}`,
-      runId: options.runId ?? `run_${candidateVersion}`,
-      candidateVersion,
-      generatedAt: '2026-07-10T10:00:00.000Z',
-      status: failed ? 'FAILED' : 'PASSED',
-      assertions: [{ status: 'PASSED' }, { status: failed ? 'FAILED' : 'PASSED' }],
-      mismatches: failed ? [{ path: 'inventory.sellable' }] : [],
-      digest: `sha256:${digestCharacter.repeat(64)}`,
-    },
-  }
-}
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import App, { ProvenanceStrip } from './App'
+import { createMigrationState } from './event-reducer'
+import type { MigrationJob, MigrationState } from './migration-types'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -61,309 +12,466 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-function successfulCodexResponse(generatedRun: ReturnType<typeof demoRun>) {
+function job(
+  executionMode: 'live-ai' | 'recorded-replay' | 'deterministic-only' = 'live-ai',
+) {
   return {
-    data: {
-      codexExecuted: true,
-      threadId: 'thread_abcdef1234567890',
-      usage: { inputTokens: 1200, outputTokens: 220 },
-      changedFiles: ['apps/api/src/candidates/generated-repair.ts'],
-      diff: [
-        '--- a/generated-repair.ts',
-        '+++ b/generated-repair.ts',
-        '-  damagedBucket: "sellable"',
-        '+  damagedBucket: "quarantine"',
-      ].join('\n'),
-      structuredOutput: { summary: 'Repair damaged disposition.' },
-      verification: {
-        status: 'PASSED',
-        whitelist: {
-          passed: true,
-          allowed: ['apps/api/src/candidates/generated-repair.ts'],
-          changed: ['apps/api/src/candidates/generated-repair.ts'],
-          unexpected: [],
-          requiredFileChanged: true,
-        },
-        run: generatedRun,
-      },
-      worktree: { path: '/tmp/worktree', retained: true },
-    },
+    id: 'migration-01',
+    executionMode,
+    status: 'running',
+    currentStage: 'observe',
+    model: executionMode === 'deterministic-only' ? undefined : 'gpt-5.6-sol',
+    recordedAt: executionMode === 'recorded-replay' ? '2026-07-10T18:20:00.000Z' : undefined,
+    createdAt: '2026-07-11T01:00:00.000Z',
+    startedAt: '2026-07-11T01:00:01.000Z',
   }
 }
 
-async function startProof() {
-  const user = userEvent.setup()
-  render(<App />)
-  await user.click(screen.getByRole('button', { name: 'Run proof' }))
+class FakeEventSource {
+  static instances: FakeEventSource[] = []
+  readonly url: string
+  closed = false
+  onopen: ((event: Event) => void) | null = null
+  onmessage: ((event: MessageEvent<string>) => void) | null = null
+  onerror: ((event: Event) => void) | null = null
+  private listeners = new Map<string, EventListener[]>()
+
+  constructor(url: string | URL) {
+    this.url = String(url)
+    FakeEventSource.instances.push(this)
+  }
+
+  addEventListener(type: string, listener: EventListener) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
+  }
+
+  close() {
+    this.closed = true
+  }
+
+  open() {
+    this.onopen?.(new Event('open'))
+  }
+
+  emit(value: unknown) {
+    const event = new MessageEvent<string>('migration', { data: JSON.stringify(value) })
+    for (const listener of this.listeners.get('migration') ?? []) listener(event)
+  }
+
+  fail() {
+    this.onerror?.(new Event('error'))
+  }
 }
 
-describe('TraceForge workbench', () => {
+function installEventSource() {
+  vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource)
+}
+
+function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'deterministic-only' = 'live-ai') {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === '/api/health') {
+      return jsonResponse({
+        codexConfigured: true,
+        codexStatus: { configured: true, truthfulBoundary: 'Codex is configured.' },
+        gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
+      })
+    }
+    if (url === '/api/migrations' && init?.method === 'POST') {
+      return jsonResponse({ data: job(mode) }, 202)
+    }
+    if (url.endsWith('/artifacts')) return jsonResponse({ data: { artifacts: [] } })
+    if (url.endsWith('/proof')) return jsonResponse({ error: { message: 'Proof pending.' } }, 404)
+    if (url === '/api/migrations/migration-01') return jsonResponse({ data: job(mode) })
+    throw new Error(`Unexpected request: ${url}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+async function startMigration() {
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Start migration' }))
+  await screen.findByText(/Job migration-01/)
+  return user
+}
+
+describe('TraceForge Migration Loom', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = []
+    installEventSource()
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/health') {
+        return jsonResponse({
+          codexConfigured: true,
+          codexStatus: { configured: true, truthfulBoundary: 'Codex is configured.' },
+          gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
+        })
+      }
+      throw new Error(`Unexpected request: ${String(input)}`)
+    }))
+  })
+
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it('presents the migration as four proof stages and three persistent system states', () => {
+  it('starts with five honest stages and no manufactured result', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'Damaged returns modernization' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Migration proof summary' })).toBeInTheDocument()
-    expect(screen.getByRole('article', { name: 'Original application playback' })).toBeInTheDocument()
-    expect(screen.getByRole('article', { name: 'Replacement application playback' })).toBeInTheDocument()
-    expect(screen.getByRole('article', { name: 'Repaired application playback' })).toBeInTheDocument()
-    expect(screen.getByRole('complementary', { name: 'Proof ledger' })).toBeInTheDocument()
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
-  })
-
-  it('does not call repair or seal when the demo runner is offline', async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new Error('API offline'))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByText('Sample data')).toBeInTheDocument()
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Sample replay complete — start live runner to seal proof',
-      }),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Covered behavior conforms')).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Run proof again' })).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/api/demo/run')
-  })
-
-  it.each([
-    ['evidence/events', { events: [] }],
-    ['rules', { rules: [] }],
-  ])('rejects a live runner response with no real %s', async (_missing, override) => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      jsonResponse({ ...demoRun('buggy'), ...override }, 201),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByText('Sample data')).toBeInTheDocument()
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Sample replay complete — start live runner to seal proof',
-      }),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Live runner')).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('falls back to the labelled reference patch only when Codex returns 501', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_501' }), 201))
-      .mockResolvedValueOnce(
-        jsonResponse(
-          { error: { code: 'CODEX_ADAPTER_NOT_CONFIGURED', message: 'Codex is disabled.' } },
-          501,
-        ),
-      )
-      .mockResolvedValueOnce(jsonResponse(demoRun('fixed', { runId: 'run_reference_fresh' }), 201))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Proof sealed' })).toBeInTheDocument()
-    expect(screen.getByText(/REFERENCE PATCH/)).toBeInTheDocument()
-    expect(screen.queryByText(/CODEX EXECUTED/)).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Run proof again' })).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('/api/adapters/codex/repair')
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
-      proofId: 'proof_failed_501',
-    })
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
-      candidateVersion: 'fixed',
-    })
-  })
-
-  it('seals only the fresh generated run returned by successful Codex verification', async () => {
-    const generatedRun = demoRun('generated', {
-      runId: 'run_generated_fresh',
-      proofId: 'proof_generated_fresh',
-    })
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_codex' }), 201))
-      .mockResolvedValueOnce(jsonResponse(successfulCodexResponse(generatedRun)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Proof sealed' })).toBeInTheDocument()
-    expect(screen.getByText(/CODEX EXECUTED/)).toHaveTextContent('THREAD abcdef1234')
-    expect(screen.getByText('damagedBucket: "sellable"')).toBeInTheDocument()
-    expect(screen.getByText('damagedBucket: "quarantine"')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
-    expect(within(screen.getByRole('article', { name: 'Replacement application playback' })).getByText('11')).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('article', { name: 'Repaired application playback' }))
-        .getByText('10', { selector: 'strong' }),
-    ).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Run proof again' })).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
-  })
-
-  it('stops unresolved on a Codex SDK 502 without using the reference candidate', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_502' }), 201))
-      .mockResolvedValueOnce(
-        jsonResponse(
-          {
-            error: {
-              code: 'CODEX_REPAIR_FAILED',
-              message: 'Codex SDK turn failed before verification.',
-              evidence: {
-                codexExecuted: false,
-                threadId: 'thread_deadbeef001122',
-                changedFiles: [],
-                diff: '',
-              },
-            },
-          },
-          502,
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Repair could not complete' })).toBeInTheDocument()
-    expect(screen.getByText('Codex SDK turn failed before verification.')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Run proof again' })).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('rejects a malformed Codex 200 instead of manufacturing a passing proof from defaults', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_malformed' }), 201))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            codexExecuted: true,
-            threadId: 'thread_incomplete',
-            verification: { status: 'PASSED', run: { status: 'PASSED' } },
-          },
-        }),
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
-    expect(screen.getByText(/failed integrity validation/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('rejects an otherwise valid Codex proof when live evidence and rules are absent', async () => {
-    const generatedRun = {
-      ...demoRun('generated', {
-        runId: 'run_generated_without_evidence',
-        proofId: 'proof_generated_without_evidence',
-      }),
-      events: [],
-      rules: [],
+    expect(screen.getByRole('heading', { name: 'Modernize undocumented workflows without guessing.' })).toBeInTheDocument()
+    const rail = screen.getByRole('list', { name: 'Migration stages' })
+    for (const stage of ['observe', 'infer', 'challenge', 'build', 'verify']) {
+      expect(within(rail).getByText(stage)).toBeInTheDocument()
     }
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_before_empty_generated' }), 201))
-      .mockResolvedValueOnce(jsonResponse(successfulCodexResponse(generatedRun)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
-    expect(screen.getByText(/live evidence\/events is missing/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('No result is preloaded.')).toBeInTheDocument()
+    expect(screen.getByText('No proof issued')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Server-reported provenance' })).toHaveTextContent('Not reported')
+    expect(screen.queryByText(/sample success/i)).not.toBeInTheDocument()
   })
 
-  it('keeps a 422 Codex verification failure unresolved and never loads the reference patch', async () => {
-    const generated = demoRun('generated', {
-      runId: 'run_generated_failed',
-      proofId: 'proof_generated_failed',
-    })
-    const failedGeneratedRun = {
-      ...generated,
-      status: 'FAILED',
-      proofBundle: {
-        ...generated.proofBundle,
-        status: 'FAILED',
-        mismatches: [{ path: 'inventory.quarantine' }],
+  it('shows a compact server-reported chain of custody without inventing missing fields', () => {
+    const replayJob: MigrationJob = {
+      id: 'migration_replay_fresh_01',
+      executionMode: 'recorded-replay',
+      status: 'passed',
+      createdAt: '2026-07-11T01:00:00.000Z',
+      updatedAt: '2026-07-11T01:01:00.000Z',
+      modelId: 'gpt-5.6-sol',
+      replay: {
+        recordedAt: '2026-07-11T06:25:27.754Z',
+        sourceRunId: 'migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996',
+        modelId: 'gpt-5.6-sol',
+        disclosure: 'Recorded execution.',
       },
     }
-    const repairFailure = successfulCodexResponse(failedGeneratedRun)
-    repairFailure.data.verification.status = 'FAILED'
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_422' }), 201))
-      .mockResolvedValueOnce(jsonResponse(repairFailure, 422))
-    vi.stubGlobal('fetch', fetchMock)
+    const state: MigrationState = {
+      ...createMigrationState(replayJob),
+      candidates: [{
+        id: 'candidate-generated-02',
+        revision: 2,
+        status: 'accepted',
+        summary: 'Counterexample-aware replacement workflow',
+        modelId: 'gpt-5.6-sol',
+        codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
+        changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
+      }],
+      proof: {
+        id: 'proof-01',
+        migrationId: replayJob.id,
+        status: 'PASSED',
+        digest: `sha256:${'4ff6eba'.padEnd(64, '0')}`,
+        generatedAt: '2026-07-11T01:01:00.000Z',
+        scenariosPassed: 6,
+        scenariosTotal: 6,
+        assertionsPassed: 30,
+        assertionsTotal: 30,
+        mismatchCount: 0,
+        modelInvocations: [22_936, 22_483, 24_193, 45_953].map((totalTokens, index) => ({
+          role: index === 0 ? 'trace-archaeologist' : 'counterexample-hunter',
+          model: 'gpt-5.6-sol',
+          threadId: `thread-${index + 1}`,
+          status: 'succeeded',
+          usage: { totalTokens },
+        })),
+        candidate: {
+          implementationId: 'replacement.return-workflow.generated-candidate',
+          codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
+          baseCommit: '7c1dceeaee7f375beb8d2895fda502f2ad74e039',
+          changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
+          sourceDigest: `sha256:${'b890c0d'.padEnd(64, '0')}`,
+          diffDigest: `sha256:${'99d556c'.padEnd(64, '0')}`,
+        },
+        hostVerification: { testsPassed: 42, testsTotal: 42, testsSkipped: 4, scope: 'candidate-safe' },
+      },
+    }
 
-    await startProof()
+    render(<ProvenanceStrip state={state} mode="recorded-replay" />)
+    const strip = screen.getByRole('region', { name: 'Server-reported provenance' })
 
-    expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
-    expect(screen.getByText(/CODEX FAILED/)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/REFERENCE PATCH/)).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(within(strip).getByText('4 verified')).toBeInTheDocument()
+    expect(within(strip).getByText('115,565 recorded')).toBeInTheDocument()
+    expect(within(strip).getByText('4 reported')).toBeInTheDocument()
+    expect(within(strip).getByText('42/42 · 4 replay-only')).toBeInTheDocument()
+    expect(within(strip).getByText('6/6')).toBeInTheDocument()
+    expect(within(strip).getByText('30/30')).toBeInTheDocument()
+    expect(within(strip).getByText('sha256:b890c0d…')).toHaveAttribute('title', expect.stringMatching(/^sha256:b890c0d/))
+    expect(within(strip).getByText('sha256:99d556c…')).toHaveAttribute('title', expect.stringMatching(/^sha256:99d556c/))
+    expect(within(strip).getByText('sha256:4ff6eba…')).toHaveAttribute('title', expect.stringMatching(/^sha256:4ff6eba/))
+    expect(within(strip).getByTitle(replayJob.replay!.sourceRunId)).toHaveTextContent('migration_77f7a45d-a07f')
+    expect(within(strip).getByTitle(replayJob.id)).toHaveTextContent('migration_replay_fresh_')
+    expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })
 
-  it('rejects an otherwise valid Codex response that reuses the failed source proof ID', async () => {
-    const sourceProofId = 'proof_reused'
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: sourceProofId }), 201))
-      .mockResolvedValueOnce(
-        jsonResponse(
-          successfulCodexResponse(
-            demoRun('generated', { runId: 'run_generated_new', proofId: sourceProofId }),
-          ),
-        ),
-      )
-    vi.stubGlobal('fetch', fetchMock)
+  it('offers three mutually explicit execution modes', () => {
+    render(<App />)
 
-    await startProof()
-
-    expect(await screen.findByRole('heading', { name: 'Codex candidate did not pass verification' })).toBeInTheDocument()
-    expect(screen.getByText(/reused the failed source proofId/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('radio', { name: /Live AI/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /Recorded replay/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Deterministic proof/ })).not.toBeChecked()
+    expect(screen.getByText(/This mode is not live/)).toBeInTheDocument()
   })
 
-  it('does not seal a malformed fixed response after the explicit 501 fallback', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(demoRun('buggy', { proofId: 'proof_failed_bad_ref' }), 201))
-      .mockResolvedValueOnce(
-        jsonResponse(
-          { error: { code: 'CODEX_ADAPTER_NOT_CONFIGURED', message: 'Codex is disabled.' } },
-          501,
-        ),
-      )
-      .mockResolvedValueOnce(jsonResponse({ status: 'PASSED' }))
+  it('stops a failed live run without silently substituting another mode', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input) === '/api/health'
+      ? jsonResponse({
+          codexConfigured: true,
+          codexStatus: { configured: true },
+          gpt56Status: { configured: true },
+        })
+      : jsonResponse({ error: { code: 'MODEL_UNAVAILABLE', message: 'GPT-5.6 is unavailable.' } }, 503))
     vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
 
-    await startProof()
+    await userEvent.click(screen.getByRole('radio', { name: /Live AI/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start migration' }))
 
-    expect(await screen.findByRole('heading', { name: 'Sample replay complete — start live runner to seal proof' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Proof sealed' })).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('GPT-5.6 is unavailable.')
+    expect(alert).toHaveTextContent('no recording or deterministic result was substituted')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/migrations')).toBe(true)
+    expect(screen.getByText('No proof issued')).toBeInTheDocument()
+  })
+
+  it('disables Live AI when the deployment health says either adapter is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      codexConfigured: false,
+      codexStatus: { configured: false, truthfulBoundary: 'Codex execution is disabled.' },
+      gpt56Status: { configured: false, truthfulBoundary: 'GPT-5.6 archaeology is disabled.' },
+    })))
+    render(<App />)
+
+    const live = screen.getByRole('radio', { name: /Live AI/ })
+    await waitFor(() => expect(live).toBeDisabled())
+    expect(screen.getByText('Unavailable on this deployment')).toBeInTheDocument()
+    expect(live.closest('label')).toHaveAttribute('title', expect.stringContaining('Codex execution is disabled.'))
+  })
+
+  it('posts recorded-replay explicitly and exposes its original timestamp', async () => {
+    const fetchMock = installSuccessfulApi('recorded-replay')
+    render(<App />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('radio', { name: /Recorded replay/ }))
+    await user.click(screen.getByRole('button', { name: 'Start migration' }))
+
+    expect(await screen.findByText(/This mode is not live|Recorded execution/)).toBeInTheDocument()
+    expect(screen.getByText(/Recorded 7\/1[01]\/2026|Recorded 2026/)).toBeInTheDocument()
+    const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
+    expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({
+      executionMode: 'recorded-replay',
+    })
+  })
+
+  it('labels deterministic-only as no model and sends that exact mode', async () => {
+    const fetchMock = installSuccessfulApi('deterministic-only')
+    render(<App />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('radio', { name: /Deterministic proof/ }))
+    await user.click(screen.getByRole('button', { name: 'Start migration' }))
+
+    expect(await screen.findByText(/Job migration-01/)).toBeInTheDocument()
+    expect(screen.getAllByText('No model').length).toBeGreaterThan(0)
+    expect(screen.getByText(/No GPT or Codex execution is claimed/)).toBeInTheDocument()
+    const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
+    expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({
+      executionMode: 'deterministic-only',
+    })
+  })
+
+  it('renders named migration events incrementally and never polls after a healthy terminal event', async () => {
+    const fetchMock = installSuccessfulApi('recorded-replay')
+    render(<App />)
+    await startMigration()
+
+    const source = FakeEventSource.instances[0]
+    source?.open()
+    expect(await screen.findByText('sse')).toBeInTheDocument()
+
+    source?.emit({
+      id: 'evt-infer-started',
+      migrationId: 'migration-01',
+      sequence: 5,
+      type: 'stage.started',
+      stage: 'infer',
+      occurredAt: '2026-07-11T01:00:05.000Z',
+      payload: { message: 'Infer started.' },
+    })
+    const inferStage = within(screen.getByRole('list', { name: 'Migration stages' })).getByText('infer').closest('li')
+    await waitFor(() => expect(inferStage).toHaveClass('stage-active'))
+
+    source?.emit({
+      id: 'evt-hypothesis',
+      migrationId: 'migration-01',
+      sequence: 6,
+      type: 'hypothesis.proposed',
+      stage: 'infer',
+      occurredAt: '2026-07-11T01:00:06.000Z',
+      payload: {
+        hypothesis: {
+          id: 'hypothesis-incremental',
+          revision: 1,
+          statement: 'The browser received this rule before completion.',
+          status: 'proposed',
+          confidence: 0.7,
+          evidenceIds: ['evidence-observed'],
+        },
+      },
+    })
+    expect(await screen.findByText('The browser received this rule before completion.')).toBeInTheDocument()
+
+    source?.emit({
+      id: 'evt-completed',
+      migrationId: 'migration-01',
+      sequence: 7,
+      type: 'job.completed',
+      stage: 'verify',
+      occurredAt: '2026-07-11T01:00:07.000Z',
+      payload: { jobStatus: 'passed' },
+    })
+    source?.fail()
+
+    await waitFor(() => expect(source?.closed).toBe(true))
+    expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes('/events?') && String(input).includes('format=json')),
+    ).toBe(false)
+  })
+
+  it('renders hypotheses, falsification, suite results, and artifacts only from server events', async () => {
+    installSuccessfulApi()
+    render(<App />)
+    await startMigration()
+
+    const source = FakeEventSource.instances[0]
+    expect(source?.url).toContain('/api/migrations/migration-01/events')
+    source?.emit({
+      id: 'evt-7',
+      migrationId: 'migration-01',
+      sequence: 7,
+      type: 'hypothesis.falsified',
+      stage: 'challenge',
+      status: 'passed',
+      occurredAt: '2026-07-11T01:00:07.000Z',
+      title: 'Counterexample falsified broad rule',
+      detail: 'The hidden high-value branch leaves inventory unchanged.',
+      actor: 'gpt-5.6-counterexample-hunter',
+      origin: 'live',
+      digest: `sha256:${'7'.repeat(64)}`,
+      payload: {
+        hypothesis: {
+          id: 'hypothesis-damaged',
+          revision: 1,
+          statement: 'Every damaged return enters quarantine.',
+          status: 'falsified',
+          confidence: 0,
+          evidenceIds: ['evidence-observed', 'evidence-high-value'],
+          falsifiedByCounterexampleId: 'counterexample-high-value',
+        },
+        counterexample: {
+          id: 'counterexample-high-value',
+          title: 'High-value damaged return',
+          rationale: 'Separates automatic disposition from manual review.',
+          status: 'confirmed',
+          scenario: { amount: 750, customer: 'STANDARD', initialInventory: { sellable: 10, quarantine: 0 } },
+          evidenceIds: ['evidence-high-value'],
+          targetHypothesisIds: ['hypothesis-damaged'],
+        },
+      },
+    })
+    source?.emit({
+      id: 'evt-12',
+      migrationId: 'migration-01',
+      sequence: 12,
+      type: 'proof.completed',
+      stage: 'verify',
+      status: 'passed',
+      occurredAt: '2026-07-11T01:00:12.000Z',
+      detail: 'Host replay includes a held-out priority check.',
+      payload: {
+        proof: {
+          proofId: 'proof-01',
+          migrationId: 'migration-01',
+          status: 'PASSED',
+          digest: `sha256:${'a'.repeat(64)}`,
+          generatedAt: '2026-07-11T01:00:12.000Z',
+          scenariosPassed: 2,
+          scenariosTotal: 2,
+          assertionsPassed: 12,
+          assertionsTotal: 12,
+          mismatchCount: 0,
+          scenarios: [{
+            scenarioId: 'high-value-damaged',
+            partition: 'counterexample',
+            status: 'PASSED',
+            assertionCount: 7,
+            mismatchCount: 0,
+          }, {
+            scenarioId: 'vip-boundary-priority',
+            partition: 'held-out',
+            status: 'PASSED',
+            assertionCount: 5,
+            mismatchCount: 0,
+          }],
+        },
+        artifact: {
+          id: 'artifact-proof',
+          kind: 'proof',
+          filename: 'proof.json',
+          mimeType: 'application/json',
+          href: '/api/migrations/migration-01/downloads/proof.json',
+          byteLength: 2048,
+        },
+      },
+    })
+
+    expect(await screen.findByText('Every damaged return enters quarantine.')).toBeInTheDocument()
+    expect(screen.getByText('High-value damaged return')).toBeInTheDocument()
+    expect(screen.getByText('sellable 10 · quarantine 0')).toBeInTheDocument()
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
+    expect(screen.getByText('high-value-damaged')).toBeInTheDocument()
+    expect(screen.getByText('host verification')).toBeInTheDocument()
+    expect(screen.getByText('verification-only')).toBeInTheDocument()
+    expect(screen.getByText('Host replay includes a verification-only priority check.')).toBeInTheDocument()
+    expect(screen.getByText(/Model authorship is claimed only when the server reports it/)).toBeInTheDocument()
+    expect(screen.queryByText('held-out')).not.toBeInTheDocument()
+    expect(screen.getAllByText('PASSED')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: /proof.json/ })).toHaveAttribute(
+      'href',
+      '/api/migrations/migration-01/downloads/proof.json',
+    )
+  })
+
+  it('opens the evidence dialog from an actual streamed event', async () => {
+    installSuccessfulApi()
+    render(<App />)
+    const user = await startMigration()
+    const source = FakeEventSource.instances[0]
+    source?.emit({
+      id: 'evt-1',
+      migrationId: 'migration-01',
+      sequence: 1,
+      type: 'stage.started',
+      stage: 'observe',
+      status: 'running',
+      occurredAt: '2026-07-11T01:00:01.000Z',
+      title: 'Legacy trace started',
+      detail: 'Capturing source behavior.',
+      actor: 'legacy-runner',
+      origin: 'live',
+      digest: `sha256:${'1'.repeat(64)}`,
+      payload: {},
+    })
+
+    await user.click(await screen.findByRole('button', { name: /Legacy trace started/ }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('legacy-runner')
+    expect(dialog).toHaveTextContent(`sha256:${'1'.repeat(64)}`)
+    await user.click(within(dialog).getByRole('button', { name: 'Close evidence drawer' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })

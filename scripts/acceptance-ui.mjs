@@ -1,98 +1,260 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { readFile, readdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import {
-  artifactDir,
+  acquireApi,
   freePort,
-  startApi,
+  normalizeBaseUrl,
+  releaseApi,
+  requestJson,
+  root,
   startProcess,
   stopProcess,
   waitForUrl,
   writeArtifact,
-} from "./acceptance-lib.mjs";
+} from "./acceptance-migration-lib.mjs";
 
-const webPort = await freePort();
-const webOrigin = `http://127.0.0.1:${webPort}`;
-const api = await startApi({ TRACEFORGE_ALLOWED_ORIGINS: webOrigin });
-const web = startProcess(
-  "pnpm",
-  ["--filter", "@traceforge/web", "exec", "vite", "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"],
-  { env: { VITE_API_TARGET: api.baseUrl } },
-);
+const execFileAsync = promisify(execFile);
+const webDist = resolve(root, "apps/web/dist");
 
-let browser;
-try {
-  await waitForUrl(webOrigin);
-  browser = await chromium.launch({ channel: "chrome", headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const consoleErrors = [];
-  const pageErrors = [];
-  const unexpectedResponses = [];
-  const runRequests = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  page.on("response", (response) => {
-    if (response.url().includes("/api/")) {
-      runRequests.push({ url: response.url(), status: response.status(), method: response.request().method() });
-    }
-    const expectedRepairUnavailable =
-      response.url().includes("/api/adapters/codex/repair") && response.status() === 501;
-    const expectedMissingFavicon = response.url().endsWith("/favicon.ico") && response.status() === 404;
-    if (response.status() >= 400 && !expectedRepairUnavailable && !expectedMissingFavicon) {
-      unexpectedResponses.push({ url: response.url(), status: response.status() });
-    }
-  });
+async function listFiles(directory) {
+  const output = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) output.push(...await listFiles(path));
+    else output.push(path);
+  }
+  return output;
+}
 
-  await page.goto(webOrigin, { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: "Run proof" }).click();
-  await page.getByText("Proof sealed", { exact: true }).last().waitFor({ timeout: 30_000 });
+async function buildAndReadStaticContract() {
+  const { stdout, stderr } = await execFileAsync(
+    "pnpm",
+    ["--filter", "@traceforge/web", "build"],
+    { cwd: root, env: process.env, maxBuffer: 8 * 1024 * 1024 },
+  );
+  const files = await listFiles(webDist);
+  const htmlFiles = files.filter((file) => file.endsWith(".html"));
+  const scriptFiles = files.filter((file) => file.endsWith(".js"));
+  const styleFiles = files.filter((file) => file.endsWith(".css"));
+  assert.ok(htmlFiles.length >= 1, "web build must emit HTML");
+  assert.ok(scriptFiles.length >= 1, "web build must emit JavaScript");
+  assert.ok(styleFiles.length >= 1, "web build must emit CSS");
 
-  await assert.doesNotReject(() => page.getByLabel(/Live runner\. Fresh evidence/).waitFor());
-  await assert.doesNotReject(() => page.getByText("Zero differences remain", { exact: true }).waitFor());
-  await assert.doesNotReject(() => page.getByText("D-01 FOUND", { exact: true }).waitFor());
-  await assert.doesNotReject(() => page.getByText("VERIFIED", { exact: true }).waitFor());
-  await assert.doesNotReject(() => page.getByText("REFERENCE PATCH", { exact: false }).waitFor());
-  assert.equal(await page.getByText("SAMPLE DATA", { exact: true }).count(), 0);
-  assert.equal(pageErrors.length, 0, `uncaught browser errors: ${pageErrors.join(" | ")}`);
-  assert.deepEqual(unexpectedResponses, [], "unexpected browser HTTP failures");
+  const html = (await Promise.all(htmlFiles.map((file) => readFile(file, "utf8")))).join("\n");
+  const scripts = (await Promise.all(scriptFiles.map((file) => readFile(file, "utf8")))).join("\n");
+  const styles = (await Promise.all(styleFiles.map((file) => readFile(file, "utf8")))).join("\n");
 
-  const expectedNetwork = [
-    ["/api/demo/run", 201],
-    ["/api/adapters/codex/repair", 501],
-    ["/api/demo/run", 201],
-  ];
-  for (const [path, status] of expectedNetwork) {
-    assert.ok(
-      runRequests.some((item) => item.url.includes(path) && item.status === status),
-      `missing real browser response ${path} ${status}`,
-    );
+  assert.match(html, /<[^>]+ id="root"[^>]*><\/[^>]+>/);
+  for (const token of [
+    "TRACEFORGE",
+    "MIGRATION LOOM",
+    "Recorded replay",
+    "Deterministic proof",
+    "Rules must survive a counterexample",
+    "Download the evidence",
+    "Start migration",
+    "live-ai",
+    "recorded-replay",
+    "deterministic-only",
+    "/api/migrations",
+    "EventSource",
+  ]) {
+    assert.ok(scripts.includes(token), `web bundle is missing ${token}`);
+  }
+  for (const token of ["migration-workbench", "stage-rail", "focus-visible", "prefers-reduced-motion"]) {
+    assert.ok(styles.includes(token), `web stylesheet is missing ${token}`);
   }
 
-  const runId = (await page.locator(".run-metadata dd").first().textContent())?.trim();
-  const proofId = (await page.locator(".run-metadata dd").nth(1).textContent())?.trim();
-  assert.match(runId ?? "", /^run_/);
-  assert.match(proofId ?? "", /^proof_/);
+  return {
+    files: files.map((file) => file.slice(webDist.length + 1)),
+    bytes: Buffer.byteLength(html) + Buffer.byteLength(scripts) + Buffer.byteLength(styles),
+    buildLog: `${stdout}${stderr}`.trim().split("\n").slice(-8),
+  };
+}
 
-  const screenshot = `${artifactDir}/ui-live-proof.png`;
-  await page.screenshot({ path: screenshot, fullPage: true });
-  const artifact = await writeArtifact("ui-live-proof.json", {
-    origin: webOrigin,
-    api: api.baseUrl,
-    runId,
-    proofId,
-    network: runRequests,
-    consoleErrors,
-    pageErrors,
-    unexpectedResponses,
-    screenshot,
+async function runIncrementalBrowserAcceptance(webBase) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const pollingRequests = [];
+  const pageErrors = [];
+  let sseResponse;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/events") && url.searchParams.get("format") === "json") {
+      pollingRequests.push(request.url());
+    }
   });
-  console.log("ACCEPTANCE UI PASS (real Chrome + live API; no network mocks)");
-  console.log(`run=${runId} proof=${proofId} artifact=${artifact}`);
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.pathname.endsWith("/events") && url.searchParams.get("format") !== "json") {
+      sseResponse = {
+        status: response.status(),
+        contentType: response.headers()["content-type"],
+      };
+    }
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.addInitScript(() => {
+    const trace = {
+      transportStates: [],
+      terminalRendered: false,
+      inferActiveRenderedBeforeTerminal: false,
+      hypothesisRenderedBeforeTerminal: false,
+    };
+    window.__traceforgeAcceptance = trace;
+
+    const sampleDom = () => {
+      const transport = document.querySelector(".transport")?.textContent?.trim();
+      if (transport && trace.transportStates.at(-1) !== transport) {
+        trace.transportStates.push(transport);
+      }
+      const terminalRenderedNow = [...document.querySelectorAll(".event-console strong")]
+        .some((element) => element.textContent?.trim() === "Migration completed");
+      if (!trace.terminalRendered && !terminalRenderedNow) {
+        const infer = [...document.querySelectorAll(".stage-rail li")]
+          .find((element) => element.querySelector("strong")?.textContent?.trim().toLowerCase() === "infer");
+        if (infer?.classList.contains("stage-active")) {
+          trace.inferActiveRenderedBeforeTerminal = true;
+        }
+        if (document.querySelector(".hypothesis")) {
+          trace.hypothesisRenderedBeforeTerminal = true;
+        }
+      }
+      if (terminalRenderedNow) trace.terminalRendered = true;
+    };
+    new MutationObserver(sampleDom).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-current"],
+    });
+    document.addEventListener("DOMContentLoaded", sampleDom, { once: true });
+  });
+
+  try {
+    await page.goto(webBase, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Start migration", exact: true }).click();
+    await page.waitForFunction(
+      () => window.__traceforgeAcceptance.transportStates.includes("sse"),
+      undefined,
+      { timeout: 10_000 },
+    );
+    await page.getByText("PASSED · 6/6 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.waitForFunction(() => window.__traceforgeAcceptance.terminalRendered);
+    await page.waitForTimeout(250);
+
+    const trace = await page.evaluate(() => window.__traceforgeAcceptance);
+
+    assert.ok(trace.transportStates.includes("sse"), "transport must enter sse while the migration is running");
+    assert.ok(
+      trace.inferActiveRenderedBeforeTerminal,
+      "Infer must render active before Migration completed appears",
+    );
+    assert.ok(
+      trace.hypothesisRenderedBeforeTerminal,
+      "a hypothesis must render before Migration completed appears",
+    );
+    assert.equal(pollingRequests.length, 0, "a healthy SSE run must not issue the JSON polling fallback");
+    assert.equal(trace.transportStates.includes("polling"), false, "transport must never render polling on a healthy run");
+    assert.equal(pageErrors.length, 0, `browser emitted page errors: ${pageErrors.join("; ")}`);
+    assert.equal(sseResponse?.status, 200, "browser SSE request must return HTTP 200");
+    assert.match(sseResponse?.contentType ?? "", /text\/event-stream/);
+
+    const eventCountLabel = await page.locator(".event-console .section-heading small").textContent();
+    const eventCount = Number.parseInt(eventCountLabel ?? "0", 10);
+    assert.ok(eventCount >= 25, "browser must incrementally receive the complete server event ledger");
+
+    return {
+      engine: "playwright-chromium",
+      transportStates: trace.transportStates,
+      sseResponse,
+      eventCount,
+      inferActiveRenderedBeforeTerminal: trace.inferActiveRenderedBeforeTerminal,
+      hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
+      pollingFallbackRequests: pollingRequests,
+      finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
+    };
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      trace: window.__traceforgeAcceptance,
+      body: document.body.innerText.slice(0, 4_000),
+    })).catch(() => ({ trace: undefined, body: "page unavailable" }));
+    throw new Error(
+      `${error.message}\nBROWSER TRACE:\n${JSON.stringify(diagnostics.trace, null, 2)}`
+      + `\nPOLLING REQUESTS:\n${JSON.stringify(pollingRequests, null, 2)}`
+      + `\nPAGE ERRORS:\n${JSON.stringify(pageErrors, null, 2)}`
+      + `\nBODY:\n${diagnostics.body}`,
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
+const staticContract = await buildAndReadStaticContract();
+let api;
+let web;
+let webBase;
+try {
+  if (process.env.WEB_BASE) {
+    webBase = normalizeBaseUrl(process.env.WEB_BASE);
+    await waitForUrl(webBase);
+  } else {
+    const webPort = await freePort();
+    webBase = `http://127.0.0.1:${webPort}`;
+    api = await acquireApi({
+      TRACEFORGE_REPLAY_EVENT_DELAY_MS: "25",
+      TRACEFORGE_ALLOWED_ORIGINS: webBase,
+    });
+    web = startProcess(
+      "pnpm",
+      ["--filter", "@traceforge/web", "exec", "vite", "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"],
+      { env: { VITE_API_TARGET: api.baseUrl } },
+    );
+    await waitForUrl(webBase);
+  }
+
+  const response = await fetch(webBase);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+  const html = await response.text();
+  assert.match(html, /id="root"/);
+  assert.match(html, /TraceForge/i);
+
+  const apiBase = process.env.API_BASE
+    ? normalizeBaseUrl(process.env.API_BASE)
+    : api?.baseUrl ?? webBase;
+  const health = await requestJson(`${apiBase}/api/health`);
+  assert.equal(health.response.status, 200);
+  assert.equal(health.body.status, "ok");
+  assert.equal(health.body.service, "traceforge-api");
+
+  const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
+
+  const artifact = await writeArtifact("migration-ui-contract.json", {
+    webBase,
+    apiBase,
+    externalWeb: Boolean(process.env.WEB_BASE),
+    externalApi: Boolean(process.env.API_BASE),
+    http: {
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      healthStatus: health.body.status,
+    },
+    staticContract,
+    browserAutomation,
+  });
+  console.log("ACCEPTANCE UI PASS (production bundle + incremental Playwright SSE contract)");
+  console.log(`web=${webBase} api=${apiBase} artifact=${artifact}`);
 } catch (error) {
-  throw new Error(`${error.message}\nWEB LOGS:\n${web.logs.join("")}\nAPI LOGS:\n${api.child.logs.join("")}`);
+  const webLogs = web?.logs?.join("") ?? "";
+  throw new Error(`${error.message}${webLogs ? `\nWEB LOGS:\n${webLogs}` : ""}`);
 } finally {
-  if (browser) await browser.close();
-  await stopProcess(web);
-  await stopProcess(api.child);
+  if (web) await stopProcess(web);
+  if (api) await releaseApi(api);
 }

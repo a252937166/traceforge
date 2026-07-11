@@ -1,0 +1,134 @@
+[
+  {
+    "id": "observed-standard-damaged-4500",
+    "title": "Observed · standard damaged return",
+    "description": "The operator refunds a $45 damaged return and quarantines the unit.",
+    "stage": "observed",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-authored",
+      "detail": "Operator-observed trace selected by the host as source evidence."
+    },
+    "input": {
+      "returnId": "RET-OBS-001",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 4500,
+      "customerTier": "STANDARD",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  {
+    "id": "observed-vip-damaged-12000",
+    "title": "Observed · VIP damaged return",
+    "description": "The operator replaces a $120 VIP return and quarantines the damaged unit.",
+    "stage": "observed",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-authored",
+      "detail": "Operator-observed trace selected by the host as source evidence."
+    },
+    "input": {
+      "returnId": "RET-OBS-002",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 12000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  {
+    "id": "counterexample-vip-damaged-50000",
+    "title": "Host-derived counterexample · priority at the boundary",
+    "description": "The host crosses customer tier at the exact review boundary to distinguish threshold priority from VIP replacement.",
+    "stage": "counterexample",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-derived",
+      "detail": "Derived by the host from the model-discovered high-value exception and executed before the Codex writing turn."
+    },
+    "input": {
+      "returnId": "RET-CHALLENGE-001",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 50000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  {
+    "id": "boundary-standard-damaged-49999",
+    "title": "Boundary · one cent below review",
+    "description": "$499.99 remains eligible for automatic refund and quarantine.",
+    "stage": "boundary",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-authored",
+      "detail": "Deterministic boundary case authored and executed by the host verifier."
+    },
+    "input": {
+      "returnId": "RET-BOUNDARY-LOW",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 49999,
+      "customerTier": "STANDARD",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  {
+    "id": "boundary-standard-damaged-50000",
+    "title": "Boundary · exact review threshold",
+    "description": "$500.00 is the first value that requires review with no inventory or payment side effects.",
+    "stage": "boundary",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-authored",
+      "detail": "Deterministic boundary case authored and executed by the host verifier."
+    },
+    "input": {
+      "returnId": "RET-BOUNDARY-EXACT",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 50000,
+      "customerTier": "STANDARD",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  },
+  {
+    "id": "live-covered-high-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+    "title": "Host coverage probe · above the review boundary",
+    "description": "A disclosed 75,000-cent VIP damaged return bounds the interval used by the post-turn verifier.",
+    "stage": "counterexample",
+    "visibility": "visible",
+    "provenance": {
+      "source": "host-derived",
+      "detail": "Host-authored coverage evidence disclosed before the Codex writing turn."
+    },
+    "input": {
+      "returnId": "RET-LIVE-COVERED-HIGH-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
+      "sku": "SKU-COPPER-01",
+      "amountCents": 75000,
+      "customerTier": "VIP",
+      "itemCondition": "DAMAGED",
+      "initialInventory": {
+        "sellable": 10,
+        "quarantine": 0
+      }
+    }
+  }
+]

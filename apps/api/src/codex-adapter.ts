@@ -1,13 +1,40 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Usage } from "@openai/codex-sdk";
-import type { DemoRunResponse, ProofBundle } from "./types.js";
+import { sha256Digest } from "./digest.js";
+import type { ProofBundle, Scenario, VerificationStatus } from "./types.js";
 
-export const GENERATED_REPAIR_PATH = "apps/api/src/candidates/generated-repair.ts";
-const PROOF_INPUT_PATH = ".traceforge/proof-input.json";
+export const GENERATED_CANDIDATE_PATH =
+  "apps/api/src/candidates/generated-return-workflow.ts";
+export const CODEX_REPAIR_MODEL = "gpt-5.6-sol" as const;
+export const BEHAVIOR_CONTRACT_PATH = ".traceforge/behavior-contract.json";
+export const FAILED_PROOFS_PATH = ".traceforge/failed-proofs.json";
+export const VISIBLE_SCENARIOS_PATH = ".traceforge/visible-scenarios.json";
+const CODEX_INPUT_PATHS = [
+  BEHAVIOR_CONTRACT_PATH,
+  FAILED_PROOFS_PATH,
+  VISIBLE_SCENARIOS_PATH,
+] as const;
+
+export type CodexBehaviorContract =
+  | { id: string }
+  | { contractId: string };
+
+export interface CodexRepairInput {
+  behaviorContract: CodexBehaviorContract;
+  failedProofs: ProofBundle[];
+  visibleScenarios: Scenario[];
+}
+
+export interface CodexRepairInputEvidence {
+  digest: string;
+  contractDigest: string;
+  failedProofDigests: string[];
+  visibleScenarioIds: string[];
+}
 
 export interface CodexRepairAdapterStatus {
   installed: boolean;
@@ -31,11 +58,36 @@ export interface ChangeValidation {
   requiredFileChanged: boolean;
 }
 
-export interface GeneratedRepairProvenanceValidation {
+export interface GeneratedSuiteRunEvidence {
+  scenarioId: string;
+  partition: Scenario["stage"];
+  runId: string;
+  status: VerificationStatus;
+  implementationId: string;
+  proofId: string;
+  proofDigest: string;
+  legacyTraceId: string;
+  candidateTraceId: string;
+  assertionCount: number;
+  mismatchCount: number;
+  proofPersisted: boolean;
+}
+
+export interface GeneratedCandidateSuiteEvidence {
+  repairInputDigest: string;
+  candidateVersion: "generated";
+  status: VerificationStatus;
+  expectedScenarioIds: string[];
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+  };
+  runs: GeneratedSuiteRunEvidence[];
+}
+
+export interface GeneratedSuiteValidation {
   passed: boolean;
-  evidenceId: string | null;
-  status: string | null;
-  sourceProofDigest: string | null;
   problems: string[];
 }
 
@@ -66,14 +118,15 @@ export interface CodexRepairResult {
     install?: CommandEvidence;
     apiTests?: CommandEvidence;
     generatedCandidate?: CommandEvidence;
-    run?: DemoRunResponse;
-    provenance?: GeneratedRepairProvenanceValidation;
+    suite?: GeneratedCandidateSuiteEvidence;
+    suiteValidation?: GeneratedSuiteValidation;
   };
   worktree: {
     path: string;
     baseCommit: string;
     retained: true;
   };
+  repairInput: CodexRepairInputEvidence;
 }
 
 export interface CodexRepairFailureEvidence {
@@ -84,6 +137,7 @@ export interface CodexRepairFailureEvidence {
   changedFiles: string[];
   diff: string;
   commands: CommandEvidence[];
+  repairInput: CodexRepairInputEvidence | null;
 }
 
 export class CodexRepairFailure extends Error {
@@ -99,23 +153,19 @@ function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
 export function validateChangedFiles(
   files: string[],
-  allowed: string[] = [GENERATED_REPAIR_PATH],
+  allowed: string[] = [GENERATED_CANDIDATE_PATH],
 ): ChangeValidation {
   const changed = [...new Set(files.map(normalizePath).filter(Boolean))].sort();
   const normalizedAllowed = [...new Set(allowed.map(normalizePath))].sort();
   const unexpected = changed.filter((file) => !normalizedAllowed.includes(file));
   return {
-    passed: unexpected.length === 0 && changed.includes(GENERATED_REPAIR_PATH),
+    passed: unexpected.length === 0 && changed.includes(GENERATED_CANDIDATE_PATH),
     allowed: normalizedAllowed,
     changed,
     unexpected,
-    requiredFileChanged: changed.includes(GENERATED_REPAIR_PATH),
+    requiredFileChanged: changed.includes(GENERATED_CANDIDATE_PATH),
   };
 }
 
@@ -147,71 +197,100 @@ export function buildCodexStatus(
       ? "The Codex SDK dependency is unavailable; no repair can run."
       : !enabled
         ? "The Codex SDK is installed but execution is disabled. Set TRACEFORGE_ENABLE_CODEX=1 explicitly to allow an isolated repair run."
-        : "Codex execution is enabled. Each repair runs in a retained detached worktree, may edit only generated-repair.ts, and never auto-applies, commits, pushes, or deploys.",
+        : `Codex execution is enabled with ${CODEX_REPAIR_MODEL}. Each repair runs in a retained detached worktree, may edit only generated-return-workflow.ts, and never auto-applies, commits, pushes, or deploys.`,
     integrationContract: {
-      input: "An existing FAILED ProofBundle retrieved by proofId.",
-      output: "Codex thread/usage, whitelisted diff, offline install, API tests, and generated-candidate verification evidence.",
+      input: "The GPT-5.6 behavior contract, every FAILED visible proof, and the disclosed scenario corpus as immutable JSON artifacts.",
+      output: "Codex thread/usage, whitelisted full-module diff, offline install, API tests, and a fresh six-scenario suite including a post-turn host-generated input.",
       sideEffects: "Creates a detached .traceforge/worktrees/* directory that is deliberately retained for review.",
     },
     turnTimeoutMs,
   };
 }
 
-export function parseGeneratedVerificationRun(stdout: string): DemoRunResponse {
+export function parseGeneratedVerificationSuite(
+  stdout: string,
+): GeneratedCandidateSuiteEvidence {
   for (const line of stdout.split(/\r?\n/).reverse()) {
     const trimmed = line.trim();
     if (!trimmed.startsWith("{")) continue;
     try {
-      const parsed = JSON.parse(trimmed) as { run?: DemoRunResponse };
-      if (parsed.run?.runId && parsed.run.proofBundle?.digest) return parsed.run;
+      const parsed = JSON.parse(trimmed) as { suite?: GeneratedCandidateSuiteEvidence };
+      if (
+        parsed.suite?.candidateVersion === "generated" &&
+        Array.isArray(parsed.suite.runs)
+      ) {
+        return parsed.suite;
+      }
     } catch {
       // pnpm may print non-JSON status lines; keep scanning toward the start.
     }
   }
-  throw new Error("verify-generated did not emit a complete DemoRunResponse");
+  throw new Error("verify-generated did not emit complete six-scenario suite evidence");
 }
 
-export function validateGeneratedRepairProvenance(
-  run: DemoRunResponse,
-  expectedSourceProofDigest: string,
-): GeneratedRepairProvenanceValidation {
-  const rawRun = asRecord(run);
-  const proofBundle = asRecord(rawRun.proofBundle);
-  const traces = asRecord(rawRun.traces);
-  const replacement = asRecord(traces.replacement);
-  const evidence = Array.isArray(replacement.evidence) ? replacement.evidence : [];
-  const configurationEvidence = evidence
-    .map(asRecord)
-    .find((entry) => entry.type === "repair.configuration");
-  const payload = asRecord(configurationEvidence?.payload);
-  const metadata = asRecord(payload.metadata);
-  const status = typeof metadata.status === "string" ? metadata.status : null;
-  const sourceProofDigest =
-    typeof metadata.sourceProofDigest === "string" ? metadata.sourceProofDigest : null;
-  const evidenceId =
-    typeof configurationEvidence?.evidenceId === "string" ? configurationEvidence.evidenceId : null;
+export function validateGeneratedSuite(
+  suite: GeneratedCandidateSuiteEvidence,
+  expectedRepairInputDigest: string,
+): GeneratedSuiteValidation {
   const problems: string[] = [];
 
-  if (proofBundle.candidateVersion !== "generated") {
-    problems.push("verification run is not for the generated candidate");
+  if (suite.candidateVersion !== "generated") {
+    problems.push("verification suite is not for the generated candidate");
   }
-  if (!configurationEvidence) {
-    problems.push("repair.configuration evidence is missing");
+  if (!expectedRepairInputDigest) {
+    problems.push("expected repair input digest is missing");
+  } else if (suite.repairInputDigest !== expectedRepairInputDigest) {
+    problems.push("suite repairInputDigest does not match the contract, failed proofs, and visible scenarios");
   }
-  if (status !== "codex-generated") {
-    problems.push("generated repair metadata.status is not codex-generated");
+  if (suite.expectedScenarioIds.length !== 6 || suite.runs.length !== 6) {
+    problems.push("verification suite must contain all six champion scenarios");
   }
-  if (!expectedSourceProofDigest) {
-    problems.push("expected source proof digest is missing");
-  } else if (sourceProofDigest !== expectedSourceProofDigest) {
-    problems.push("generated repair sourceProofDigest does not match the failed proof");
+  const expectedIds = new Set(suite.expectedScenarioIds);
+  const actualIds = new Set(suite.runs.map((run) => run.scenarioId));
+  if (
+    expectedIds.size !== suite.expectedScenarioIds.length ||
+    actualIds.size !== suite.runs.length ||
+    [...expectedIds].some((id) => !actualIds.has(id))
+  ) {
+    problems.push("verification suite scenario identities are missing or duplicated");
+  }
+  if (
+    suite.status !== "PASSED" ||
+    suite.summary.total !== 6 ||
+    suite.summary.passed !== 6 ||
+    suite.summary.failed !== 0
+  ) {
+    problems.push("verification suite summary is not 6/6 passed");
+  }
+  if (suite.runs.filter(({ partition }) => partition === "held-out").length !== 1) {
+    problems.push("verification suite must contain exactly one post-turn host-held-out scenario");
+  }
+  if (
+    suite.runs.some(
+      (run) =>
+        run.status !== "PASSED" ||
+        run.implementationId !== "replacement.return-workflow.generated-candidate" ||
+        run.mismatchCount !== 0 ||
+        !run.proofPersisted ||
+        !/^trace_/.test(run.legacyTraceId) ||
+        !/^trace_/.test(run.candidateTraceId) ||
+        run.assertionCount !== 5 ||
+        !/^proof_/.test(run.proofId) ||
+        !/^sha256:[a-f0-9]{64}$/.test(run.proofDigest),
+    )
+  ) {
+    problems.push("one or more scenario runs lacks a fresh passing generated-candidate proof");
+  }
+  if (
+    new Set(suite.runs.map((run) => run.runId)).size !== suite.runs.length ||
+    new Set(suite.runs.map((run) => run.proofId)).size !== suite.runs.length ||
+    new Set(suite.runs.map((run) => run.proofDigest)).size !== suite.runs.length
+  ) {
+    problems.push("fresh run, proof, and digest identities must be unique per scenario");
   }
 
   return {
     passed: problems.length === 0,
-    evidenceId,
-    status,
-    sourceProofDigest,
     problems,
   };
 }
@@ -306,6 +385,29 @@ export function buildChildEnvironment(
   return environment;
 }
 
+export interface CodexClientOptions {
+  env: Record<string, string>;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+/**
+ * Builds a fail-closed SDK environment. Stale ambient OpenAI/Codex keys are
+ * never considered. Without TraceForge's explicit key, the Codex SDK reuses
+ * the operator's existing ChatGPT login from CODEX_HOME.
+ */
+export function buildCodexClientOptions(
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+): CodexClientOptions {
+  const apiKey = sourceEnv.TRACEFORGE_CODEX_API_KEY;
+  const baseUrl = sourceEnv.TRACEFORGE_CODEX_BASE_URL;
+  return {
+    env: buildChildEnvironment(sourceEnv),
+    ...(apiKey ? { apiKey } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
+  };
+}
+
 export function runCommand(
   command: string,
   args: string[],
@@ -361,12 +463,12 @@ export async function changedFilesIn(worktree: string): Promise<string[]> {
     .split("\0")
     .filter((entry) => entry.startsWith("!! "))
     .map((entry) => normalizePath(entry.slice(3)))
-    .filter((path) => path !== ".traceforge/" && path !== PROOF_INPUT_PATH);
+    .filter((path) => path !== ".traceforge/" && !CODEX_INPUT_PATHS.includes(path as typeof CODEX_INPUT_PATHS[number]));
   return [tracked.stdout, staged.stdout, untracked.stdout]
     .flatMap((output) => output.split(/\r?\n/))
     .concat(ignoredPaths)
     .map(normalizePath)
-    .filter((path) => path && path !== PROOF_INPUT_PATH);
+    .filter((path) => path && !CODEX_INPUT_PATHS.includes(path as typeof CODEX_INPUT_PATHS[number]));
 }
 
 const outputSchema = {
@@ -374,26 +476,149 @@ const outputSchema = {
   properties: {
     summary: { type: "string" },
     diagnosis: { type: "string" },
-    changedFile: { type: "string", enum: [GENERATED_REPAIR_PATH] },
+    changedFile: { type: "string", enum: [GENERATED_CANDIDATE_PATH] },
     verificationIntent: { type: "string" },
   },
   required: ["summary", "diagnosis", "changedFile", "verificationIntent"],
   additionalProperties: false,
 } as const;
 
-function repairPrompt(proof: ProofBundle): string {
-  return `You are the implementation repairer for a bounded TraceForge demonstration.
+function contractId(contract: CodexBehaviorContract): string {
+  return "id" in contract ? contract.id : contract.contractId;
+}
 
-Read the failed proof at ${PROOF_INPUT_PATH}. Infer the smallest repair from its deterministic inventory mismatches.
+export function validateCodexRepairInput(input: CodexRepairInput): void {
+  if (!input.behaviorContract || !contractId(input.behaviorContract).trim()) {
+    throw new Error("CODEX_REPAIR_REQUIRES_BEHAVIOR_CONTRACT");
+  }
+  if (!Array.isArray(input.failedProofs) || input.failedProofs.length === 0) {
+    throw new Error("CODEX_REPAIR_REQUIRES_FAILED_PROOFS");
+  }
+  if (input.failedProofs.some(({ status }) => status !== "FAILED")) {
+    throw new Error("CODEX_REPAIR_ACCEPTS_ONLY_FAILED_PROOFS");
+  }
+  if (new Set(input.failedProofs.map(({ proofId }) => proofId)).size !== input.failedProofs.length) {
+    throw new Error("CODEX_REPAIR_REQUIRES_UNIQUE_FAILED_PROOFS");
+  }
+  if (!Array.isArray(input.visibleScenarios) || input.visibleScenarios.length === 0) {
+    throw new Error("CODEX_REPAIR_REQUIRES_VISIBLE_SCENARIOS");
+  }
+  if (
+    input.visibleScenarios.some(
+      ({ visibility, stage }) => visibility !== "visible" || stage === "held-out",
+    )
+  ) {
+    throw new Error("CODEX_REPAIR_REJECTS_HIDDEN_SCENARIOS");
+  }
+  const visibleIds = new Set(input.visibleScenarios.map(({ id }) => id));
+  if (visibleIds.size !== input.visibleScenarios.length) {
+    throw new Error("CODEX_REPAIR_REQUIRES_UNIQUE_VISIBLE_SCENARIOS");
+  }
+  if (
+    input.failedProofs.some(
+      ({ scenarioId }) => !scenarioId || !visibleIds.has(scenarioId),
+    )
+  ) {
+    throw new Error("CODEX_REPAIR_FAILED_PROOF_OUTSIDE_VISIBLE_CORPUS");
+  }
+}
+
+export function codexRepairInputEvidence(input: CodexRepairInput): CodexRepairInputEvidence {
+  validateCodexRepairInput(input);
+  return {
+    digest: sha256Digest(input),
+    contractDigest: sha256Digest(input.behaviorContract),
+    failedProofDigests: input.failedProofs.map(({ digest }) => digest),
+    visibleScenarioIds: input.visibleScenarios.map(({ id }) => id),
+  };
+}
+
+export async function writeCodexRepairInputFiles(
+  worktreePath: string,
+  input: CodexRepairInput,
+): Promise<CodexRepairInputEvidence> {
+  const evidence = codexRepairInputEvidence(input);
+  const inputDirectory = join(worktreePath, ".traceforge");
+  await mkdir(inputDirectory, { recursive: true });
+  await Promise.all([
+    writeFile(
+      join(worktreePath, BEHAVIOR_CONTRACT_PATH),
+      `${JSON.stringify(input.behaviorContract, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    ),
+    writeFile(
+      join(worktreePath, FAILED_PROOFS_PATH),
+      `${JSON.stringify(input.failedProofs, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    ),
+    writeFile(
+      join(worktreePath, VISIBLE_SCENARIOS_PATH),
+      `${JSON.stringify(input.visibleScenarios, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    ),
+  ]);
+  return evidence;
+}
+
+export async function verifyCodexRepairInputFiles(
+  worktreePath: string,
+  expected: CodexRepairInputEvidence,
+): Promise<void> {
+  const inputDirectory = join(worktreePath, ".traceforge");
+  const names = (await readdir(inputDirectory)).sort();
+  const expectedNames = CODEX_INPUT_PATHS.map((path) => path.slice(".traceforge/".length)).sort();
+  if (
+    names.length !== expectedNames.length ||
+    names.some((name, index) => name !== expectedNames[index])
+  ) {
+    throw new Error("CODEX_REPAIR_INPUT_TAMPERED");
+  }
+  let persisted: CodexRepairInput;
+  try {
+    persisted = {
+      behaviorContract: JSON.parse(
+        await readFile(join(worktreePath, BEHAVIOR_CONTRACT_PATH), "utf8"),
+      ) as CodexBehaviorContract,
+      failedProofs: JSON.parse(
+        await readFile(join(worktreePath, FAILED_PROOFS_PATH), "utf8"),
+      ) as ProofBundle[],
+      visibleScenarios: JSON.parse(
+        await readFile(join(worktreePath, VISIBLE_SCENARIOS_PATH), "utf8"),
+      ) as Scenario[],
+    };
+  } catch {
+    throw new Error("CODEX_REPAIR_INPUT_TAMPERED");
+  }
+  let actual: CodexRepairInputEvidence;
+  try {
+    actual = codexRepairInputEvidence(persisted);
+  } catch {
+    throw new Error("CODEX_REPAIR_INPUT_TAMPERED");
+  }
+  if (
+    actual.digest !== expected.digest ||
+    actual.contractDigest !== expected.contractDigest ||
+    actual.failedProofDigests.join("\n") !== expected.failedProofDigests.join("\n") ||
+    actual.visibleScenarioIds.join("\n") !== expected.visibleScenarioIds.join("\n")
+  ) {
+    throw new Error("CODEX_REPAIR_INPUT_TAMPERED");
+  }
+}
+
+export function buildCodexRepairPrompt(): string {
+  return `You are the implementation repairer for a bounded TraceForge workflow migration.
+
+Use only the behavior contract at ${BEHAVIOR_CONTRACT_PATH}, all failed evidence at ${FAILED_PROOFS_PATH}, the disclosed corpus at ${VISIBLE_SCENARIOS_PATH}, and the generated candidate module. Implement the smallest complete replacement supported by those artifacts, not a configuration toggle.
 
 Hard constraints:
-- The only repository file you may edit is ${GENERATED_REPAIR_PATH}.
-- Inside that file, do not alter GENERATED_REPAIR_BASELINE, its type definitions, or exports other than generatedRepair.
-- Update generatedRepair so the generated candidate conforms to the proof. Mark metadata.status as codex-generated, set metadata.sourceProofDigest to ${proof.digest}, and write a concise factual summary.
-- Do not edit tests, package files, lockfiles, proof-input.json, or any other file.
+- The only repository file you may edit is ${GENERATED_CANDIDATE_PATH}.
+- Do not change executeSeededReturnWorkflow. Repair executeGeneratedReturnWorkflow's complete decision tree and side effects.
+- Treat the contract as the requirement and the proofs as evidence; do not invent rules that are absent from them.
+- Do not inspect repository tests, the legacy/oracle implementation, verifier internals, or host-only inputs.
+- Do not edit tests, package files, lockfiles, any .traceforge input, or any other file.
 - Do not use network access, commit, push, merge, deploy, or create another worktree.
 - Do not run a package manager, install dependencies, typecheck, test, build, or create node_modules, dist, coverage, SQLite, environment, or other ignored artifacts.
-- You may inspect local files and use read-only Git diff/status checks. The host alone installs dependencies and runs every acceptance check after your turn.
+- You may inspect only the three named input artifacts and the generated candidate, plus read-only Git diff/status output. The host alone installs dependencies and runs every acceptance check after your turn.
 
 When finished, return only the requested structured JSON summary.`;
 }
@@ -417,14 +642,12 @@ export class CodexRepairAdapter {
     return buildCodexStatus(this.env);
   }
 
-  async repair(proof: ProofBundle): Promise<CodexRepairResult> {
+  async repair(input: CodexRepairInput): Promise<CodexRepairResult> {
     const status = this.status();
     if (!status.configured) {
       throw new Error("CODEX_ADAPTER_NOT_CONFIGURED");
     }
-    if (proof.status !== "FAILED") {
-      throw new Error("CODEX_REPAIR_REQUIRES_FAILED_PROOF");
-    }
+    validateCodexRepairInput(input);
 
     let worktree: CodexRepairFailureEvidence["worktree"] = null;
     let codexExecuted = false;
@@ -432,6 +655,7 @@ export class CodexRepairAdapter {
     let usage: Usage | null = null;
     let changedFiles: string[] = [];
     let diff = "";
+    let repairInput: CodexRepairInputEvidence | null = null;
     const commands: CommandEvidence[] = [];
 
     try {
@@ -440,7 +664,8 @@ export class CodexRepairAdapter {
       if (repo.exitCode !== 0) throw new Error(`not a Git repository: ${repo.stderr || repo.stdout}`);
       const repoRoot = repo.stdout.trim();
 
-      const head = await runCommand("git", ["rev-parse", "HEAD"], repoRoot);
+      const requestedBase = this.env.TRACEFORGE_CODEX_BASE_COMMIT?.trim() || "HEAD";
+      const head = await runCommand("git", ["rev-parse", requestedBase], repoRoot);
       commands.push(head);
       if (head.exitCode !== 0) throw new Error(`cannot resolve HEAD: ${head.stderr || head.stdout}`);
       const baseCommit = head.stdout.trim();
@@ -459,19 +684,12 @@ export class CodexRepairAdapter {
         throw new Error(`failed to create detached worktree: ${addWorktree.stderr || addWorktree.stdout}`);
       }
 
-      const proofPath = join(worktreePath, PROOF_INPUT_PATH);
-      await mkdir(dirname(proofPath), { recursive: true });
-      await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, "utf8");
+      repairInput = await writeCodexRepairInputFiles(worktreePath, input);
 
       const sdk = await import("@openai/codex-sdk");
-      const codexApiKey = this.env.CODEX_API_KEY ?? this.env.OPENAI_API_KEY;
-      const codexBaseUrl = this.env.OPENAI_BASE_URL;
-      const codex = new sdk.Codex({
-        env: buildChildEnvironment(this.env),
-        ...(codexApiKey ? { apiKey: codexApiKey } : {}),
-        ...(codexBaseUrl ? { baseUrl: codexBaseUrl } : {}),
-      });
+      const codex = new sdk.Codex(buildCodexClientOptions(this.env));
       const thread = codex.startThread({
+        model: CODEX_REPAIR_MODEL,
         workingDirectory: worktreePath,
         sandboxMode: "workspace-write",
         approvalPolicy: "never",
@@ -487,7 +705,7 @@ export class CodexRepairAdapter {
       );
       let turn;
       try {
-        turn = await thread.run(repairPrompt(proof), {
+        turn = await thread.run(buildCodexRepairPrompt(), {
           outputSchema,
           signal: abortController.signal,
         });
@@ -498,15 +716,19 @@ export class CodexRepairAdapter {
       usage = turn.usage;
       if (!threadId) throw new Error("Codex completed without a thread id");
       const structuredOutput = JSON.parse(turn.finalResponse) as CodexRepairResult["structuredOutput"];
-      if (structuredOutput.changedFile !== GENERATED_REPAIR_PATH) {
+      if (structuredOutput.changedFile !== GENERATED_CANDIDATE_PATH) {
         throw new Error(`Codex reported an unexpected changed file: ${structuredOutput.changedFile}`);
       }
+      await verifyCodexRepairInputFiles(worktreePath, repairInput);
+      // This entropy is created only after the writer has returned. It is
+      // never persisted into the worktree or included in the Codex prompt.
+      const hostHiddenScenarioNonce = randomUUID();
 
       changedFiles = await changedFilesIn(worktreePath);
       const whitelist = validateChangedFiles(changedFiles);
       const diffResult = await runCommand(
         "git",
-        ["diff", "--no-ext-diff", "--", GENERATED_REPAIR_PATH],
+        ["diff", "--no-ext-diff", "--", GENERATED_CANDIDATE_PATH],
         worktreePath,
       );
       commands.push(diffResult);
@@ -525,12 +747,14 @@ export class CodexRepairAdapter {
           structuredOutput,
           verification: { status: "FAILED", whitelist },
           worktree,
+          repairInput,
         };
       }
 
       const verificationEnvironment = {
         TRACEFORGE_ENABLE_CODEX: "0",
-        TRACEFORGE_SOURCE_PROOF_DIGEST: proof.digest,
+        TRACEFORGE_REPAIR_INPUT_DIGEST: repairInput.digest,
+        TRACEFORGE_HOST_HIDDEN_SCENARIO_NONCE: hostHiddenScenarioNonce,
       };
       const install = await runCommand(
         "pnpm",
@@ -544,7 +768,7 @@ export class CodexRepairAdapter {
       if (install.exitCode === 0) {
         apiTests = await runCommand(
           "pnpm",
-          ["--filter", "@traceforge/api", "test"],
+          ["--filter", "@traceforge/api", "test:candidate"],
           worktreePath,
           verificationEnvironment,
         );
@@ -556,16 +780,16 @@ export class CodexRepairAdapter {
         );
         commands.push(apiTests, generatedCandidate);
       }
-      let generatedRun: DemoRunResponse | undefined;
-      let provenance: GeneratedRepairProvenanceValidation | undefined;
+      let generatedSuite: GeneratedCandidateSuiteEvidence | undefined;
+      let suiteValidation: GeneratedSuiteValidation | undefined;
       if (generatedCandidate) {
         try {
-          generatedRun = parseGeneratedVerificationRun(generatedCandidate.stdout);
-          provenance = validateGeneratedRepairProvenance(generatedRun, proof.digest);
-          if (!provenance.passed) {
+          generatedSuite = parseGeneratedVerificationSuite(generatedCandidate.stdout);
+          suiteValidation = validateGeneratedSuite(generatedSuite, repairInput.digest);
+          if (!suiteValidation.passed) {
             generatedCandidate.stderr = [
               generatedCandidate.stderr,
-              `generated repair provenance failed: ${provenance.problems.join("; ")}`,
+              `generated candidate suite failed: ${suiteValidation.problems.join("; ")}`,
             ]
               .filter(Boolean)
               .join("\n");
@@ -583,9 +807,8 @@ export class CodexRepairAdapter {
         install.exitCode === 0 &&
         apiTests?.exitCode === 0 &&
         generatedCandidate?.exitCode === 0 &&
-        generatedRun?.status === "PASSED" &&
-        generatedRun.proofBundle.mismatches.length === 0 &&
-        provenance?.passed === true;
+        generatedSuite?.status === "PASSED" &&
+        suiteValidation?.passed === true;
       return {
         codexExecuted: true,
         threadId,
@@ -599,10 +822,11 @@ export class CodexRepairAdapter {
           install,
           ...(apiTests ? { apiTests } : {}),
           ...(generatedCandidate ? { generatedCandidate } : {}),
-          ...(generatedRun ? { run: generatedRun } : {}),
-          ...(provenance ? { provenance } : {}),
+          ...(generatedSuite ? { suite: generatedSuite } : {}),
+          ...(suiteValidation ? { suiteValidation } : {}),
         },
         worktree,
+        repairInput,
       };
     } catch (error) {
       if (worktree) {
@@ -610,7 +834,7 @@ export class CodexRepairAdapter {
           changedFiles = await changedFilesIn(worktree.path);
           const diffResult = await runCommand(
             "git",
-            ["diff", "--no-ext-diff", "--", GENERATED_REPAIR_PATH],
+            ["diff", "--no-ext-diff", "--", GENERATED_CANDIDATE_PATH],
             worktree.path,
           );
           diff = diffResult.stdout;
@@ -626,6 +850,7 @@ export class CodexRepairAdapter {
         changedFiles,
         diff,
         commands,
+        repairInput,
       });
     }
   }

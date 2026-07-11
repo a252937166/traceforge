@@ -1,5 +1,5 @@
 [Unit]
-Description=TraceForge behavioral migration proof demo
+Description=TraceForge evidence-bounded migration API
 After=network-online.target
 Wants=network-online.target
 

@@ -1,67 +1,81 @@
 import assert from "node:assert/strict";
 import {
+  acquireApi,
   argument,
-  runScenario,
-  startApi,
-  stopProcess,
-  validateRun,
+  releaseApi,
+  runRecordedAcceptance,
   writeArtifact,
-} from "./acceptance-lib.mjs";
+} from "./acceptance-migration-lib.mjs";
 
-const runs = Number(argument("runs", "10"));
-assert.ok(Number.isInteger(runs) && runs >= 2 && runs <= 100, "--runs must be an integer from 2 to 100");
+const runs = Number(argument("runs", "3"));
+assert.ok(Number.isInteger(runs) && runs >= 2 && runs <= 25, "--runs must be an integer from 2 to 25");
 
-function semantics(run) {
+function stableSemantics(result) {
   return {
-    status: run.status,
-    candidateVersion: run.proofBundle.candidateVersion,
-    assertions: run.proofBundle.assertions.map(({ assertionId, label, status, expected, actual }) => ({
-      assertionId,
-      label,
+    status: result.proof.status,
+    claim: result.proof.claim,
+    coverage: result.proof.coverage,
+    candidate: {
+      implementationId: result.proof.candidate.implementationId,
+      sourceDigest: result.proof.candidate.sourceDigest,
+      diffDigest: result.proof.candidate.diffDigest,
+      codexThreadId: result.proof.candidate.codexThreadId,
+    },
+    scenarios: result.proof.scenarios.map(({ scenarioId, partition, status, assertionCount, mismatchCount }) => ({
+      // The concrete held-out identity is deliberately created from fresh
+      // host entropy after each writer turn. Repeatability covers semantics,
+      // not reuse of that secret input.
+      scenarioId: partition === "held-out" ? "host-hidden-<fresh>" : scenarioId,
+      partition,
       status,
-      expected,
-      actual,
+      assertionCount,
+      mismatchCount,
     })),
-    mismatches: run.proofBundle.mismatches.map(({ path, expected, actual, severity }) => ({
-      path,
-      expected,
-      actual,
-      severity,
-    })),
-    rules: run.rules.map(({ ruleId, statement, confidence }) => ({ ruleId, statement, confidence })),
-    legacyResult: run.traces.legacy.result,
-    replacementResult: run.traces.replacement.result,
+    modelInvocations: result.proof.modelInvocations.map(({ role, model, threadId, status }) => ({ role, model, threadId, status })),
+    artifactFiles: result.artifacts.map((artifact) => artifact.filename).sort(),
   };
 }
 
-const api = await startApi();
+function assertAllUnique(values, label) {
+  assert.equal(new Set(values).size, values.length, `${label} must be independently issued for each replay`);
+}
+
+const api = await acquireApi();
 try {
   const results = [];
   for (let index = 0; index < runs; index += 1) {
-    const run = await runScenario(api.baseUrl, "fixed");
-    validateRun(run, "fixed", "PASSED");
-    results.push(run);
+    results.push(await runRecordedAcceptance(api.baseUrl));
   }
 
-  const baseline = semantics(results[0]);
-  for (const run of results.slice(1)) assert.deepEqual(semantics(run), baseline);
+  const expectedSemantics = stableSemantics(results[0]);
+  for (const result of results.slice(1)) assert.deepEqual(stableSemantics(result), expectedSemantics);
 
-  const unique = (values, label) => {
-    assert.equal(new Set(values).size, values.length, `${label} values must be fresh per run`);
-  };
-  unique(results.map((run) => run.runId), "runId");
-  unique(results.map((run) => run.proofBundle.proofId), "proofId");
-  unique(results.flatMap((run) => [run.traces.legacy.traceId, run.traces.replacement.traceId]), "traceId");
-  unique(results.flatMap((run) => run.events.map((event) => event.evidenceId)), "evidenceId");
+  assertAllUnique(results.map((result) => result.job.id), "migration IDs");
+  assertAllUnique(results.map((result) => result.proof.proofId), "proof IDs");
+  assertAllUnique(results.flatMap((result) => result.events.map((event) => event.id)), "event IDs");
+  assertAllUnique(results.flatMap((result) => result.artifacts.map((artifact) => artifact.id)), "artifact IDs");
+  assertAllUnique(
+    results.flatMap((result) => result.proof.scenarios.flatMap((scenario) => [scenario.legacyTraceId, scenario.candidateTraceId])),
+    "scenario trace IDs",
+  );
 
-  const artifact = await writeArtifact("repeatability.json", {
+  const artifact = await writeArtifact("recorded-repeatability.json", {
     runs,
-    runIds: results.map((run) => run.runId),
-    proofIds: results.map((run) => run.proofBundle.proofId),
-    normalizedSemantics: baseline,
+    apiBase: api.baseUrl,
+    externalApi: api.external,
+    migrationIds: results.map((result) => result.job.id),
+    proofIds: results.map((result) => result.proof.proofId),
+    proofDigests: results.map((result) => result.proof.digest),
+    independentEvidence: results.map((result) => ({
+      migrationId: result.job.id,
+      eventIds: result.events.map((event) => event.id),
+      artifactIds: result.artifacts.map((entry) => entry.id),
+      traceIds: result.proof.scenarios.flatMap((scenario) => [scenario.legacyTraceId, scenario.candidateTraceId]),
+    })),
+    stableSemantics: expectedSemantics,
   });
-  console.log(`ACCEPTANCE REPEAT PASS (${runs}/${runs})`);
+  console.log(`ACCEPTANCE REPEAT PASS (${runs}/${runs} independent recorded jobs and proofs)`);
   console.log(`artifact=${artifact}`);
 } finally {
-  await stopProcess(api.child);
+  await releaseApi(api);
 }

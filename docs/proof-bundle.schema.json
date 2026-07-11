@@ -26,7 +26,7 @@
     "status": { "enum": ["PASSED", "FAILED"] },
     "claim": { "type": "string", "minLength": 1 },
     "scenarioId": { "type": "string", "minLength": 1 },
-    "candidateVersion": { "enum": ["buggy", "fixed", "generated"] },
+    "candidateVersion": { "enum": ["seeded", "generated"] },
     "implementations": {
       "type": "object",
       "required": ["legacy", "candidate"],
@@ -34,8 +34,7 @@
         "legacy": { "const": "legacy.return-workflow.v1" },
         "candidate": {
           "enum": [
-            "replacement.return-workflow.v0-mutated",
-            "replacement.return-workflow.v1-reference",
+            "replacement.return-workflow.seeded-candidate",
             "replacement.return-workflow.generated-candidate"
           ]
         }

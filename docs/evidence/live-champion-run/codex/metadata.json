@@ -1,0 +1,40 @@
+{
+  "threadId": "019f4fd8-5408-7752-b8fa-f8c6b08b33ef",
+  "model": "gpt-5.6-sol",
+  "startedAt": "2026-07-11T06:23:27.308Z",
+  "completedAt": "2026-07-11T06:25:21.980Z",
+  "durationMs": 115409,
+  "timeToFirstTokenMs": 14683,
+  "usage": {
+    "input_tokens": 251253,
+    "cached_input_tokens": 211200,
+    "output_tokens": 3639,
+    "reasoning_output_tokens": 1236,
+    "total_tokens": 254892
+  },
+  "promptDigest": "sha256:b6df02fffe96022746a8eed2f66ccbf7a71fd5457979235fdbf02201ff16f5cd",
+  "outputDigest": "sha256:b4e3676f8f44334317bc68b9e83a47850f78f38b862427b0a9bdf064564b26ba",
+  "baseCommit": "7c1dceeaee7f375beb8d2895fda502f2ad74e039",
+  "changedFiles": [
+    "apps/api/src/candidates/generated-return-workflow.ts"
+  ],
+  "repairInput": {
+    "digest": "sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542",
+    "contractDigest": "sha256:d4dfc557658fc4e2839a4db5809705586e130c6bd9ef3b9e27f14c700eccaa4f",
+    "failedProofDigests": [
+      "sha256:e2b7bef16aae08b7bf31aa3acb5fa078c15aa1dc75473e8019df1879bb9259e1",
+      "sha256:611a46c96e26ddd1d0d6692884dbffcfa697a2b4e2232d0e0d20903f809722c8",
+      "sha256:e1626385e599c2f5f747933d1a7d11b48c8bf4e895660095e5ab3b3b537519ce"
+    ],
+    "visibleScenarioIds": [
+      "observed-standard-damaged-4500",
+      "observed-vip-damaged-12000",
+      "counterexample-vip-damaged-50000",
+      "boundary-standard-damaged-49999",
+      "boundary-standard-damaged-50000",
+      "live-covered-high-migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996"
+    ]
+  },
+  "sourceDigest": "sha256:b890c0d27c0857e2bc47be608a1ade5619eb10d784a0428f1ae861c7eb1bf708",
+  "diffDigest": "sha256:99d556cd803383557773258d55cdddac12d0aad3c631d31171ceaf27c7e9f49c"
+}
