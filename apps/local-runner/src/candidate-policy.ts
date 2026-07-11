@@ -17,6 +17,30 @@ const FORBIDDEN_IDENTIFIERS = new Set([
   "process",
   "require",
 ]);
+const ALLOWED_PROPERTY_ACCESS = new Set([
+  "amountCents",
+  "customerTier",
+  "decision",
+  "initialInventory",
+  "inventoryAfter",
+  "inventoryBefore",
+  "itemCondition",
+  "push",
+  "quarantine",
+  "refundCents",
+  "returnId",
+  "returnRecord",
+  "ruleId",
+  "sellable",
+  "sideEffects",
+  "sku",
+  "statement",
+  "status",
+]);
+const ALLOWED_DIRECT_CALLS = new Set([
+  "candidateEvents",
+  "validateWorkflowInput",
+]);
 
 export interface CandidatePolicyEvidence {
   sourceDigest: string;
@@ -91,16 +115,72 @@ export function validateCandidateSource(
     }
   }
 
+  const generated = generatedFunction(candidateFile);
   const visit = (node: ts.Node): void => {
+    if (node !== generated && ts.isFunctionLike(node)) {
+      throw new Error("LOCAL_CANDIDATE_NESTED_EXECUTABLE_BLOCKED");
+    }
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       throw new Error("LOCAL_CANDIDATE_DYNAMIC_IMPORT_BLOCKED");
+    }
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression;
+      const directCall = ts.isIdentifier(expression) && ALLOWED_DIRECT_CALLS.has(expression.text);
+      const sideEffectPush = ts.isPropertyAccessExpression(expression)
+        && ts.isIdentifier(expression.expression)
+        && expression.expression.text === "sideEffects"
+        && expression.name.text === "push";
+      if (!directCall && !sideEffectPush) {
+        throw new Error("LOCAL_CANDIDATE_CALL_BLOCKED");
+      }
+    }
+    if (ts.isNewExpression(node)) {
+      if (!ts.isIdentifier(node.expression) || node.expression.text !== "Error") {
+        throw new Error("LOCAL_CANDIDATE_CONSTRUCTOR_BLOCKED");
+      }
+    }
+    if (ts.isElementAccessExpression(node)) {
+      throw new Error("LOCAL_CANDIDATE_COMPUTED_ACCESS_BLOCKED");
+    }
+    if (ts.isPropertyAccessExpression(node) && !ALLOWED_PROPERTY_ACCESS.has(node.name.text)) {
+      throw new Error(`LOCAL_CANDIDATE_PROPERTY_BLOCKED:${node.name.text}`);
+    }
+    if (
+      ts.isForStatement(node)
+      || ts.isForInStatement(node)
+      || ts.isForOfStatement(node)
+      || ts.isWhileStatement(node)
+      || ts.isDoStatement(node)
+    ) {
+      throw new Error("LOCAL_CANDIDATE_LOOP_BLOCKED");
+    }
+    if (
+      ts.isClassDeclaration(node)
+      || ts.isClassExpression(node)
+      || ts.isTaggedTemplateExpression(node)
+      || ts.isAwaitExpression(node)
+      || ts.isYieldExpression(node)
+      || ts.isDeleteExpression(node)
+      || ts.isMetaProperty(node)
+      || node.kind === ts.SyntaxKind.ThisKeyword
+      || node.kind === ts.SyntaxKind.SuperKeyword
+      || ts.isRegularExpressionLiteral(node)
+    ) {
+      throw new Error("LOCAL_CANDIDATE_RUNTIME_SYNTAX_BLOCKED");
+    }
+    if (
+      (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))
+      && ts.isIdentifier(node.name)
+      && ["constructor", "prototype", "__proto__"].includes(node.name.text)
+    ) {
+      throw new Error(`LOCAL_CANDIDATE_PROPERTY_BLOCKED:${node.name.text}`);
     }
     if (ts.isIdentifier(node) && FORBIDDEN_IDENTIFIERS.has(node.text)) {
       throw new Error(`LOCAL_CANDIDATE_IDENTIFIER_BLOCKED:${node.text}`);
     }
     ts.forEachChild(node, visit);
   };
-  visit(generatedFunction(candidateFile));
+  visit(generated);
 
   if (!candidateSource.includes('implementationId: "replacement.return-workflow.generated-candidate"')) {
     throw new Error("LOCAL_CANDIDATE_IMPLEMENTATION_ID_INVALID");

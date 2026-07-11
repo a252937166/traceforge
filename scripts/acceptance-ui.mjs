@@ -55,7 +55,7 @@ async function buildAndReadStaticContract() {
     "Replay a verified run",
     "Host-only proof",
     "Build live with my Codex",
-    "local-runner-v0.1.0",
+    "local-runner-v0.1.1",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -172,7 +172,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     await runnerDialog.waitFor({ state: "visible" });
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.0/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.1/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
 

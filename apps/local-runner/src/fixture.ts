@@ -11,21 +11,46 @@ import {
   type CodexRepairInput,
   type CodexRepairInputEvidence,
 } from "../../api/src/codex-adapter.js";
-import { LOCAL_RUNNER_MANIFEST, validateLocalRunnerManifest } from "./manifest.js";
+import {
+  LOCAL_RUNNER_FIXTURE_TAG,
+  LOCAL_RUNNER_MANIFEST,
+  validateLocalRunnerManifest,
+} from "./manifest.js";
 import { sha256Text } from "./fixture-digest.js";
 
 const execFileAsync = promisify(execFile);
 
-function isInside(parent: string, candidate: string): boolean {
+function isSameOrInside(parent: string, candidate: string): boolean {
   const path = relative(parent, candidate);
-  return path !== "" && path !== ".." && !path.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(path);
+  return path !== ".." && !path.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(path);
+}
+
+export function assertDedicatedCodexHome(options: {
+  codexHome: string;
+  repoRoot: string;
+  sessionRoot: string;
+  globalCodexHome: string;
+}): void {
+  const codexHome = resolve(options.codexHome);
+  const protectedRoots = [
+    resolve(options.repoRoot),
+    resolve(options.sessionRoot),
+    resolve(options.globalCodexHome),
+  ];
+  if (protectedRoots.some((root) =>
+    isSameOrInside(root, codexHome) || isSameOrInside(codexHome, root)
+  )) {
+    throw new Error("LOCAL_CODEX_HOME_MUST_BE_DEDICATED");
+  }
 }
 
 export interface LocalFixture {
   repoRoot: string;
   sessionRoot: string;
-  sessionHome: string;
-  sessionTmp: string;
+  buildHome: string;
+  buildTmp: string;
+  verifyHome: string;
+  verifyTmp: string;
   writerRoot: string;
   verifierRoot: string;
   codexHome: string;
@@ -44,6 +69,39 @@ async function git(cwd: string, args: string[]): Promise<string> {
   return result.stdout;
 }
 
+async function hasCommit(cwd: string, commit: string): Promise<boolean> {
+  return execFileAsync("git", ["cat-file", "-e", `${commit}^{commit}`], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  }).then(() => true).catch(() => false);
+}
+
+async function ensureFixtureCommit(repoRoot: string): Promise<void> {
+  if (await hasCommit(repoRoot, LOCAL_RUNNER_MANIFEST.baseCommit)) return;
+  await git(repoRoot, [
+    "fetch",
+    "--no-tags",
+    "--filter=blob:none",
+    "origin",
+    `refs/tags/${LOCAL_RUNNER_FIXTURE_TAG}:refs/tags/${LOCAL_RUNNER_FIXTURE_TAG}`,
+  ]).catch(() => {
+    throw new Error("LOCAL_FIXTURE_TAG_FETCH_FAILED");
+  });
+  const fetchedCommit = (await git(repoRoot, [
+    "rev-list",
+    "-n",
+    "1",
+    LOCAL_RUNNER_FIXTURE_TAG,
+  ])).trim();
+  if (fetchedCommit !== LOCAL_RUNNER_MANIFEST.baseCommit) {
+    throw new Error("LOCAL_FIXTURE_TAG_COMMIT_MISMATCH");
+  }
+  if (!await hasCommit(repoRoot, LOCAL_RUNNER_MANIFEST.baseCommit)) {
+    throw new Error("LOCAL_FIXTURE_BASE_COMMIT_MISSING");
+  }
+}
+
 async function verifyFile(path: string, digest: string): Promise<string> {
   const raw = await readFile(path, "utf8");
   if (sha256Text(raw) !== digest) throw new Error(`LOCAL_FIXTURE_DIGEST_MISMATCH:${path}`);
@@ -57,6 +115,7 @@ export async function findRepoRoot(start = process.cwd()): Promise<string> {
 export async function prepareLocalFixture(start = process.cwd()): Promise<LocalFixture> {
   validateLocalRunnerManifest(LOCAL_RUNNER_MANIFEST);
   const repoRoot = await findRepoRoot(start);
+  await ensureFixtureCommit(repoRoot);
   const evidenceRoot = join(repoRoot, "docs", "evidence", "live-champion-run", "codex");
   const [contractRaw, failedProofsRaw, visibleScenariosRaw] = await Promise.all([
     verifyFile(join(evidenceRoot, "behavior-contract.json"), LOCAL_RUNNER_MANIFEST.contractFileDigest),
@@ -86,40 +145,50 @@ export async function prepareLocalFixture(start = process.cwd()): Promise<LocalF
   await chmod(sessionRoot, 0o700);
   const writerRoot = join(sessionRoot, "writer");
   const verifierRoot = join(sessionRoot, "verifier");
-  const sessionHome = join(sessionRoot, "home");
-  const sessionTmp = join(sessionRoot, "tmp");
+  const buildHome = join(sessionRoot, "build-home");
+  const buildTmp = join(sessionRoot, "build-tmp");
+  const verifyHome = join(sessionRoot, "verify-home");
+  const verifyTmp = join(sessionRoot, "verify-tmp");
   const verifyCodexHome = join(sessionRoot, "verify-codex-home");
   const codexHome = resolve(
     process.env.TRACEFORGE_LOCAL_CODEX_HOME
       ?? join(homedir(), ".traceforge", "local-runner", "codex-home"),
   );
   const globalCodexHome = resolve(homedir(), ".codex");
-  if (
-    codexHome === globalCodexHome
-    || isInside(repoRoot, codexHome)
-    || isInside(sessionRoot, codexHome)
-  ) {
+  const [initialCodexHome, canonicalGlobalCodexHome] = await Promise.all([
+    realpath(codexHome).catch(() => codexHome),
+    realpath(globalCodexHome).catch(() => globalCodexHome),
+  ]);
+  try {
+    assertDedicatedCodexHome({
+      codexHome: initialCodexHome,
+      repoRoot,
+      sessionRoot,
+      globalCodexHome: canonicalGlobalCodexHome,
+    });
+  } catch (error) {
     await rm(sessionRoot, { recursive: true, force: true });
-    throw new Error("LOCAL_CODEX_HOME_MUST_BE_DEDICATED");
+    throw error;
   }
 
   let verifierWorktreeAdded = false;
   try {
     await Promise.all([
       mkdir(join(writerRoot, dirname(GENERATED_CANDIDATE_PATH)), { recursive: true, mode: 0o700 }),
-      mkdir(sessionHome, { recursive: true, mode: 0o700 }),
-      mkdir(sessionTmp, { recursive: true, mode: 0o700 }),
+      mkdir(buildHome, { recursive: true, mode: 0o700 }),
+      mkdir(buildTmp, { recursive: true, mode: 0o700 }),
+      mkdir(verifyHome, { recursive: true, mode: 0o700 }),
+      mkdir(verifyTmp, { recursive: true, mode: 0o700 }),
       mkdir(verifyCodexHome, { recursive: true, mode: 0o700 }),
       mkdir(codexHome, { recursive: true, mode: 0o700 }),
     ]);
     const canonicalCodexHome = await realpath(codexHome);
-    if (
-      canonicalCodexHome === globalCodexHome
-      || isInside(repoRoot, canonicalCodexHome)
-      || isInside(sessionRoot, canonicalCodexHome)
-    ) {
-      throw new Error("LOCAL_CODEX_HOME_MUST_BE_DEDICATED");
-    }
+    assertDedicatedCodexHome({
+      codexHome: canonicalCodexHome,
+      repoRoot,
+      sessionRoot,
+      globalCodexHome: canonicalGlobalCodexHome,
+    });
     await writeFile(join(writerRoot, GENERATED_CANDIDATE_PATH), baseCandidateSource, {
       encoding: "utf8",
       mode: 0o600,
@@ -145,8 +214,10 @@ export async function prepareLocalFixture(start = process.cwd()): Promise<LocalF
     return {
       repoRoot,
       sessionRoot: await realpath(sessionRoot),
-      sessionHome: await realpath(sessionHome),
-      sessionTmp: await realpath(sessionTmp),
+      buildHome: await realpath(buildHome),
+      buildTmp: await realpath(buildTmp),
+      verifyHome: await realpath(verifyHome),
+      verifyTmp: await realpath(verifyTmp),
       writerRoot: await realpath(writerRoot),
       verifierRoot: await realpath(verifierRoot),
       codexHome: canonicalCodexHome,

@@ -1,10 +1,12 @@
-export const LOCAL_RUNNER_VERSION = "0.1.0" as const;
-export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.0" as const;
+export const LOCAL_RUNNER_VERSION = "0.1.1" as const;
+export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.1" as const;
+export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.1" as const;
 
 export interface LocalRunnerManifest {
   version: "traceforge.local-demo.v1";
   runnerVersion: typeof LOCAL_RUNNER_VERSION;
   releaseTag: typeof LOCAL_RUNNER_RELEASE_TAG;
+  fixtureTag: typeof LOCAL_RUNNER_FIXTURE_TAG;
   demoId: "damaged-returns-v1";
   sourceRunId: string;
   baseCommit: string;
@@ -22,6 +24,7 @@ export const LOCAL_RUNNER_MANIFEST: LocalRunnerManifest = Object.freeze({
   version: "traceforge.local-demo.v1",
   runnerVersion: LOCAL_RUNNER_VERSION,
   releaseTag: LOCAL_RUNNER_RELEASE_TAG,
+  fixtureTag: LOCAL_RUNNER_FIXTURE_TAG,
   demoId: "damaged-returns-v1",
   sourceRunId: "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996",
   baseCommit: "7c1dceeaee7f375beb8d2895fda502f2ad74e039",

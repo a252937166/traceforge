@@ -9,6 +9,7 @@ import {
 import { cleanupLocalFixture, prepareLocalFixture } from "../src/fixture.js";
 import {
   diagnoseLocalCommand,
+  runBoundedTrustedHostCommand,
   runLocalRepair,
   verifyLocalProofDigest,
   type AppServerNotification,
@@ -113,6 +114,39 @@ test("command diagnostics expose a safe architecture code without raw output", (
   );
   assert.equal(diagnostic, "TOOLCHAIN_ARCHITECTURE_MISMATCH");
   assert.doesNotMatch(diagnostic, /sk-do-not-show|Bearer/);
+});
+
+test("trusted-host commands terminate promptly when the session is aborted", async () => {
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const command = runBoundedTrustedHostCommand(
+    [process.execPath, "-e", "setInterval(() => undefined, 1_000)"],
+    process.cwd(),
+    {},
+    30_000,
+    4_096,
+    controller.signal,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  controller.abort(new Error("LOCAL_TEST_ABORT"));
+
+  await assert.rejects(command, /LOCAL_TEST_ABORT/);
+  assert.ok(Date.now() - startedAt < 2_000, "abort must not wait for the command timeout");
+});
+
+test("trusted-host command timeouts are bounded and return a fixed diagnostic", async () => {
+  const startedAt = Date.now();
+  const result = await runBoundedTrustedHostCommand(
+    [process.execPath, "-e", "setInterval(() => undefined, 1_000)"],
+    process.cwd(),
+    {},
+    40,
+    4_096,
+  );
+
+  assert.equal(result.exitCode, -1);
+  assert.match(result.stderr, /LOCAL_TRUSTED_HOST_COMMAND_TIMEOUT/);
+  assert.ok(Date.now() - startedAt < 2_000, "timeout cleanup must remain bounded");
 });
 
 test("local repair turns recorded evidence into a fresh recomputable proof", async (t) => {

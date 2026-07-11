@@ -46,7 +46,7 @@ test("candidate policy rejects process access and dynamic imports inside the rep
   );
   assert.throws(
     () => validateCandidateSource(processCandidate, base),
-    /LOCAL_CANDIDATE_IDENTIFIER_BLOCKED:process/,
+    /LOCAL_CANDIDATE_(?:CALL|IDENTIFIER)_BLOCKED(?::process)?/,
   );
 
   const importCandidate = candidate.replace(
@@ -59,3 +59,32 @@ test("candidate policy rejects process access and dynamic imports inside the rep
   );
 });
 
+test("candidate policy rejects constructor and builtin-module escape chains", async () => {
+  const { base, candidate } = await sources();
+  const constructorEscape = candidate.replace(
+    "  const isObservedDomain =",
+    '  (() => {}).constructor("return process")();\n  const isObservedDomain =',
+  );
+  assert.throws(
+    () => validateCandidateSource(constructorEscape, base),
+    /LOCAL_CANDIDATE_(?:NESTED_EXECUTABLE|CALL|PROPERTY)_BLOCKED/,
+  );
+
+  const builtinEscape = candidate.replace(
+    "  const isObservedDomain =",
+    '  process.getBuiltinModule("node:fs").readFileSync("tests/workflow.test.ts");\n  const isObservedDomain =',
+  );
+  assert.throws(
+    () => validateCandidateSource(builtinEscape, base),
+    /LOCAL_CANDIDATE_(?:CALL|PROPERTY|IDENTIFIER)_BLOCKED/,
+  );
+
+  const aliasEscape = candidate.replace(
+    "  const isObservedDomain =",
+    '  const hidden = sideEffects["constructor"];\n  const isObservedDomain =',
+  );
+  assert.throws(
+    () => validateCandidateSource(aliasEscape, base),
+    /LOCAL_CANDIDATE_COMPUTED_ACCESS_BLOCKED/,
+  );
+});

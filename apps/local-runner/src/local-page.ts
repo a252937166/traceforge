@@ -90,7 +90,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     .metric:last-child { border-right: 0; }
     .metric strong { display: block; font-size: 21px; }
     .metric span { display: block; margin-top: 5px; color: var(--muted); font: 9px/1.35 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-    .error { display: none; margin-top: 18px; padding: 12px 14px; color: #7a2924; background: #f8e7e5; border-left: 4px solid var(--signal); font: 12px/1.45 var(--mono); overflow-wrap: anywhere; }
+    .error { display: none; margin-top: 18px; padding: 12px 14px; color: #7a2924; background: #f8e7e5; border-left: 4px solid var(--signal); font: 12px/1.45 var(--mono); overflow-wrap: anywhere; white-space: pre-line; }
     .error[data-visible="true"] { display: block; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px 24px; border-top: 1px solid var(--ink); background: #f1f4f6; }
     .button { display: inline-flex; align-items: center; justify-content: center; min-height: 45px; padding: 0 18px; border: 1px solid var(--ink); color: var(--ink); background: #fff; font-weight: 800; cursor: pointer; text-decoration: none; }
@@ -222,6 +222,11 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     const csrf = ${csrf};
     const byId = (id) => document.getElementById(id);
     const stateLabels = { recorded: "Recorded GPT-5.6", waiting: "Waiting", live: "Live on this machine", passed: "Passed", failed: "Failed" };
+    const commandDiagnostics = {
+      install: { label: "Offline dependency check", command: "corepack pnpm install --offline --frozen-lockfile" },
+      apiTests: { label: "Candidate-safe API tests", command: "corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts" },
+      generatedSuite: { label: "Six-scenario differential suite", command: "corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts" },
+    };
     const busyPhases = new Set(["preflight", "signing-in", "preparing", "codex", "verifying", "deleting"]);
 
     function setStep(name, value) {
@@ -244,10 +249,14 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
 
       const error = byId("error");
       error.dataset.visible = snapshot.errorCode ? "true" : "false";
-      const failureDetail = snapshot.result && snapshot.result.failureCode
-        ? " · " + (snapshot.result.failedCommand ? snapshot.result.failedCommand + " · " : "") + snapshot.result.failureCode
+      const failedCommand = snapshot.result && commandDiagnostics[snapshot.result.failedCommand];
+      const commandDetail = failedCommand
+        ? "\nVerification command exited non-zero\n" + failedCommand.label + "\n" + failedCommand.command + "\nCommand output is not displayed; only its digests are included in the proof."
         : "";
-      error.textContent = snapshot.errorCode ? "Run boundary: " + snapshot.errorCode + failureDetail : "";
+      const diagnosticDetail = snapshot.result && snapshot.result.failureCode
+        ? "\nDiagnostic code · " + snapshot.result.failureCode
+        : "";
+      error.textContent = snapshot.errorCode ? "Diagnostic code · " + snapshot.errorCode + commandDetail + diagnosticDetail : "";
       byId("login").hidden = snapshot.phase !== "needs-auth";
       byId("start").hidden = snapshot.phase !== "ready";
       byId("proof").hidden = !snapshot.result;

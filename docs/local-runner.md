@@ -11,7 +11,7 @@ recorded GPT-5.6 archaeology
         -> fresh local proof + diff
 ```
 
-The public browser page cannot silently start, inspect, or control a process on a reviewer's computer. The first launch therefore requires one pinned terminal command. That command opens a loopback-only confirmation page; nothing runs before the reviewer presses **Start local build**. The zero-install [public replay](https://traceforge.axiqo.xyz) remains available when local execution is not possible.
+The public browser page cannot silently start, inspect, or control a process on a reviewer's computer. The first launch therefore requires one pinned terminal command. Launch clones and installs the pinned release, prepares the fixture and private configuration, starts the loopback server, and checks Codex access. No Codex writing turn or verifier command runs before the reviewer presses **Start local build**. The zero-install [public replay](https://traceforge.axiqo.xyz) remains available when local execution is not possible.
 
 ## One-command launch
 
@@ -20,16 +20,10 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.0 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run
+RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.1 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run
 ```
 
-Windows PowerShell:
-
-```powershell
-$ErrorActionPreference='Stop'; $RunDir=Join-Path $env:TEMP ('traceforge-'+[guid]::NewGuid()); git clone --filter=blob:none --branch local-runner-v0.1.0 https://github.com/a252937166/traceforge.git $RunDir; if($LASTEXITCODE){exit $LASTEXITCODE}; Set-Location $RunDir; corepack pnpm install --frozen-lockfile; if($LASTEXITCODE){exit $LASTEXITCODE}; corepack pnpm local:run
-```
-
-The command clones the pinned `local-runner-v0.1.0` tag into a new temporary directory, installs the locked dependency graph, starts a random-port server bound to `127.0.0.1`, and opens its one-time bootstrap URL. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.1` tag into a new temporary directory, binds native dependencies to the architecture of the active Node binary, installs the locked dependency graph, starts a random-port server bound to `127.0.0.1`, and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.1` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
 
@@ -41,7 +35,7 @@ This is a one-terminal-command launch, not a browser-to-Codex connection. There 
 - Codex CLI exactly `0.144.1`, available as `codex` on `PATH`. Check with `codex --version`. To select a specific verified binary, set `TRACEFORGE_CODEX_BIN` to its executable path before launch.
 - A ChatGPT account whose Codex model list includes `gpt-5.6-sol`.
 - Internet access for the initial clone/install, ChatGPT sign-in, and the Codex service connection. Commands executed by the agent remain network-disabled.
-- A browser on macOS, Linux, or Windows. A printed localhost URL is the fallback when automatic opening is unavailable.
+- macOS or Linux, with a browser. A printed localhost URL is the fallback when automatic opening is unavailable. Windows is not supported by this verified release.
 
 The Runner fails closed on a different Codex version. For example, an unsupported binary produces `LOCAL_CODEX_VERSION_UNSUPPORTED:expected=0.144.1:actual=...`; it does not silently continue with an unverified protocol or substitute another model.
 
@@ -64,9 +58,9 @@ The Runner does **not** reuse, copy, or inspect the reviewer's global `~/.codex`
 ~/.traceforge/local-runner/codex-home
 ```
 
-On the first run, the localhost page offers **Sign in with ChatGPT**. The Runner opens only an OpenAI- or ChatGPT-owned HTTPS authentication URL and waits for Codex App Server to report completion. The dedicated sign-in persists for later Local Runner sessions. Codex conversation history is configured with `persistence = none`, and the verification App Server uses a second, temporary `CODEX_HOME` with no build credentials.
+On the first run, the localhost page offers **Sign in with ChatGPT**. The Runner opens only an OpenAI- or ChatGPT-owned HTTPS authentication URL and waits for Codex App Server to report completion. The dedicated sign-in persists for later Local Runner sessions. Codex conversation history is configured with `persistence = none`. Build and verification also receive separate private `HOME` and `TMPDIR` roots; the verification App Server uses a second, temporary `CODEX_HOME` with no build credentials.
 
-Set `TRACEFORGE_LOCAL_CODEX_HOME` only when a different dedicated directory is required. The Runner rejects the global `~/.codex`, any directory inside the repository, and any directory inside the temporary session.
+Set `TRACEFORGE_LOCAL_CODEX_HOME` only when a different dedicated directory is required. The Runner rejects the global `~/.codex`, any directory inside the repository, and any directory inside the temporary session. A PID-bound `0600` lock serializes use of the persistent Runner-owned `CODEX_HOME`; a second active Runner fails closed instead of racing to rewrite the same config.
 
 ## Exact local trust boundary
 
@@ -82,8 +76,8 @@ The build Codex is not given the legacy implementation, verifier implementation,
 The trusted Runner host performs a frozen, offline dependency check before verification and copies the already-policy-checked candidate into the temporary verifier worktree. The verifier then executes only these two bounded commands through the read-only verification profile:
 
 ```text
-pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts
-pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts
+corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts
+corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts
 ```
 
 The first command is the socket-free candidate gate (`13/13` focused tests). The second emits the six-scenario suite, including one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
@@ -126,12 +120,6 @@ Two items deliberately outlive session deletion:
    rm -rf "$RUN_DIR"
    ```
 
-   On PowerShell:
-
-   ```powershell
-   Remove-Item -Recurse -Force $RunDir
-   ```
-
 2. The dedicated Codex sign-in remains at `~/.traceforge/local-runner/codex-home` so the next run does not require another login. Delete that directory only when the dedicated Local Runner credentials and configuration should be removed:
 
    ```bash
@@ -146,6 +134,7 @@ An ungraceful process kill or power loss can leave a temporary session directory
 |---|---|
 | `codex: command not found` or `LOCAL_CODEX_VERSION_CHECK_FAILED` | Install/activate the verified Codex CLI, confirm `codex --version`, or point `TRACEFORGE_CODEX_BIN` to the executable. |
 | `LOCAL_CODEX_VERSION_UNSUPPORTED` | The installed CLI is not exactly `0.144.1`. Use the verified release; the Runner intentionally has no compatibility fallback. |
+| `LOCAL_CODEX_HOME_IN_USE` | Another live Local Runner owns the dedicated Codex home. Finish or cancel that session before retrying. A stale dead-process lock is recovered once automatically. |
 | `LOCAL_MODEL_UNAVAILABLE` | The signed-in ChatGPT account did not advertise `gpt-5.6-sol`. Use an eligible account; no alternate model is substituted. |
 | `LOCAL_LOGIN_FAILED` or `LOCAL_LOGIN_INCOMPLETE` | Retry preflight/sign-in, finish the OpenAI/ChatGPT browser flow, and check that the Codex service is reachable. |
 | Browser did not open | Open the one-time `http://127.0.0.1:...` URL printed by the terminal. The Runner is not exposed on the LAN. |

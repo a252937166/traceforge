@@ -182,3 +182,97 @@ test("failed runs expose only fixed diagnostics and keep failed proof inspectabl
   assert.equal(proofView.status, 200);
   assert.match(await proofView.text(), /Failed local proof/);
 });
+
+test("delete is terminal even when a delayed run ignores abort", async () => {
+  let finishRun!: () => void;
+  const delayed = new Promise<void>((resolve) => {
+    finishRun = resolve;
+  });
+  let cleaned = false;
+  const actions: LocalRunnerActions = {
+    async preflight() {
+      return { codexVersion: "codex-cli 0.144.1", signedIn: true, modelAvailable: true };
+    },
+    async login() {},
+    async run() {
+      await delayed;
+      return {
+        diff: "late diff",
+        proof: { status: "PASSED" },
+        summary: {
+          status: "PASSED",
+          proofDigest: `sha256:${"1".repeat(64)}`,
+          diffDigest: `sha256:${"2".repeat(64)}`,
+          threadId: "late-thread",
+          model: "gpt-5.6-sol",
+          scenariosPassed: 6,
+          scenariosTotal: 6,
+          assertionsPassed: 30,
+          assertionCount: 30,
+          mismatchCount: 0,
+          changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
+        },
+      };
+    },
+    async cleanup() {
+      cleaned = true;
+    },
+  };
+  const session = new LocalRunnerSession(actions);
+  await session.initialize();
+  const running = session.start();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const deleting = session.delete();
+  assert.equal(session.snapshot().phase, "deleting");
+  await deleting;
+  assert.equal(cleaned, true);
+  assert.equal(session.snapshot().phase, "deleted");
+  assert.equal(session.result(), null);
+  finishRun();
+  await running;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(session.snapshot().phase, "deleted");
+});
+
+test("delete closes a pending login instead of waiting for its ten-minute notification timeout", async () => {
+  let releaseLogin!: () => void;
+  let markLoginStarted!: () => void;
+  const loginReleased = new Promise<void>((resolve) => {
+    releaseLogin = resolve;
+  });
+  const loginStarted = new Promise<void>((resolve) => {
+    markLoginStarted = resolve;
+  });
+  let cleanupCount = 0;
+  const actions: LocalRunnerActions = {
+    async preflight() {
+      return { codexVersion: "codex-cli 0.144.1", signedIn: false, modelAvailable: true };
+    },
+    async login() {
+      markLoginStarted();
+      await loginReleased;
+      throw new Error("LOCAL_APP_SERVER_CLOSED");
+    },
+    async run() {
+      throw new Error("LOCAL_TEST_RUN_NOT_EXPECTED");
+    },
+    async cleanup() {
+      cleanupCount += 1;
+      releaseLogin();
+    },
+  };
+  const session = new LocalRunnerSession(actions);
+  await session.initialize();
+  assert.equal(session.snapshot().phase, "needs-auth");
+  const login = session.login();
+  await loginStarted;
+
+  const startedAt = Date.now();
+  await session.delete();
+  await login;
+
+  assert.ok(Date.now() - startedAt < 2_000, "delete must actively unblock login");
+  assert.equal(cleanupCount, 1);
+  assert.equal(session.snapshot().phase, "deleted");
+  assert.equal(session.result(), null);
+});

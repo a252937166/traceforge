@@ -355,6 +355,7 @@ export class AppServerClient {
   readonly expectedPermissionProfile: string | undefined;
   private readonly pending = new Map<RequestId, PendingRequest>();
   private readonly notificationListeners = new Set<AppServerNotificationListener>();
+  private readonly terminationListeners = new Set<(error: Error) => void>();
   private readonly requestTimeoutMs: number;
   private readonly maxStderrChars: number;
   private readonly maxProtocolLineChars: number;
@@ -366,6 +367,7 @@ export class AppServerClient {
   private stderrWasTruncated = false;
   private fatalError: Error | null = null;
   private exited = false;
+  private closePromise: Promise<void> | null = null;
 
   constructor(
     private readonly child: ChildProcessWithoutNullStreams,
@@ -426,31 +428,41 @@ export class AppServerClient {
     options: { timeoutMs?: number } = {},
   ): Promise<AppServerNotification> {
     const timeoutMs = finiteTimeout(options.timeoutMs, this.requestTimeoutMs, "NOTIFICATION_TIMEOUT");
+    if (this.fatalError) return Promise.reject(this.fatalError);
     return new Promise((resolve, reject) => {
+      let unsubscribeNotification: () => void = () => undefined;
+      let unsubscribeTermination: () => void = () => undefined;
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        unsubscribeNotification();
+        unsubscribeTermination();
+      };
       const timer = setTimeout(() => {
-        unsubscribe();
+        cleanup();
         reject(new AppServerTimeoutError(
           typeof predicate === "string" ? predicate : "notification",
           timeoutMs,
         ));
       }, timeoutMs);
       timer.unref();
-      const unsubscribe = this.onNotification((notification) => {
+      unsubscribeNotification = this.onNotification((notification) => {
         let matches = false;
         try {
           matches = typeof predicate === "string"
             ? notification.method === predicate
             : predicate(notification);
         } catch (error) {
-          clearTimeout(timer);
-          unsubscribe();
+          cleanup();
           reject(error instanceof Error ? error : new Error(String(error)));
           return;
         }
         if (!matches) return;
-        clearTimeout(timer);
-        unsubscribe();
+        cleanup();
         resolve(notification);
+      });
+      unsubscribeTermination = this.onTermination((error) => {
+        cleanup();
+        reject(error);
       });
     });
   }
@@ -594,26 +606,46 @@ export class AppServerClient {
   }
 
   async close(graceMs = DEFAULT_CLOSE_GRACE_MS): Promise<void> {
-    if (this.exited) return;
     if (!Number.isSafeInteger(graceMs) || graceMs < 1 || graceMs > 10_000) {
       throw new Error("LOCAL_APP_SERVER_CLOSE_GRACE_INVALID");
     }
+    this.fail(new AppServerProcessError("LOCAL_APP_SERVER_CLOSED", this.safeStderr()));
+    if (this.exited) return;
+    if (this.closePromise) return this.closePromise;
     this.child.stdin.end();
-    await new Promise<void>((resolve) => {
+    this.closePromise = new Promise<void>((resolve) => {
       if (this.exited) {
         resolve();
         return;
       }
-      const timer = setTimeout(() => {
-        if (!this.exited) this.child.kill("SIGTERM");
+      let settled = false;
+      let hardTimer: NodeJS.Timeout | undefined;
+      let finalTimer: NodeJS.Timeout | undefined;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(softTimer);
+        if (hardTimer) clearTimeout(hardTimer);
+        if (finalTimer) clearTimeout(finalTimer);
         resolve();
+      };
+      const softTimer = setTimeout(() => {
+        if (this.exited) {
+          finish();
+          return;
+        }
+        this.child.kill("SIGTERM");
+        hardTimer = setTimeout(() => {
+          if (!this.exited) this.child.kill("SIGKILL");
+          finalTimer = setTimeout(finish, graceMs);
+          finalTimer.unref();
+        }, graceMs);
+        hardTimer.unref();
       }, graceMs);
-      timer.unref();
-      this.child.once("exit", () => {
-        clearTimeout(timer);
-        resolve();
-      });
+      softTimer.unref();
+      this.child.once("exit", finish);
     });
+    return this.closePromise;
   }
 
   getSafeStderr(): string {
@@ -724,11 +756,32 @@ export class AppServerClient {
 
   private fail(error: Error): void {
     if (!this.fatalError) this.fatalError = error;
+    for (const listener of this.terminationListeners) {
+      try {
+        listener(this.fatalError);
+      } catch {
+        // A waiter cannot be allowed to break transport shutdown.
+      }
+    }
+    this.terminationListeners.clear();
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(this.fatalError);
     }
     this.pending.clear();
+  }
+
+  private onTermination(listener: (error: Error) => void): () => void {
+    if (this.fatalError) {
+      try {
+        listener(this.fatalError);
+      } catch {
+        // Match notification listener isolation during transport shutdown.
+      }
+      return () => undefined;
+    }
+    this.terminationListeners.add(listener);
+    return () => this.terminationListeners.delete(listener);
   }
 }
 
@@ -805,7 +858,7 @@ export async function spawnAppServer(options: SpawnAppServerOptions): Promise<Ap
       clientInfo: options.clientInfo ?? {
         name: "traceforge_local_runner",
         title: "TraceForge Local Runner",
-        version: "0.1.0",
+        version: "0.1.1",
       },
     }, { timeoutMs: initializeTimeoutMs });
     client.notify("initialized", {});

@@ -19,8 +19,8 @@ test(
     const config = await writeCodexPermissionConfig({
       codexHome: fixture.verifyCodexHome,
       workspaceRoot: fixture.writerRoot,
-      sessionHome: fixture.sessionHome,
-      sessionTmp: fixture.sessionTmp,
+      sessionHome: fixture.buildHome,
+      sessionTmp: fixture.buildTmp,
       writablePaths: ["apps/api/src/candidates/generated-return-workflow.ts"],
       profileId: TRACEFORGE_BUILD_PROFILE_ID,
       credentialStore: "file",

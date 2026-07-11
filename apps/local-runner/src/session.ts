@@ -139,6 +139,9 @@ function errorCode(error: unknown): string {
 }
 
 function safeFailureDetail(result: LocalRunnerProofSummary): string {
+  if (result.scenariosTotal === 6 && result.mismatchCount > 0) {
+    return `${result.scenariosPassed}/6 scenarios passed · ${result.mismatchCount} mismatch${result.mismatchCount === 1 ? "" : "es"}. The verifier completed and the proof remains FAILED.`;
+  }
   if (result.failedCommand && result.failureCode) {
     return `${result.failedCommand} stopped at ${result.failureCode}. The proof remains FAILED.`;
   }
@@ -146,11 +149,47 @@ function safeFailureDetail(result: LocalRunnerProofSummary): string {
   return "Independent verification did not satisfy every proof condition.";
 }
 
+const DELETE_RUN_ABORT_GRACE_MS = 1_250;
+const DELETE_CLEANUP_TIMEOUT_MS = 8_000;
+
+async function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise.then(() => true, () => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function withCleanupTimeout(promise: Promise<void>): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("LOCAL_SESSION_CLEANUP_TIMEOUT")),
+          DELETE_CLEANUP_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export class LocalRunnerSession extends EventEmitter {
   private snapshotValue: LocalRunnerSnapshot;
   private resultValue: LocalRunnerResult | null = null;
   private runAbort: AbortController | null = null;
   private operation: Promise<void> | null = null;
+  private deletePromise: Promise<void> | null = null;
+  private deleteRequested = false;
 
   constructor(private readonly actions: LocalRunnerActions) {
     super();
@@ -192,7 +231,7 @@ export class LocalRunnerSession extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    if (this.snapshotValue.phase === "deleting" || this.snapshotValue.phase === "deleted") {
+    if (this.deleteRequested) {
       throw new Error("LOCAL_SESSION_DELETED");
     }
     if (this.operation) return this.operation;
@@ -200,12 +239,14 @@ export class LocalRunnerSession extends EventEmitter {
     this.operation = (async () => {
       try {
         const preflight = await this.actions.preflight();
+        if (this.deleteRequested) return;
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
         this.setPhase(preflight.signedIn ? "ready" : "needs-auth", {
           codexVersion: preflight.codexVersion,
           ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
         });
       } catch (error) {
+        if (this.deleteRequested) return;
         this.setPhase("failed", {
           errorCode: errorCode(error),
           detail: "Preflight stopped at a protected local boundary.",
@@ -225,6 +266,7 @@ export class LocalRunnerSession extends EventEmitter {
       try {
         await this.actions.login();
         const preflight = await this.actions.preflight();
+        if (this.deleteRequested) return;
         if (!preflight.signedIn) throw new Error("LOCAL_LOGIN_INCOMPLETE");
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
         this.setPhase("ready", {
@@ -232,6 +274,7 @@ export class LocalRunnerSession extends EventEmitter {
           ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
         });
       } catch (error) {
+        if (this.deleteRequested) return;
         this.setPhase("needs-auth", {
           errorCode: errorCode(error),
           detail: "Sign-in did not complete. No credential detail was exposed to this page.",
@@ -246,12 +289,14 @@ export class LocalRunnerSession extends EventEmitter {
   async start(): Promise<void> {
     if (this.snapshotValue.phase !== "ready") throw new Error("LOCAL_BUILD_NOT_READY");
     if (this.operation) throw new Error("LOCAL_OPERATION_IN_PROGRESS");
-    this.runAbort = new AbortController();
+    const runAbort = new AbortController();
+    this.runAbort = runAbort;
     const startedAt = new Date().toISOString();
     this.setPhase("preparing", { startedAt, errorCode: undefined });
     this.operation = (async () => {
       try {
-        const result = await this.actions.run(this.runAbort!.signal, (progress) => {
+        const result = await this.actions.run(runAbort.signal, (progress) => {
+          if (this.deleteRequested) return;
           const provenance = { ...this.snapshotValue.provenance };
           if (progress.phase === "codex") provenance.codex = "live";
           if (progress.phase === "verifying") {
@@ -265,6 +310,10 @@ export class LocalRunnerSession extends EventEmitter {
             provenance,
           });
         });
+        if (
+          runAbort.signal.aborted
+          || this.deleteRequested
+        ) return;
         this.resultValue = result;
         if (result.summary.status === "PASSED") {
           this.setPhase("passed", {
@@ -278,7 +327,13 @@ export class LocalRunnerSession extends EventEmitter {
             },
           });
         } else {
+          const verifierCompleted = result.summary.scenariosTotal === 6
+            && result.summary.mismatchCount > 0;
           this.setPhase("failed", {
+            ...(verifierCompleted ? {
+              title: "Fresh local proof issued — candidate does not conform",
+              message: `${result.summary.scenariosPassed}/6 scenarios passed. The verifier completed and found ${result.summary.mismatchCount} mismatch${result.summary.mismatchCount === 1 ? "" : "es"}.`,
+            } : {}),
             result: result.summary,
             threadId: result.summary.threadId,
             errorCode: "LOCAL_PROOF_FAILED",
@@ -286,13 +341,13 @@ export class LocalRunnerSession extends EventEmitter {
             provenance: {
               evidence: "recorded",
               codex: "passed",
-              verifier: "failed",
+              verifier: verifierCompleted ? "passed" : "failed",
               proof: "failed",
             },
           });
         }
       } catch (error) {
-        if (this.snapshotValue.phase === "deleting" || this.snapshotValue.phase === "deleted") return;
+        if (this.deleteRequested) return;
         const provenance = { ...this.snapshotValue.provenance };
         if (provenance.codex === "live") provenance.codex = "failed";
         if (provenance.verifier === "live") provenance.verifier = "failed";
@@ -303,7 +358,7 @@ export class LocalRunnerSession extends EventEmitter {
           provenance,
         });
       } finally {
-        this.runAbort = null;
+        if (this.runAbort === runAbort) this.runAbort = null;
         this.operation = null;
       }
     })();
@@ -312,13 +367,40 @@ export class LocalRunnerSession extends EventEmitter {
 
   async delete(): Promise<void> {
     if (this.snapshotValue.phase === "deleted") return;
+    if (this.deletePromise) return this.deletePromise;
+    const activeOperation = this.operation;
+    const hadActiveRun = this.runAbort !== null;
+    this.deleteRequested = true;
     this.setPhase("deleting");
     this.runAbort?.abort(new Error("LOCAL_SESSION_DELETED"));
+    const deletion = (async () => {
+      try {
+        // Give an abort-aware build just long enough to terminate its trusted-
+        // host process group before fixture removal. Login/preflight operations
+        // are instead unblocked immediately by cleanup closing App Server.
+        if (activeOperation && hadActiveRun) {
+          await settlesWithin(activeOperation, DELETE_RUN_ABORT_GRACE_MS);
+        }
+        await withCleanupTimeout(Promise.resolve().then(() => this.actions.cleanup()));
+        this.resultValue = null;
+        this.setPhase("deleted");
+      } catch {
+        this.setPhase("failed", {
+          errorCode: "LOCAL_SESSION_CLEANUP_FAILED",
+          detail: "Cleanup did not finish; the local session remains available for inspection.",
+        });
+        throw new Error("LOCAL_SESSION_CLEANUP_FAILED");
+      }
+    })();
+    this.deletePromise = deletion;
     try {
-      await this.actions.cleanup();
+      await deletion;
     } finally {
-      this.resultValue = null;
-      this.setPhase("deleted");
+      // A failed bounded cleanup can be retried. deleteRequested deliberately
+      // remains terminal so a late operation can never revive the session.
+      if (this.deletePromise === deletion) {
+        this.deletePromise = null;
+      }
     }
   }
 }

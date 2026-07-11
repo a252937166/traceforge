@@ -245,17 +245,16 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('one incomplete candidate')
     expect(dialog).toHaveTextContent('temporary writer workspace')
     expect(dialog).toHaveTextContent('Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.')
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.0/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Verified on macOS / Linux')
+    expect(dialog).toHaveTextContent('Windows is not supported by this release.')
+    expect(dialog).toHaveTextContent('No Codex writing turn or verifier command runs before Start local build.')
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.1/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.0 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run',
+      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.1 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
-
-    await user.click(within(dialog).getByRole('tab', { name: 'Windows PowerShell' }))
-    expect(within(dialog).getByText(/\$ErrorActionPreference='Stop'.*git clone --filter=blob:none --branch local-runner-v0\.1\.0/)).toBeInTheDocument()
-    expect(within(dialog).getByRole('tab', { name: 'Windows PowerShell' })).toHaveAttribute('aria-selected', 'true')
 
     await user.click(within(dialog).getByRole('button', { name: 'Continue with verified replay' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Build live with your local Codex.' })).not.toBeInTheDocument())

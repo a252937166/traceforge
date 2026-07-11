@@ -40,15 +40,10 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.0'
+const localRunnerTag = 'local-runner-v0.1.1'
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
 
-type RunnerPlatform = 'unix' | 'windows'
-
-const localRunnerCommands: Record<RunnerPlatform, string> = {
-  unix: `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run`,
-  windows: `$ErrorActionPreference='Stop'; $RunDir=Join-Path $env:TEMP ('traceforge-'+[guid]::NewGuid()); git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git $RunDir; if($LASTEXITCODE){exit $LASTEXITCODE}; Set-Location $RunDir; corepack pnpm install --frozen-lockfile; if($LASTEXITCODE){exit $LASTEXITCODE}; corepack pnpm local:run`,
-}
+const localRunnerCommand = `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run`
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -417,7 +412,6 @@ export default function App() {
   const [starting, setStarting] = useState(false)
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
   const [localRunnerOpen, setLocalRunnerOpen] = useState(false)
-  const [runnerPlatform, setRunnerPlatform] = useState<RunnerPlatform>('unix')
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const subscription = useRef<(() => void) | undefined>(undefined)
   const evidenceDialogRef = useRef<HTMLDialogElement>(null)
@@ -487,7 +481,7 @@ export default function App() {
 
   const copyRunnerCommand = async () => {
     try {
-      await copyText(localRunnerCommands[runnerPlatform])
+      await copyText(localRunnerCommand)
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -686,24 +680,12 @@ export default function App() {
                   <div><span>First run</span><h3 id="runner-launch-title">Launch the pinned open-source runner</h3></div>
                   <a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect {localRunnerTag} ↗</a>
                 </div>
-                <div className="runner-platform-tabs" role="tablist" aria-label="Local Runner platform">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={runnerPlatform === 'unix'}
-                    className={runnerPlatform === 'unix' ? 'is-selected' : ''}
-                    onClick={() => { setRunnerPlatform('unix'); setCopyStatus('idle') }}
-                  >macOS / Linux</button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={runnerPlatform === 'windows'}
-                    className={runnerPlatform === 'windows' ? 'is-selected' : ''}
-                    onClick={() => { setRunnerPlatform('windows'); setCopyStatus('idle') }}
-                  >Windows PowerShell</button>
+                <div className="runner-platform-tabs" aria-label="Verified Local Runner platform">
+                  <strong>Verified on macOS / Linux</strong>
+                  <span>Windows is not supported by this release.</span>
                 </div>
                 <div className="runner-command">
-                  <code>{localRunnerCommands[runnerPlatform]}</code>
+                  <code>{localRunnerCommand}</code>
                   <button type="button" onClick={() => void copyRunnerCommand()}>
                     {copyStatus === 'copied' ? 'Copied' : 'Copy command'}
                   </button>
@@ -722,7 +704,7 @@ export default function App() {
 
               <section className="runner-boundaries" aria-labelledby="runner-boundaries-title">
                 <div className="runner-boundaries-heading">
-                  <span>Before anything runs</span>
+                  <span>Before the Codex writing turn</span>
                   <h3 id="runner-boundaries-title">The local confirmation page shows the complete scope.</h3>
                 </div>
                 <dl>
@@ -731,6 +713,7 @@ export default function App() {
                   <div><dt>Kept hidden</dt><dd>Legacy source, verifier, tests, and the post-turn verification input.</dd></div>
                   <div><dt>Disabled</dt><dd>Agent command network, commit, push, merge, and deploy. The Codex service connection remains required.</dd></div>
                 </dl>
+                <p><strong>Launch preflight is explicit.</strong> The terminal command clones and installs the pinned release, prepares the fixture and private configuration, starts the loopback server, and checks Codex access. No Codex writing turn or verifier command runs before <em>Start local build</em>.</p>
                 <p><strong>Authentication stays local.</strong> Codex handles sign-in on this machine. This public page cannot read tokens, local files, Codex history, generated source, or proof contents.</p>
               </section>
 

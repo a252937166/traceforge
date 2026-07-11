@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import {
   GENERATED_CANDIDATE_PATH,
+  buildChildEnvironment,
   buildCodexRepairPrompt,
   changedFilesIn,
   parseGeneratedVerificationSuite,
@@ -49,11 +51,12 @@ const LOCAL_BUILD_DEVELOPER_INSTRUCTIONS = `TraceForge is running a bounded loca
 Use only the three immutable .traceforge repair-input files and the generated candidate module named in the user prompt. Do not inspect parent directories, the legacy implementation, tests, verifier code, credentials, or other Codex threads. Do not broaden filesystem or network access. The host alone verifies the result after this turn.`;
 
 const VERIFY_COMMANDS = {
-  install: ["pnpm", "install", "--offline", "--frozen-lockfile"],
+  install: ["corepack", "pnpm", "install", "--offline", "--frozen-lockfile"],
   // Restrict the local proof to the candidate-relevant, socket-free tests.
   // The public API tests intentionally bind HTTP ports and do not belong in
   // the verifier's network-denied permission profile.
   apiTests: [
+    "corepack",
     "pnpm",
     "--filter",
     "@traceforge/api",
@@ -68,6 +71,7 @@ const VERIFY_COMMANDS = {
   // Invoke the Node loader directly. The `tsx` CLI creates a dynamic IPC
   // socket, while the verifier only needs the static loader for this script.
   generatedSuite: [
+    "corepack",
     "pnpm",
     "--filter",
     "@traceforge/api",
@@ -450,12 +454,172 @@ async function execVerificationCommand(
   };
 }
 
+export async function runBoundedTrustedHostCommand(
+  argv: readonly string[],
+  cwd: string,
+  env: Record<string, string>,
+  timeoutMs: number,
+  outputBytesCap: number,
+  signal?: AbortSignal,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  if (
+    argv.length === 0
+    || argv.some((part) => typeof part !== "string" || !part || part.includes("\0"))
+  ) {
+    throw new Error("LOCAL_TRUSTED_HOST_COMMAND_INVALID");
+  }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 15 * 60_000) {
+    throw new Error("LOCAL_TRUSTED_HOST_COMMAND_TIMEOUT_INVALID");
+  }
+  if (
+    !Number.isSafeInteger(outputBytesCap)
+    || outputBytesCap < 0
+    || outputBytesCap > 4 * 1024 * 1024
+  ) {
+    throw new Error("LOCAL_TRUSTED_HOST_COMMAND_OUTPUT_CAP_INVALID");
+  }
+  signal?.throwIfAborted();
+
+  return new Promise((resolve, reject) => {
+    const command = argv[0] as string;
+    const child = spawn(command, argv.slice(1), {
+      cwd,
+      env: buildChildEnvironment(process.env, {
+        PWD: cwd,
+        ...env,
+        npm_config_arch: process.env.npm_config_arch ?? process.arch,
+      }),
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+      // A dedicated process group lets cancellation stop package-manager
+      // descendants as well as the small Corepack launcher on POSIX hosts.
+      detached: process.platform !== "win32",
+    });
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let settled = false;
+    let stopRequested = false;
+    let timedOut = false;
+    let aborted = false;
+    let abortReason: unknown;
+    let hardKillTimer: NodeJS.Timeout | undefined;
+    let forceSettleTimer: NodeJS.Timeout | undefined;
+
+    const append = (chunks: Buffer[], used: number, chunk: Buffer | string): number => {
+      if (used >= outputBytesCap) return used;
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
+      const accepted = buffer.subarray(0, outputBytesCap - used);
+      if (accepted.length > 0) chunks.push(accepted);
+      return used + accepted.length;
+    };
+    const signalProcess = (killSignal: NodeJS.Signals): void => {
+      if (process.platform !== "win32" && child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, killSignal);
+          return;
+        } catch {
+          // Fall back to the direct child if the process group is already gone.
+        }
+      }
+      if (child.exitCode !== null) return;
+      try {
+        child.kill(killSignal);
+      } catch {
+        // The child may have exited between the exitCode check and kill.
+      }
+    };
+    const cleanup = (): void => {
+      clearTimeout(timeoutTimer);
+      if (hardKillTimer) clearTimeout(hardKillTimer);
+      if (forceSettleTimer) clearTimeout(forceSettleTimer);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (exitCode: number): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+      const capturedStderr = Buffer.concat(stderrChunks).toString("utf8");
+      if (aborted) {
+        reject(abortReason instanceof Error ? abortReason : new Error("LOCAL_REPAIR_ABORTED"));
+        return;
+      }
+      resolve({
+        exitCode: timedOut ? -1 : exitCode,
+        stdout,
+        stderr: timedOut
+          ? [capturedStderr, "LOCAL_TRUSTED_HOST_COMMAND_TIMEOUT"].filter(Boolean).join("\n")
+          : capturedStderr,
+      });
+    };
+    const requestStop = (): void => {
+      if (stopRequested) return;
+      stopRequested = true;
+      signalProcess("SIGTERM");
+      hardKillTimer = setTimeout(() => {
+        signalProcess("SIGKILL");
+        forceSettleTimer = setTimeout(() => {
+          // Do not let inherited pipes keep deletion waiting indefinitely after
+          // the entire process group has already received SIGKILL.
+          child.stdout.destroy();
+          child.stderr.destroy();
+          child.unref();
+          finish(-1);
+        }, 750);
+        forceSettleTimer.unref();
+      }, 250);
+      hardKillTimer.unref();
+    };
+    const onAbort = (): void => {
+      if (aborted) return;
+      aborted = true;
+      abortReason = signal?.reason;
+      requestStop();
+    };
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      requestStop();
+    }, timeoutMs);
+    timeoutTimer.unref();
+
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      stdoutBytes = append(stdoutChunks, stdoutBytes, chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      stderrBytes = append(stderrChunks, stderrBytes, chunk);
+    });
+    child.once("error", (error) => {
+      stderrBytes = append(stderrChunks, stderrBytes, error.message);
+      finish(-1);
+    });
+    child.once("close", (code) => finish(code ?? -1));
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+      // Close the race between throwIfAborted(), spawn(), and listener setup.
+      if (signal.aborted) onAbort();
+    }
+  });
+}
+
 async function installVerifierDependencies(
   cwd: string,
   env: Record<string, string>,
+  timeoutMs: number,
+  outputBytesCap: number,
+  signal?: AbortSignal,
 ): Promise<LocalCommandResult> {
   const argv = [...VERIFY_COMMANDS.install];
-  const result = await runCommand(argv[0] ?? "pnpm", argv.slice(1), cwd, env);
+  const result = await runBoundedTrustedHostCommand(
+    argv,
+    cwd,
+    env,
+    timeoutMs,
+    outputBytesCap,
+    signal,
+  );
   return {
     name: "install",
     executor: "trusted-host",
@@ -741,7 +905,7 @@ export async function runLocalRepair(
 
     const verificationBaseEnvironment = {
       TRACEFORGE_ENABLE_CODEX: "0",
-      TMPDIR: context.fixture.sessionTmp,
+      TMPDIR: context.fixture.verifyTmp,
       CI: "1",
       NO_COLOR: "1",
     };
@@ -751,6 +915,9 @@ export async function runLocalRepair(
     const install = await installVerifierDependencies(
       context.fixture.verifierRoot,
       verificationBaseEnvironment,
+      commandTimeoutMs,
+      outputBytesCap,
+      context.signal,
     );
     context.signal?.throwIfAborted();
     commands.push(install);
