@@ -17,11 +17,15 @@ async function main(): Promise<void> {
     shuttingDown = true;
     await session.delete().catch(() => undefined);
     await server?.close().catch(() => undefined);
-    process.exitCode = exitCode;
+    process.exit(exitCode);
   };
 
-  process.once("SIGINT", () => void shutdown(130));
-  process.once("SIGTERM", () => void shutdown(143));
+  // Keep both handlers installed while async cleanup runs. Package-manager
+  // wrappers and terminals may deliver more than one signal to the foreground
+  // process group; a once-listener would let the second signal kill Node before
+  // its verifier worktree is removed.
+  process.on("SIGINT", () => void shutdown(130));
+  process.on("SIGTERM", () => void shutdown(143));
 
   try {
     server = await startLocalRunnerServer(session);

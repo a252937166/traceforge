@@ -248,11 +248,11 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('Verified on macOS / Linux')
     expect(dialog).toHaveTextContent('Windows is not supported by this release.')
     expect(dialog).toHaveTextContent('No Codex writing turn or verifier command runs before Start local build.')
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.3/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.4/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.3 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run',
+      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.4 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 

@@ -858,7 +858,7 @@ export async function spawnAppServer(options: SpawnAppServerOptions): Promise<Ap
       clientInfo: options.clientInfo ?? {
         name: "traceforge_local_runner",
         title: "TraceForge Local Runner",
-        version: "0.1.3",
+        version: "0.1.4",
       },
     }, { timeoutMs: initializeTimeoutMs });
     client.notify("initialized", {});

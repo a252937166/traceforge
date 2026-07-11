@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"pnpm --filter @traceforge/api dev\" \"pnpm --filter @traceforge/web dev\"",
-    "local:run": "corepack pnpm --filter @traceforge/local-runner start",
+    "local:run": "node --import tsx apps/local-runner/src/cli.ts",
     "build": "pnpm -r build",
     "test": "pnpm -r --workspace-concurrency=1 test",
     "typecheck": "pnpm -r typecheck",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "tsx": "^4.19.4"
   }
 }
