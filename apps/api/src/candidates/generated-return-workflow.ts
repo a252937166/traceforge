@@ -104,22 +104,9 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
   let status: WorkflowResult["returnRecord"]["status"];
   let refundCents = 0;
 
-  const isObservedDomain =
-    input.itemCondition === "DAMAGED" &&
-    (input.customerTier === "STANDARD" || input.customerTier === "VIP");
-
-  if (isObservedDomain && input.amountCents >= 50_000) {
-    selected = {
-      decision: "MANUAL_REVIEW",
-      ruleId: "RULE-HIGH-VALUE-REVIEW",
-      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
-    };
-    status = "PENDING_REVIEW";
-    sideEffects.push({
-      type: "REVIEW_QUEUE",
-      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
-    });
-  } else if (input.itemCondition === "DAMAGED" && input.customerTier === "VIP") {
+  // Preserve the observed VIP replacement branch. This pre-Codex fixture is
+  // deliberately incomplete: tier currently outranks the high-value hold.
+  if (input.customerTier === "VIP") {
     selected = {
       decision: "REPLACEMENT",
       ruleId: "RULE-VIP-REPLACEMENT",
@@ -131,12 +118,31 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
     status = "REPLACEMENT_ISSUED";
     after.sellable -= 1;
     sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });
-    after.quarantine += 1;
+    if (input.itemCondition === "DAMAGED") {
+      after.quarantine += 1;
+      sideEffects.push({
+        type: "INVENTORY_MOVE",
+        detail: { destination: "QUARANTINE", quantity: 1 },
+      });
+    } else {
+      after.sellable += 1;
+      sideEffects.push({
+        type: "INVENTORY_MOVE",
+        detail: { destination: "SELLABLE", quantity: 1 },
+      });
+    }
+  } else if (input.amountCents >= 50_000) {
+    selected = {
+      decision: "MANUAL_REVIEW",
+      ruleId: "RULE-HIGH-VALUE-REVIEW",
+      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
+    };
+    status = "PENDING_REVIEW";
     sideEffects.push({
-      type: "INVENTORY_MOVE",
-      detail: { destination: "QUARANTINE", quantity: 1 },
+      type: "REVIEW_QUEUE",
+      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
     });
-  } else if (input.itemCondition === "DAMAGED" && input.customerTier === "STANDARD") {
+  } else {
     selected = {
       decision: "REFUND",
       ruleId: "RULE-STANDARD-REFUND",
@@ -149,13 +155,13 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       detail: { amountCents: input.amountCents },
     });
 
-    after.quarantine += 1;
+    // Deliberate fixture defect: refunded damaged inventory is restored to
+    // sellable stock instead of quarantine.
+    after.sellable += 1;
     sideEffects.push({
       type: "INVENTORY_MOVE",
-      detail: { destination: "QUARANTINE", quantity: 1 },
+      detail: { destination: "SELLABLE", quantity: 1 },
     });
-  } else {
-    throw new Error("return workflow input is outside the observed contract domain");
   }
 
   const result: WorkflowResult = {
