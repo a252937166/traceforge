@@ -20,10 +20,10 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.1 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run
+RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.2 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run
 ```
 
-The command clones the pinned `local-runner-v0.1.1` tag into a new temporary directory, binds native dependencies to the architecture of the active Node binary, installs the locked dependency graph, starts a random-port server bound to `127.0.0.1`, and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.1` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.2` tag into a new temporary directory, binds native dependencies to the architecture of the active Node binary, installs the locked dependency graph, starts a random-port server bound to `127.0.0.1`, and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.2` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
 

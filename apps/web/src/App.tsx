@@ -40,7 +40,7 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.1'
+const localRunnerTag = 'local-runner-v0.1.2'
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
 
 const localRunnerCommand = `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" corepack pnpm local:run`

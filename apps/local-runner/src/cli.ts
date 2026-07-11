@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   try {
     server = await startLocalRunnerServer(session);
     process.stdout.write(
-      `\nTraceForge Local Runner\n${server.url}\n\nThe session is bound to 127.0.0.1 and will execute nothing before confirmation.\n`,
+      `\nTraceForge Local Runner\n${server.url}\n\nThe session is bound to 127.0.0.1. No Codex writing turn or verifier command runs before confirmation.\n`,
     );
     session.on("change", (snapshot) => {
       const detail = snapshot.errorCode ? ` · ${snapshot.errorCode}` : "";
