@@ -75,6 +75,11 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
         codexConfigured: true,
         codexStatus: { configured: true, truthfulBoundary: 'Codex is configured.' },
         gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
+        release: {
+          sha: 'de748868292639c57abea7b8d53e933987bea03e',
+          version: 'local-runner-v0.1.5',
+          builtAt: '2026-07-11T14:30:00.000Z',
+        },
       })
     }
     if (url === '/api/migrations' && init?.method === 'POST') {
@@ -106,6 +111,11 @@ describe('TraceForge Migration Loom', () => {
           codexConfigured: true,
           codexStatus: { configured: true, truthfulBoundary: 'Codex is configured.' },
           gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
+          release: {
+            sha: 'de748868292639c57abea7b8d53e933987bea03e',
+            version: 'local-runner-v0.1.5',
+            builtAt: '2026-07-11T14:30:00.000Z',
+          },
         })
       }
       throw new Error(`Unexpected request: ${String(input)}`)
@@ -205,7 +215,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })
 
-  it('keeps replay as the default and offers an optional local Codex build', () => {
+  it('keeps replay as the default, offers local Codex, and identifies the deployment', async () => {
     render(<App />)
 
     expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
@@ -224,6 +234,8 @@ describe('TraceForge Migration Loom', () => {
       'href',
       expect.stringContaining('/docs/evidence/live-champion-run'),
     )
+    expect(await screen.findByText('Release de74886 · Local Runner v0.1.5')).toBeInTheDocument()
+    expect(screen.getByRole('contentinfo', { name: 'Deployed release identity' })).toHaveTextContent('Built')
   })
 
   it('opens a truthful pinned Local Runner launcher and keeps replay available', async () => {
@@ -248,11 +260,13 @@ describe('TraceForge Migration Loom', () => {
     expect(dialog).toHaveTextContent('Verified on macOS / Linux')
     expect(dialog).toHaveTextContent('Windows is not supported by this release.')
     expect(dialog).toHaveTextContent('No Codex writing turn or verifier command runs before Start local build.')
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.4/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('13 focused candidate tests + 6 differential scenarios')
+    expect(dialog).toHaveTextContent('42 candidate-safe tests + 4 separate replay guards')
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.5/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.4 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
+      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.5 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 

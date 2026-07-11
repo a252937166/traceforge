@@ -4,6 +4,7 @@ import { CodexRepairAdapter, CodexRepairFailure } from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
 import { MigrationRunner } from "./migration-runner.js";
 import { MigrationStore } from "./migration-store.js";
+import { readReleaseIdentity, type ReleaseIdentity } from "./release.js";
 import { ArtifactStore } from "./store.js";
 import { TraceForgeService } from "./service.js";
 import type { MigrationExecutionMode, MigrationProofBundle } from "./migration-types.js";
@@ -23,6 +24,7 @@ export interface AppDependencies {
   codexAdapter?: CodexRepairAdapter;
   migrationStore?: MigrationStore;
   migrationRunner?: MigrationRunner;
+  release?: ReleaseIdentity;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -63,6 +65,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     ?? new MigrationStore(env.TRACEFORGE_DB ?? (dependencies.store ? ":memory:" : undefined));
   const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env, codex);
   const allowedOrigins = buildAllowedOrigins(env);
+  const release = dependencies.release ?? readReleaseIdentity(env);
   const app = express();
 
   app.disable("x-powered-by");
@@ -84,6 +87,7 @@ export function createApp(dependencies: AppDependencies = {}) {
       status: "ok",
       service: "traceforge-api",
       sqlite: "ready",
+      ...(release ? { release } : {}),
       codexInstalled: codexStatus.installed,
       codexEnabled: codexStatus.enabled,
       codexConfigured: codexStatus.configured,

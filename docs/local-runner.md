@@ -20,10 +20,10 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.4 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.5 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command clones the pinned `local-runner-v0.1.4` tag into a new temporary directory, installs both x64 and arm64 variants of required optional native tools, and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.5` tag into a new temporary directory, installs both x64 and arm64 variants of required optional native tools, and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
 
@@ -81,6 +81,13 @@ corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-gen
 ```
 
 The first command is the socket-free candidate gate (`13/13` focused tests). The second emits the six-scenario suite, including one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
+
+The localhost confirmation and result views show this comparison explicitly:
+
+- **Local gate:** `13` focused candidate tests plus six differential scenarios.
+- **Source champion gate:** `42` candidate-safe tests plus four separate replay-integrity guards.
+
+The local profile removes socket-requiring API harness checks so it can stay network-denied. It still executes the same six business scenarios and `30` deterministic field assertions used for the evidence-bounded conformance claim.
 
 No generated code, diff, proof, token, or Codex history is uploaded to the public TraceForge site.
 

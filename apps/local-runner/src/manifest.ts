@@ -1,5 +1,5 @@
-export const LOCAL_RUNNER_VERSION = "0.1.4" as const;
-export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.4" as const;
+export const LOCAL_RUNNER_VERSION = "0.1.5" as const;
+export const LOCAL_RUNNER_RELEASE_TAG = "local-runner-v0.1.5" as const;
 export const LOCAL_RUNNER_FIXTURE_TAG = "local-runner-fixture-v0.1.4" as const;
 
 export interface LocalRunnerManifest {

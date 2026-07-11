@@ -9,6 +9,11 @@ const store = new ArtifactStore(":memory:");
 const { app, migrationStore } = createApp({
   store,
   codexAdapter: new CodexRepairAdapter({ env: {} }),
+  release: {
+    sha: "a".repeat(40),
+    version: "local-runner-v0.1.5",
+    builtAt: "2026-07-11T14:30:00.000Z",
+  },
   env: { TRACEFORGE_ENABLE_GPT56: "0", TRACEFORGE_ENABLE_CODEX: "0" },
 });
 let server: Server;
@@ -34,6 +39,11 @@ test("health and scenarios are available", async () => {
   assert.equal(health.status, "ok");
   assert.equal(health.codexConfigured, false);
   assert.equal(health.codexStatus.mode, "disabled");
+  assert.deepEqual(health.release, {
+    sha: "a".repeat(40),
+    version: "local-runner-v0.1.5",
+    builtAt: "2026-07-11T14:30:00.000Z",
+  });
   assert.equal(scenarioResponse.data.length, 5);
   assert.deepEqual(
     scenarioResponse.data.map((scenario: { stage: string }) => scenario.stage),

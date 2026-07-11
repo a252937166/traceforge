@@ -21,6 +21,8 @@ export interface LocalRunnerProofSummary {
   diffDigest: string;
   threadId: string;
   model: string;
+  testsPassed: number;
+  testsTotal: number;
   scenariosPassed: number;
   scenariosTotal: number;
   assertionsPassed: number;

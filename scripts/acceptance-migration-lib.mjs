@@ -110,20 +110,35 @@ export function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
 }
 
+function validateReleaseIdentity(body) {
+  assert.match(body.release?.sha ?? "", /^[a-f0-9]{40}$/, "health must expose the packaged release SHA");
+  assert.match(body.release?.version ?? "", /^local-runner-v\d+\.\d+\.\d+$/, "health must expose the Local Runner release");
+  assert.equal(Number.isNaN(Date.parse(body.release?.builtAt ?? "")), false, "health must expose the package timestamp");
+  if (process.env.TRACEFORGE_EXPECTED_RELEASE_SHA) {
+    assert.equal(body.release.sha, process.env.TRACEFORGE_EXPECTED_RELEASE_SHA, "public API release SHA is stale");
+  }
+}
+
 export async function acquireApi(extraEnv = {}) {
   if (process.env.API_BASE) {
     const baseUrl = normalizeBaseUrl(process.env.API_BASE);
     const { response, body } = await requestJson(`${baseUrl}/api/health`);
     assert.equal(response.status, 200, `API_BASE health returned ${response.status}`);
     assert.equal(body.status, "ok", "API_BASE health must report ok");
+    validateReleaseIdentity(body);
     return { baseUrl, child: undefined, external: true };
   }
 
   const api = await startApi({
     TRACEFORGE_ENABLE_GPT56: "0",
     TRACEFORGE_ENABLE_CODEX: "0",
+    TRACEFORGE_RELEASE_SHA: "0".repeat(40),
+    TRACEFORGE_RELEASE_VERSION: "local-runner-v0.1.5",
+    TRACEFORGE_RELEASE_BUILT_AT: "2026-07-11T00:00:00.000Z",
     ...extraEnv,
   });
+  const { body } = await requestJson(`${api.baseUrl}/api/health`);
+  validateReleaseIdentity(body);
   return { ...api, external: false };
 }
 

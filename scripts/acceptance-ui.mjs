@@ -55,7 +55,9 @@ async function buildAndReadStaticContract() {
     "Replay a verified run",
     "Host-only proof",
     "Build live with my Codex",
-    "local-runner-v0.1.4",
+    "local-runner-v0.1.5",
+    "13 focused candidate tests + 6 differential scenarios",
+    "42 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -67,7 +69,7 @@ async function buildAndReadStaticContract() {
   ]) {
     assert.ok(scripts.includes(token), `web bundle is missing ${token}`);
   }
-  for (const token of ["migration-workbench", "stage-rail", "focus-visible", "prefers-reduced-motion"]) {
+  for (const token of ["migration-workbench", "stage-rail", "release-identity", "focus-visible", "prefers-reduced-motion"]) {
     assert.ok(styles.includes(token), `web stylesheet is missing ${token}`);
   }
 
@@ -152,6 +154,9 @@ async function runIncrementalBrowserAcceptance(webBase) {
     );
     assert.equal(await localRunnerCta.isEnabled(), true, "the optional Local Runner launcher must be actionable");
     assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
+    const releaseFooter = page.getByRole("contentinfo", { name: "Deployed release identity" });
+    await releaseFooter.waitFor({ state: "visible" });
+    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.5/);
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
     assert.ok(
@@ -172,7 +177,9 @@ async function runIncrementalBrowserAcceptance(webBase) {
     await runnerDialog.waitFor({ state: "visible" });
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.4/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.5/);
+    assert.match(await runnerDialog.innerText(), /13 focused candidate tests \+ 6 differential scenarios/);
+    assert.match(await runnerDialog.innerText(), /42 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
 
@@ -384,6 +391,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
         desktopCtaBox,
         mobileCtaBox,
         evidenceLinkVisible: true,
+        releaseIdentity: await releaseFooter.innerText(),
       },
       evidenceDrawer: {
         viewport: { width: 764, height: 843 },
@@ -440,6 +448,9 @@ try {
   const html = await response.text();
   assert.match(html, /id="root"/);
   assert.match(html, /TraceForge/i);
+  if (process.env.WEB_BASE) {
+    assert.match(response.headers.get("cache-control") ?? "", /no-cache.*no-store.*must-revalidate/i);
+  }
 
   const apiBase = process.env.API_BASE
     ? normalizeBaseUrl(process.env.API_BASE)
@@ -448,6 +459,8 @@ try {
   assert.equal(health.response.status, 200);
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
+  assert.match(health.body.release?.sha ?? "", /^[a-f0-9]{40}$/);
+  assert.equal(health.body.release?.version, "local-runner-v0.1.5");
 
   const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
 

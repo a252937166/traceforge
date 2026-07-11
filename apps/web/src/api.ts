@@ -283,8 +283,14 @@ export async function getRuntimeCapabilities(): Promise<RuntimeCapabilities> {
   const health = asRecord(await request('/api/health'))
   const gpt56 = asRecord(health.gpt56Status)
   const codex = asRecord(health.codexStatus)
+  const rawRelease = asRecord(health.release)
   const gpt56Configured = asBoolean(gpt56.configured)
   const codexConfigured = asBoolean(health.codexConfigured ?? codex.configured)
+  const release = {
+    sha: asString(rawRelease.sha),
+    version: asString(rawRelease.version),
+    builtAt: asString(rawRelease.builtAt),
+  }
   return {
     liveAiAvailable: gpt56Configured && codexConfigured,
     gpt56Configured,
@@ -292,6 +298,7 @@ export async function getRuntimeCapabilities(): Promise<RuntimeCapabilities> {
     boundary: [asString(gpt56.truthfulBoundary), asString(codex.truthfulBoundary)]
       .filter(Boolean)
       .join(' '),
+    ...(release.sha && release.version && release.builtAt ? { release } : {}),
   }
 }
 

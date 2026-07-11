@@ -9,4 +9,8 @@ test("failed verification diagnostics use only fixed command labels and commands
   assert.match(page, /corepack pnpm --filter @traceforge\/api exec node --test/);
   assert.match(page, /Command output is not displayed; only its digests are included in the proof/);
   assert.doesNotMatch(page, /stdout\s*\+|stderr\s*\+/);
+  assert.match(page, /Local gate/);
+  assert.match(page, /13 focused candidate tests \+ 6 differential scenarios/);
+  assert.match(page, /42 candidate-safe tests \+ 4 separate replay guards/);
+  assert.match(page, /metric-tests/);
 });

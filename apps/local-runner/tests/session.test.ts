@@ -18,6 +18,8 @@ test("a completed verifier mismatch fails the proof without claiming verifier fa
           diffDigest: `sha256:${"2".repeat(64)}`,
           threadId: "thread-mismatch",
           model: "gpt-5.6-sol",
+          testsPassed: 13,
+          testsTotal: 13,
           scenariosPassed: 4,
           scenariosTotal: 6,
           assertionsPassed: 28,

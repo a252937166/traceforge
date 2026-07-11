@@ -76,6 +76,11 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     .scope-row dt { margin: 0; color: var(--muted); font: 700 11px/1.5 var(--mono); text-transform: uppercase; }
     .scope-row dd { margin: 0; font-size: 14px; line-height: 1.5; }
     .scope-note { margin: 18px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .gate-compare { display: grid; margin-top: 20px; border: 1px solid var(--line); background: #fff; }
+    .gate-row { display: grid; grid-template-columns: 128px 1fr; gap: 14px; padding: 13px 14px; border-bottom: 1px solid var(--line); }
+    .gate-row:last-child { border-bottom: 0; }
+    .gate-row span { color: var(--cobalt); font: 800 10px/1.4 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+    .gate-row strong { font-size: 12px; line-height: 1.45; }
     .state-panel { display: flex; flex-direction: column; min-height: 405px; }
     .state-head { display: flex; align-items: center; justify-content: space-between; min-height: 72px; padding: 16px 24px; border-bottom: 1px solid var(--ink); }
     .phase { color: var(--cobalt); font: 800 11px/1.4 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
@@ -84,7 +89,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     .state-body h2 { margin: 0; font-size: clamp(24px, 3vw, 34px); line-height: 1.08; letter-spacing: -.035em; }
     .state-message { margin: 17px 0 0; max-width: 520px; color: var(--muted); line-height: 1.55; }
     .state-detail { min-height: 21px; margin: 14px 0 0; color: var(--ink); font: 12px/1.55 var(--mono); overflow-wrap: anywhere; }
-    .run-result { display: none; grid-template-columns: repeat(3, 1fr); margin-top: 24px; border: 1px solid var(--line); }
+    .run-result { display: none; grid-template-columns: repeat(4, 1fr); margin-top: 24px; border: 1px solid var(--line); }
     .run-result[data-visible="true"] { display: grid; }
     .metric { padding: 15px; border-right: 1px solid var(--line); }
     .metric:last-child { border-right: 0; }
@@ -130,6 +135,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
       .step-name { margin-top: 12px; }
       .section-heading { align-items: flex-start; flex-direction: column; }
       .scope-row { grid-template-columns: 76px 1fr; }
+      .gate-row { grid-template-columns: 1fr; gap: 6px; }
       .actions { padding: 15px; }
       .button { width: 100%; }
       .button-danger { margin-left: 0; }
@@ -184,6 +190,10 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
             <div class="scope-row"><dt>Git</dt><dd>No commit · no push · no merge · no deploy</dd></div>
           </dl>
           <p class="scope-note">Codex sends the bounded build context to OpenAI. Credentials, generated source, diff, and proof are not uploaded to the TraceForge website.</p>
+          <div class="gate-compare" aria-label="Verification gate comparison">
+            <div class="gate-row"><span>Local gate</span><strong>13 focused candidate tests + 6 differential scenarios</strong></div>
+            <div class="gate-row"><span>Source champion gate</span><strong>42 candidate-safe tests + 4 separate replay guards</strong></div>
+          </div>
         </section>
 
         <section class="state-panel" aria-labelledby="state-title">
@@ -194,6 +204,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
             <p class="state-detail" id="state-detail"></p>
             <div class="error" id="error" data-visible="false"></div>
             <div class="run-result" id="run-result" data-visible="false">
+              <div class="metric"><strong id="metric-tests">—</strong><span>Focused tests passed</span></div>
               <div class="metric"><strong id="metric-scenarios">—</strong><span>Scenarios passed</span></div>
               <div class="metric"><strong id="metric-assertions">—</strong><span>Assertions passed</span></div>
               <div class="metric"><strong id="metric-mismatches">—</strong><span>Mismatches</span></div>
@@ -267,6 +278,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
       const result = byId("run-result");
       result.dataset.visible = snapshot.result ? "true" : "false";
       if (snapshot.result) {
+        byId("metric-tests").textContent = snapshot.result.testsPassed + "/" + snapshot.result.testsTotal;
         byId("metric-scenarios").textContent = snapshot.result.scenariosPassed + "/" + snapshot.result.scenariosTotal;
         byId("metric-assertions").textContent = snapshot.result.assertionsPassed + "/" + snapshot.result.assertionCount;
         byId("metric-mismatches").textContent = String(snapshot.result.mismatchCount);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
+  getRuntimeCapabilities,
   getMigration,
   getMigrationArtifacts,
   getMigrationProof,
@@ -17,6 +18,7 @@ import {
   type MigrationCandidate,
   type MigrationState,
   type ProofBundle,
+  type ReleaseIdentity,
 } from './migration-types'
 
 const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: string }> = {
@@ -40,7 +42,7 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.4'
+const localRunnerTag = 'local-runner-v0.1.5'
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
 
 const localRunnerCommand = `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
@@ -67,6 +69,13 @@ function formatTime(value?: string): string {
   if (!value) return 'Pending'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString([], { hour12: false })
+}
+
+function releaseLabel(release: ReleaseIdentity): string {
+  const version = release.version.startsWith('local-runner-')
+    ? `Local Runner ${release.version.slice('local-runner-'.length)}`
+    : release.version
+  return `Release ${release.sha.slice(0, 7)} · ${version}`
 }
 
 function formatBytes(value?: number): string {
@@ -413,6 +422,7 @@ export default function App() {
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
   const [localRunnerOpen, setLocalRunnerOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [releaseIdentity, setReleaseIdentity] = useState<ReleaseIdentity>()
   const subscription = useRef<(() => void) | undefined>(undefined)
   const evidenceDialogRef = useRef<HTMLDialogElement>(null)
   const localRunnerDialogRef = useRef<HTMLDialogElement>(null)
@@ -426,6 +436,18 @@ export default function App() {
   const latestEvents = useMemo(() => [...state.events].reverse(), [state.events])
 
   useEffect(() => () => subscription.current?.(), [])
+
+  useEffect(() => {
+    let active = true
+    void getRuntimeCapabilities()
+      .then((capabilities) => {
+        if (active) setReleaseIdentity(capabilities.release)
+      })
+      .catch(() => {
+        if (active) setReleaseIdentity(undefined)
+      })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     const dialog = evidenceDialogRef.current
@@ -645,6 +667,19 @@ export default function App() {
         </div>
       </div>
 
+      <footer className="release-identity" role="contentinfo" aria-label="Deployed release identity">
+        <span>API-attested deployment</span>
+        <div>
+          <strong title={releaseIdentity?.sha}>
+            {releaseIdentity ? releaseLabel(releaseIdentity) : 'Release identity unavailable'}
+          </strong>
+          <small>
+            {releaseIdentity ? `Built ${formatTime(releaseIdentity.builtAt)}` : 'Inspect the health endpoint before relying on this deployment.'}
+          </small>
+        </div>
+        <a href="/api/health" target="_blank" rel="noreferrer">Inspect /api/health ↗</a>
+      </footer>
+
       <dialog
         ref={localRunnerDialogRef}
         className="runner-dialog"
@@ -693,6 +728,10 @@ export default function App() {
                 <p className="runner-prerequisites">
                   Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.
                 </p>
+                <div className="runner-gate-compare" aria-label="Verification gate comparison">
+                  <div><span>Local gate</span><strong>13 focused candidate tests + 6 differential scenarios</strong></div>
+                  <div><span>Source champion gate</span><strong>42 candidate-safe tests + 4 separate replay guards</strong></div>
+                </div>
                 <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">
                   {copyStatus === 'copied'
                     ? 'Command copied. Run it in a terminal; the runner opens its localhost confirmation page.'

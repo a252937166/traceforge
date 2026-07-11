@@ -438,6 +438,8 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
         diffDigest: result.proof.candidate.diffDigest,
         threadId: result.threadId,
         model: result.proof.codex.model,
+        testsPassed: result.proof.verification.tests?.passed ?? 0,
+        testsTotal: result.proof.verification.tests?.candidateSafeTotal ?? 0,
         scenariosPassed: suite?.summary.passed ?? 0,
         scenariosTotal: suite?.summary.total ?? 0,
         assertionsPassed: assertionCount - mismatchCount,

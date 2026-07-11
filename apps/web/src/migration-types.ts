@@ -113,6 +113,13 @@ export type RuntimeCapabilities = {
   gpt56Configured: boolean
   codexConfigured: boolean
   boundary: string
+  release?: ReleaseIdentity
+}
+
+export type ReleaseIdentity = {
+  sha: string
+  version: string
+  builtAt: string
 }
 
 export type ProofBundle = {

@@ -231,7 +231,7 @@ export async function startLocalRunnerServer(
           nonce,
           eyebrow: "Fresh proof bundle",
           title: result.summary.status === "PASSED" ? "Passing local proof" : "Failed local proof",
-          description: "Host-issued evidence with command exit codes and recomputable digests. Raw command output is intentionally excluded.",
+          description: "Host-issued evidence from 13 focused candidate tests and six differential scenarios, with command exit codes and recomputable digests. The source champion gate separately contains 42 candidate-safe tests and four replay guards. Raw command output is intentionally excluded.",
           content: proofJson,
           rawHref: "/api/proof?download=1",
           rawLabel: "Open raw JSON",
