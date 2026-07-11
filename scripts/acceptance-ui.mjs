@@ -54,6 +54,8 @@ async function buildAndReadStaticContract() {
     "MIGRATION LOOM",
     "Replay a verified run",
     "Host-only proof",
+    "Build live with my Codex",
+    "local-runner-v0.1.0",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -140,10 +142,15 @@ async function runIncrementalBrowserAcceptance(webBase) {
   try {
     await page.goto(webBase, { waitUntil: "networkidle" });
     const recordedMode = page.getByRole("radio", { name: /Replay a verified run/ });
-    const liveMode = page.getByRole("radio", { name: /New live AI run/ });
+    const localRunnerCta = page.getByRole("button", { name: /Build live with my Codex/ });
     const judgeCta = page.getByRole("button", { name: "Run the verified migration", exact: true });
     assert.equal(await recordedMode.isChecked(), true, "the public judge demo must be selected by default");
-    assert.equal(await liveMode.isDisabled(), true, "the unsecured public deployment must keep fresh Live AI locked");
+    assert.equal(
+      await page.getByRole("radio", { name: /New live AI run/ }).count(),
+      0,
+      "the public deployment must not expose an unusable fresh Live AI radio",
+    );
+    assert.equal(await localRunnerCta.isEnabled(), true, "the optional Local Runner launcher must be actionable");
     assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
@@ -159,6 +166,15 @@ async function runIncrementalBrowserAcceptance(webBase) {
       1,
       "the public demo must link to its source live-run evidence",
     );
+
+    await localRunnerCta.click();
+    const runnerDialog = page.getByRole("dialog", { name: "Build live with your local Codex." });
+    await runnerDialog.waitFor({ state: "visible" });
+    assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
+    assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.0/);
+    await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
+    await runnerDialog.waitFor({ state: "hidden" });
 
     await judgeCta.click();
     await page.waitForFunction(
@@ -302,10 +318,15 @@ async function runIncrementalBrowserAcceptance(webBase) {
     });
     await mobile.goto(webBase, { waitUntil: "networkidle" });
     const mobileRecordedMode = mobile.getByRole("radio", { name: /Replay a verified run/ });
-    const mobileLiveMode = mobile.getByRole("radio", { name: /New live AI run/ });
+    const mobileLocalRunnerCta = mobile.getByRole("button", { name: /Build live with my Codex/ });
     const mobileJudgeCta = mobile.getByRole("button", { name: "Run the verified migration", exact: true });
     assert.equal(await mobileRecordedMode.isChecked(), true, "mobile must default to the actionable judge demo");
-    assert.equal(await mobileLiveMode.isDisabled(), true, "mobile must keep the unsecured Live AI trigger locked");
+    assert.equal(
+      await mobile.getByRole("radio", { name: /New live AI run/ }).count(),
+      0,
+      "mobile must not render an unusable fresh Live AI radio",
+    );
+    assert.equal(await mobileLocalRunnerCta.isEnabled(), true, "mobile must expose the optional Local Runner launcher");
     const mobileCtaBox = await mobileJudgeCta.boundingBox();
     assert.ok(mobileCtaBox, "mobile judge CTA must be rendered");
     assert.ok(
@@ -358,7 +379,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
       finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
       initialExperience: {
         selectedMode: await recordedMode.getAttribute("value"),
-        liveAiLocked: await liveMode.isDisabled(),
+        publicFreshLiveAiTriggerAbsent: true,
+        localRunnerAvailable: await localRunnerCta.isEnabled(),
         desktopCtaBox,
         mobileCtaBox,
         evidenceLinkVisible: true,

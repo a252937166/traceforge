@@ -50,6 +50,20 @@ Expected result:
 }
 ```
 
+## Run the build with your own Codex
+
+Reviewers can run the bounded **Build + Verify** stages with their own local Codex sign-in. The public site copies one pinned command; that command opens a loopback-only confirmation page and executes nothing until the reviewer approves the disclosed scope.
+
+macOS or Linux:
+
+```bash
+RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.0 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run
+```
+
+The resulting provenance is explicit: GPT-5.6 archaeology is recorded source evidence, while the `gpt-5.6-sol` Codex build, post-turn verification-only input, deterministic host verification, diff, and proof are fresh on the reviewer's machine. The Runner uses a dedicated ChatGPT sign-in, never reads global `~/.codex/auth.json`, permits one candidate file to change, and disables agent command network and Git publication operations.
+
+Requires Node.js `22.5+`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. A public browser cannot silently start local Codex, so the terminal launch is required on first use. See [docs/local-runner.md](docs/local-runner.md) for Windows, exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
+
 ## Run it
 
 Requires Node.js 22.5 or newer and pnpm 10.33.2. Node 22 is recommended because the API uses `node:sqlite`.

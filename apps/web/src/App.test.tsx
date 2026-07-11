@@ -205,17 +205,18 @@ describe('TraceForge Migration Loom', () => {
     expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })
 
-  it('offers three mutually explicit execution modes', () => {
+  it('keeps replay as the default and offers an optional local Codex build', () => {
     render(<App />)
 
-    expect(screen.getByRole('radio', { name: /New live AI run/i })).not.toBeChecked()
     expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /Host-only proof/ })).not.toBeChecked()
     expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual([
       'recorded-replay',
       'deterministic-only',
-      'live-ai',
     ])
+    expect(screen.queryByRole('radio', { name: /New live AI run/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Build live with my Codex/i })).toBeEnabled()
+    expect(screen.getByText('Recorded GPT-5.6 · local Codex · fresh local proof')).toBeInTheDocument()
     expect(screen.getByText(/No model call is claimed during replay/)).toBeInTheDocument()
     expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
@@ -225,42 +226,42 @@ describe('TraceForge Migration Loom', () => {
     )
   })
 
-  it('stops a failed live run without silently substituting another mode', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input) === '/api/health'
-      ? jsonResponse({
-          codexConfigured: true,
-          codexStatus: { configured: true },
-          gpt56Status: { configured: true },
-        })
-      : jsonResponse({ error: { code: 'MODEL_UNAVAILABLE', message: 'GPT-5.6 is unavailable.' } }, 503))
-    vi.stubGlobal('fetch', fetchMock)
+  it('opens a truthful pinned Local Runner launcher and keeps replay available', async () => {
     render(<App />)
+    const user = userEvent.setup()
+    const clipboard = vi.spyOn(navigator.clipboard, 'writeText')
 
-    await userEvent.click(screen.getByRole('radio', { name: /New live AI run/i }))
-    await userEvent.click(screen.getByRole('button', { name: 'Start live AI migration' }))
+    await user.click(screen.getByRole('radio', { name: /Host-only proof/ }))
+    await user.click(screen.getByRole('button', { name: /Build live with my Codex/i }))
 
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('GPT-5.6 is unavailable.')
-    expect(alert).toHaveTextContent('no recording or deterministic result was substituted')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/migrations')).toBe(true)
-    expect(screen.getByText('No proof issued')).toBeInTheDocument()
-  })
+    const dialog = screen.getByRole('dialog', { name: 'Build live with your local Codex.' })
+    expect(document.documentElement).toHaveClass('runner-modal-open')
+    expect(dialog).toHaveTextContent('The public page cannot start or inspect a local process.')
+    expect(dialog).toHaveTextContent('Authentication stays local.')
+    expect(dialog).toHaveTextContent('This public page cannot read tokens, local files, Codex history, generated source, or proof contents.')
+    expect(within(dialog).getByText('Recorded GPT-5.6 evidence')).toBeInTheDocument()
+    expect(within(dialog).getByText('Local Codex · live')).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Digest-verified contract + failed proofs')
+    expect(dialog).toHaveTextContent('one incomplete candidate')
+    expect(dialog).toHaveTextContent('temporary writer workspace')
+    expect(dialog).toHaveTextContent('Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.')
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.0/)).toBeInTheDocument()
 
-  it('disables Live AI when the deployment health says either adapter is unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
-      codexConfigured: false,
-      codexStatus: { configured: false, truthfulBoundary: 'Codex execution is disabled.' },
-      gpt56Status: { configured: false, truthfulBoundary: 'GPT-5.6 archaeology is disabled.' },
-    })))
-    render(<App />)
+    await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
+      'RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.0 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run',
+    ))
+    expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
-    const live = screen.getByRole('radio', { name: /New live AI run/i })
-    await waitFor(() => expect(live).toBeDisabled())
-    expect(screen.getByText('Fresh run requires secured model access')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('tab', { name: 'Windows PowerShell' }))
+    expect(within(dialog).getByText(/\$ErrorActionPreference='Stop'.*git clone --filter=blob:none --branch local-runner-v0\.1\.0/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('tab', { name: 'Windows PowerShell' })).toHaveAttribute('aria-selected', 'true')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Continue with verified replay' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Build live with your local Codex.' })).not.toBeInTheDocument())
+    expect(document.documentElement).not.toHaveClass('runner-modal-open')
     expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
     expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
-    expect(live.closest('label')).toHaveAttribute('title', expect.stringContaining('Codex execution is disabled.'))
   })
 
   it('posts recorded-replay explicitly and exposes its original timestamp', async () => {

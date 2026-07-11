@@ -21,7 +21,8 @@ html {
   scroll-behavior: smooth;
 }
 
-html.evidence-modal-open {
+html.evidence-modal-open,
+html.runner-modal-open {
   overflow: hidden;
 }
 
@@ -293,6 +294,88 @@ pre,
 .mode-selector small {
   color: color-mix(in srgb, var(--graphite) 60%, transparent);
   font-size: 0.72rem;
+}
+
+.local-runner-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 14px 72px 14px 20px;
+  border: 0;
+  background: color-mix(in srgb, var(--cobalt) 4%, var(--surface));
+  color: var(--graphite);
+  text-align: left;
+  cursor: pointer;
+}
+
+.local-runner-entry:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cobalt) 10%, var(--surface));
+}
+
+.local-runner-entry::after {
+  position: absolute;
+  right: 14px;
+  bottom: -1px;
+  left: 14px;
+  height: 4px;
+  background: var(--cobalt);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 160ms ease;
+}
+
+.local-runner-entry:hover:not(:disabled)::after,
+.local-runner-entry:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.local-runner-sigil {
+  display: grid !important;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid var(--cobalt);
+  color: var(--cobalt);
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.local-runner-entry > span:not(.local-runner-sigil) {
+  display: grid;
+  gap: 2px;
+}
+
+.local-runner-entry strong {
+  color: var(--cobalt);
+  font-size: 0.92rem;
+}
+
+.local-runner-entry small {
+  color: color-mix(in srgb, var(--graphite) 60%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.local-runner-entry em {
+  position: absolute;
+  top: 9px;
+  right: 12px;
+  padding: 2px 5px;
+  border: 1px solid var(--cobalt);
+  color: var(--cobalt);
+  font-family: ui-monospace, monospace;
+  font-size: 0.52rem;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .mode-disclosure {
@@ -1152,6 +1235,385 @@ pre,
   font-size: 0.64rem;
 }
 
+.runner-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--graphite);
+  background: var(--surface);
+  color: var(--graphite);
+  box-shadow: 0 30px 96px color-mix(in srgb, var(--graphite) 38%, transparent);
+  overscroll-behavior: contain;
+}
+
+.runner-dialog::backdrop {
+  background: color-mix(in srgb, var(--graphite) 68%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.runner-dialog-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100dvh - 34px);
+}
+
+.runner-dialog-shell > header {
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  padding-left: 24px;
+  border-bottom: 1px solid var(--graphite);
+  background: var(--surface);
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.runner-dialog-shell > header::before {
+  width: 9px;
+  height: 9px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--cobalt);
+  content: "";
+}
+
+.runner-dialog-shell > header > span {
+  margin-right: auto;
+}
+
+.runner-dialog-shell > header button {
+  width: 64px;
+  min-height: 64px;
+  border: 0;
+  border-left: 1px solid var(--graphite);
+  background: transparent;
+  color: var(--graphite);
+  font-size: 1.7rem;
+  cursor: pointer;
+}
+
+.runner-dialog-shell > header button:hover {
+  background: var(--mist);
+}
+
+.runner-dialog-content {
+  min-width: 0;
+  padding: clamp(26px, 4vw, 44px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.runner-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.62fr);
+  align-items: end;
+  gap: 10px clamp(28px, 5vw, 64px);
+}
+
+.runner-intro > span,
+.runner-launch-heading span,
+.runner-boundaries-heading > span {
+  grid-column: 1 / -1;
+  color: var(--cobalt);
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runner-intro h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.runner-intro p {
+  margin: 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--cobalt);
+  color: color-mix(in srgb, var(--graphite) 72%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.62;
+}
+
+.runner-provenance {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 34px 0 0;
+  padding: 0;
+  border: 1px solid var(--graphite);
+  list-style: none;
+}
+
+.runner-provenance li {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 112px;
+  padding: 17px 18px;
+  border-right: 1px solid var(--rule);
+}
+
+.runner-provenance li:last-child {
+  border-right: 0;
+}
+
+.runner-provenance li:not(:last-child)::after {
+  position: absolute;
+  z-index: 1;
+  top: 49%;
+  right: -9px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--cobalt);
+  content: "→";
+  font-family: ui-monospace, monospace;
+  font-size: 0.62rem;
+}
+
+.runner-provenance small {
+  color: var(--cobalt);
+  font-family: ui-monospace, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.runner-provenance strong {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.runner-provenance span {
+  color: color-mix(in srgb, var(--graphite) 58%, transparent);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.runner-launch,
+.runner-boundaries {
+  margin-top: 28px;
+  border-top: 1px solid var(--graphite);
+}
+
+.runner-launch-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0 16px;
+}
+
+.runner-launch-heading > div,
+.runner-boundaries-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.runner-launch h3,
+.runner-boundaries h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+}
+
+.runner-launch-heading a {
+  flex: 0 0 auto;
+  color: var(--cobalt);
+  font-size: 0.7rem;
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+.runner-platform-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(460px, 100%);
+  border: 1px solid var(--graphite);
+  border-bottom: 0;
+}
+
+.runner-platform-tabs button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-right: 1px solid var(--graphite);
+  background: transparent;
+  color: color-mix(in srgb, var(--graphite) 62%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.runner-platform-tabs button:last-child {
+  border-right: 0;
+}
+
+.runner-platform-tabs button.is-selected {
+  background: var(--graphite);
+  color: var(--surface);
+}
+
+.runner-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  border: 1px solid var(--graphite);
+  background: var(--graphite);
+  color: var(--surface);
+}
+
+.runner-command code {
+  min-width: 0;
+  padding: 18px;
+  overflow-wrap: anywhere;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.runner-command button {
+  min-width: 120px;
+  padding: 10px 16px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--surface) 46%, transparent);
+  background: var(--cobalt);
+  color: var(--surface);
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.runner-command button:hover {
+  background: color-mix(in srgb, var(--cobalt) 72%, var(--graphite));
+}
+
+.runner-copy-status {
+  min-height: 20px;
+  margin: 8px 0 0;
+  color: color-mix(in srgb, var(--graphite) 58%, transparent);
+  font-family: ui-monospace, monospace;
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.runner-prerequisites {
+  margin: 10px 0 0;
+  color: color-mix(in srgb, var(--graphite) 76%, transparent);
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.runner-copy-status.status-copied {
+  color: var(--cobalt);
+}
+
+.runner-copy-status.status-failed {
+  color: var(--signal);
+}
+
+.runner-boundaries-heading {
+  padding: 20px 0 16px;
+}
+
+.runner-boundaries dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--rule);
+}
+
+.runner-boundaries dl > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.runner-boundaries dl > div:nth-child(2n) {
+  border-right: 0;
+}
+
+.runner-boundaries dl > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.runner-boundaries dt {
+  color: var(--cobalt);
+  font-family: ui-monospace, monospace;
+  font-size: 0.6rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.runner-boundaries dd {
+  margin: 0;
+  color: color-mix(in srgb, var(--graphite) 72%, transparent);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.runner-boundaries > p {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--cobalt);
+  background: var(--mist);
+  color: color-mix(in srgb, var(--graphite) 72%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.runner-boundaries > p strong {
+  color: var(--graphite);
+}
+
+.runner-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.runner-actions .primary-action {
+  min-width: 190px;
+}
+
+.secondary-action {
+  min-height: 50px;
+  padding: 10px 18px;
+  border: 1px solid var(--graphite);
+  background: transparent;
+  color: var(--graphite);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-action:hover {
+  background: var(--mist);
+}
+
 .evidence-dialog {
   position: fixed;
   inset: 0 0 0 auto;
@@ -1374,6 +1836,44 @@ pre,
     border-left: 0;
   }
 
+  .runner-dialog {
+    width: 100vw;
+    max-height: 100dvh;
+    border: 0;
+  }
+
+  .runner-dialog-shell {
+    max-height: 100dvh;
+  }
+
+  .runner-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .runner-intro > span {
+    grid-column: auto;
+  }
+
+  .runner-intro p {
+    margin-top: 8px;
+  }
+
+  .runner-provenance {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .runner-provenance li:nth-child(2) {
+    border-right: 0;
+  }
+
+  .runner-provenance li:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .runner-provenance li:nth-child(2)::after {
+    display: none;
+  }
+
   .mode-selector {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1381,6 +1881,10 @@ pre,
   .mode-selector label {
     min-height: 66px;
     border-bottom: 1px solid var(--rule);
+  }
+
+  .local-runner-entry {
+    min-height: 66px;
   }
 
   .mode-selector label:first-child {
@@ -1403,6 +1907,23 @@ pre,
     left: -1px;
     width: 4px;
     height: auto;
+  }
+
+  .local-runner-entry::after {
+    top: 8px;
+    right: auto;
+    bottom: 8px;
+    left: -1px;
+    width: 4px;
+    height: auto;
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+
+  .local-runner-entry:hover:not(:disabled)::after,
+  .local-runner-entry:focus-visible::after {
+    transform: scaleY(1);
+    transform-origin: top;
   }
 
   .mode-disclosure {
@@ -1435,6 +1956,95 @@ pre,
 @media (max-width: 540px) {
   .migration-workbench {
     padding: 0 12px 40px;
+  }
+
+  .runner-dialog-shell > header {
+    min-height: 56px;
+    padding-left: 18px;
+  }
+
+  .runner-dialog-shell > header button {
+    width: 56px;
+    min-height: 56px;
+  }
+
+  .runner-dialog-content {
+    padding: 24px 18px 30px;
+  }
+
+  .runner-intro h2 {
+    font-size: clamp(2rem, 11vw, 3rem);
+  }
+
+  .runner-provenance {
+    grid-template-columns: 1fr;
+    margin-top: 26px;
+  }
+
+  .runner-provenance li,
+  .runner-provenance li:nth-child(2) {
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .runner-provenance li:last-child {
+    border-bottom: 0;
+  }
+
+  .runner-provenance li::after {
+    display: none !important;
+  }
+
+  .runner-launch-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .runner-platform-tabs {
+    width: 100%;
+  }
+
+  .runner-platform-tabs button {
+    padding-right: 8px;
+    padding-left: 8px;
+    font-size: 0.65rem;
+  }
+
+  .runner-command {
+    grid-template-columns: 1fr;
+  }
+
+  .runner-command button {
+    min-height: 46px;
+    border-top: 1px solid color-mix(in srgb, var(--surface) 46%, transparent);
+    border-left: 0;
+  }
+
+  .runner-boundaries dl {
+    grid-template-columns: 1fr;
+  }
+
+  .runner-boundaries dl > div,
+  .runner-boundaries dl > div:nth-child(2n),
+  .runner-boundaries dl > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .runner-boundaries dl > div:last-child {
+    border-bottom: 0;
+  }
+
+  .runner-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .runner-actions .primary-action,
+  .runner-actions .secondary-action {
+    width: 100%;
   }
 
   .evidence-dialog-shell > header {
@@ -1499,6 +2109,36 @@ pre,
   .mode-selector label {
     min-height: 58px;
     padding: 9px 10px;
+  }
+
+  .mode-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-selector label:first-child,
+  .mode-selector label:nth-child(2),
+  .local-runner-entry {
+    grid-column: 1;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .local-runner-entry {
+    min-height: 62px;
+    padding: 10px 62px 10px 10px;
+  }
+
+  .local-runner-entry strong {
+    font-size: 0.78rem;
+  }
+
+  .local-runner-entry small {
+    font-size: 0.62rem;
+  }
+
+  .local-runner-entry em {
+    top: 6px;
+    right: 7px;
   }
 
   .mode-selector label.is-unavailable::before {

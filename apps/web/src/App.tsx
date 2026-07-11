@@ -4,7 +4,6 @@ import {
   getMigration,
   getMigrationArtifacts,
   getMigrationProof,
-  getRuntimeCapabilities,
   startMigration,
   subscribeToMigration,
   type MigrationTransport,
@@ -18,7 +17,6 @@ import {
   type MigrationCandidate,
   type MigrationState,
   type ProofBundle,
-  type RuntimeCapabilities,
 } from './migration-types'
 
 const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: string }> = {
@@ -39,8 +37,36 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
   },
 }
 
-const modeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only', 'live-ai']
+const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
+const localRunnerRepository = 'a252937166/traceforge'
+const localRunnerTag = 'local-runner-v0.1.0'
+const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
+
+type RunnerPlatform = 'unix' | 'windows'
+
+const localRunnerCommands: Record<RunnerPlatform, string> = {
+  unix: `RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && corepack pnpm install --frozen-lockfile && corepack pnpm local:run`,
+  windows: `$ErrorActionPreference='Stop'; $RunDir=Join-Path $env:TEMP ('traceforge-'+[guid]::NewGuid()); git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git $RunDir; if($LASTEXITCODE){exit $LASTEXITCODE}; Set-Location $RunDir; corepack pnpm install --frozen-lockfile; if($LASTEXITCODE){exit $LASTEXITCODE}; corepack pnpm local:run`,
+}
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  textarea.remove()
+  if (!copied) throw new Error('Clipboard access is unavailable.')
+}
 
 function formatTime(value?: string): string {
   if (!value) return 'Pending'
@@ -390,9 +416,12 @@ export default function App() {
   const [error, setError] = useState<string>()
   const [starting, setStarting] = useState(false)
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
-  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities>()
+  const [localRunnerOpen, setLocalRunnerOpen] = useState(false)
+  const [runnerPlatform, setRunnerPlatform] = useState<RunnerPlatform>('unix')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const subscription = useRef<(() => void) | undefined>(undefined)
   const evidenceDialogRef = useRef<HTMLDialogElement>(null)
+  const localRunnerDialogRef = useRef<HTMLDialogElement>(null)
 
   const active = state.job?.status === 'queued' || state.job?.status === 'running'
   const selectedMode = state.job?.executionMode ?? executionMode
@@ -426,23 +455,44 @@ export default function App() {
   }, [inspectedEvent])
 
   useEffect(() => {
-    let current = true
-    void getRuntimeCapabilities()
-      .then((capabilities) => {
-        if (current) setRuntimeCapabilities(capabilities)
-      })
-      .catch(() => {
-        if (current) {
-          setRuntimeCapabilities({
-            liveAiAvailable: false,
-            gpt56Configured: false,
-            codexConfigured: false,
-            boundary: 'Runtime health could not be verified, so Live AI remains unavailable.',
-          })
-        }
-      })
-    return () => { current = false }
-  }, [])
+    const dialog = localRunnerDialogRef.current
+    if (!dialog) return
+
+    if (localRunnerOpen) {
+      if (!dialog.open) {
+        if (typeof dialog.showModal === 'function') dialog.showModal()
+        else dialog.setAttribute('open', '')
+      }
+      document.documentElement.classList.add('runner-modal-open')
+    } else {
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') dialog.close()
+        else dialog.removeAttribute('open')
+      }
+      document.documentElement.classList.remove('runner-modal-open')
+    }
+
+    return () => document.documentElement.classList.remove('runner-modal-open')
+  }, [localRunnerOpen])
+
+  const openLocalRunner = () => {
+    setCopyStatus('idle')
+    setLocalRunnerOpen(true)
+  }
+
+  const continueWithReplay = () => {
+    setExecutionMode('recorded-replay')
+    setLocalRunnerOpen(false)
+  }
+
+  const copyRunnerCommand = async () => {
+    try {
+      await copyText(localRunnerCommands[runnerPlatform])
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
 
   const refreshOutputs = async (jobId: string) => {
     const [jobResult, artifactResult] = await Promise.allSettled([
@@ -519,37 +569,42 @@ export default function App() {
           <p>GPT-5.6 proposes and challenges rules from evidence. Codex rebuilds the bounded workflow. An independent host verifier proves what matches—and exposes what does not.</p>
         </div>
         <div className="mode-selector" aria-label="Execution mode">
-          {modeOrder.map((mode) => {
+          {publicModeOrder.map((mode) => {
             const copy = modeCopy[mode]
-            const liveUnavailable = mode === 'live-ai' && runtimeCapabilities?.liveAiAvailable === false
             return (
               <label
                 key={mode}
-                className={[
-                  executionMode === mode ? 'is-selected' : '',
-                  liveUnavailable ? 'is-unavailable' : '',
-                ].filter(Boolean).join(' ')}
-                title={liveUnavailable ? runtimeCapabilities.boundary : undefined}
+                className={executionMode === mode ? 'is-selected' : ''}
               >
                 <input
                   type="radio"
                   name="execution-mode"
                   value={mode}
                   checked={executionMode === mode}
-                  disabled={active || starting || liveUnavailable}
+                  disabled={active || starting}
                   onChange={() => setExecutionMode(mode)}
                 />
                 <span>
                   <strong>{copy.title}</strong>
-                  <small>{liveUnavailable
-                    ? 'Fresh run requires secured model access'
-                    : mode === 'live-ai' && runtimeCapabilities === undefined
-                      ? 'Checking secured runtime…'
-                      : copy.label}</small>
+                  <small>{copy.label}</small>
                 </span>
               </label>
             )
           })}
+          <button
+            className="local-runner-entry"
+            type="button"
+            onClick={openLocalRunner}
+            disabled={active || starting}
+            aria-haspopup="dialog"
+          >
+            <span className="local-runner-sigil" aria-hidden="true">↗</span>
+            <span>
+              <strong>Build live with my Codex</strong>
+              <small>Recorded GPT-5.6 · local Codex · fresh local proof</small>
+            </span>
+            <em>local</em>
+          </button>
         </div>
         <div className="run-controls">
           <button className="primary-action" type="button" onClick={begin} disabled={active || starting}>
@@ -595,6 +650,98 @@ export default function App() {
           <ArtifactDock artifacts={state.artifacts} />
         </div>
       </div>
+
+      <dialog
+        ref={localRunnerDialogRef}
+        className="runner-dialog"
+        aria-labelledby="runner-dialog-title"
+        aria-describedby="runner-dialog-description"
+        onClose={() => setLocalRunnerOpen(false)}
+        onCancel={() => setLocalRunnerOpen(false)}
+      >
+        {localRunnerOpen && (
+          <div className="runner-dialog-shell">
+            <header>
+              <span>TraceForge / Local Runner</span>
+              <button type="button" onClick={() => setLocalRunnerOpen(false)} aria-label="Close Local Runner launcher">×</button>
+            </header>
+            <div className="runner-dialog-content">
+              <div className="runner-intro">
+                <span>Optional local build</span>
+                <h2 id="runner-dialog-title">Build live with your local Codex.</h2>
+                <p id="runner-dialog-description">
+                  The public page cannot start or inspect a local process. Run one pinned command to open a localhost confirmation page, then approve the bounded build on your machine.
+                </p>
+              </div>
+
+              <ol className="runner-provenance" aria-label="Local run provenance">
+                <li><small>Source</small><strong>Recorded GPT-5.6 evidence</strong><span>Digest-verified contract + failed proofs</span></li>
+                <li><small>Builder</small><strong>Local Codex · live</strong><span>Runner-owned Codex sign-in</span></li>
+                <li><small>Verifier</small><strong>Local host · live</strong><span>Fresh post-turn input</span></li>
+                <li><small>Output</small><strong>Fresh local proof</strong><span>Diff + scenarios + digests</span></li>
+              </ol>
+
+              <section className="runner-launch" aria-labelledby="runner-launch-title">
+                <div className="runner-launch-heading">
+                  <div><span>First run</span><h3 id="runner-launch-title">Launch the pinned open-source runner</h3></div>
+                  <a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect {localRunnerTag} ↗</a>
+                </div>
+                <div className="runner-platform-tabs" role="tablist" aria-label="Local Runner platform">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={runnerPlatform === 'unix'}
+                    className={runnerPlatform === 'unix' ? 'is-selected' : ''}
+                    onClick={() => { setRunnerPlatform('unix'); setCopyStatus('idle') }}
+                  >macOS / Linux</button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={runnerPlatform === 'windows'}
+                    className={runnerPlatform === 'windows' ? 'is-selected' : ''}
+                    onClick={() => { setRunnerPlatform('windows'); setCopyStatus('idle') }}
+                  >Windows PowerShell</button>
+                </div>
+                <div className="runner-command">
+                  <code>{localRunnerCommands[runnerPlatform]}</code>
+                  <button type="button" onClick={() => void copyRunnerCommand()}>
+                    {copyStatus === 'copied' ? 'Copied' : 'Copy command'}
+                  </button>
+                </div>
+                <p className="runner-prerequisites">
+                  Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.
+                </p>
+                <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">
+                  {copyStatus === 'copied'
+                    ? 'Command copied. Run it in a terminal; the runner opens its localhost confirmation page.'
+                    : copyStatus === 'failed'
+                      ? 'Clipboard access is blocked. Select the command above and copy it manually.'
+                      : 'Pinned source · fixed demo fixture · no unversioned latest install'}
+                </p>
+              </section>
+
+              <section className="runner-boundaries" aria-labelledby="runner-boundaries-title">
+                <div className="runner-boundaries-heading">
+                  <span>Before anything runs</span>
+                  <h3 id="runner-boundaries-title">The local confirmation page shows the complete scope.</h3>
+                </div>
+                <dl>
+                  <div><dt>Codex can read</dt><dd>One contract, three failed proofs, disclosed scenarios, and one incomplete candidate.</dd></div>
+                  <div><dt>Codex can write</dt><dd>One candidate file in a temporary writer workspace.</dd></div>
+                  <div><dt>Kept hidden</dt><dd>Legacy source, verifier, tests, and the post-turn verification input.</dd></div>
+                  <div><dt>Disabled</dt><dd>Agent command network, commit, push, merge, and deploy. The Codex service connection remains required.</dd></div>
+                </dl>
+                <p><strong>Authentication stays local.</strong> Codex handles sign-in on this machine. This public page cannot read tokens, local files, Codex history, generated source, or proof contents.</p>
+              </section>
+
+              <div className="runner-actions">
+                <button type="button" className="primary-action" onClick={() => void copyRunnerCommand()}>Copy launch command</button>
+                <button type="button" className="secondary-action" onClick={continueWithReplay}>Continue with verified replay</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </dialog>
 
       <dialog
         ref={evidenceDialogRef}
