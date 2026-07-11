@@ -3,6 +3,7 @@ import { test } from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import { archaeologySchemas } from "../src/behavior-archaeology.js";
 import {
+  commandTestCounts,
   hasEvidenceBoundStockSufficiencyRule,
   reconcileCriticUnknownLifecycle,
   type ContractUnknown,
@@ -62,6 +63,37 @@ test("critic schema requires an explicit resolved and remaining unknown lifecycl
   const missingLifecycle = { ...valid } as Record<string, unknown>;
   delete missingLifecycle.remainingUnknowns;
   assert.equal(validate(missingLifecycle), false);
+});
+
+test("host test-count parser accepts current and legacy Node TAP summaries", () => {
+  assert.deepEqual(
+    commandTestCounts({
+      exitCode: 0,
+      stdout: "ℹ tests 59\nℹ pass 55\nℹ skipped 4\n",
+      stderr: "",
+    }),
+    {
+      testsPassed: 55,
+      testsTotal: 55,
+      testsSkipped: 4,
+      scope: "candidate-safe",
+      source: "live-command-output",
+    },
+  );
+  assert.deepEqual(
+    commandTestCounts({
+      exitCode: 0,
+      stdout: "# tests 46\n# pass 42\n# skipped 4\n",
+      stderr: "",
+    }),
+    {
+      testsPassed: 42,
+      testsTotal: 42,
+      testsSkipped: 4,
+      scope: "candidate-safe",
+      source: "live-command-output",
+    },
+  );
 });
 
 test("host preserves initial blocking metadata while partitioning resolved and out-of-scope unknowns", () => {
