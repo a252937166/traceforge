@@ -262,7 +262,14 @@ export function ProvenanceStrip({ state, mode }: { state: MigrationState; mode: 
         <article className="provenance-node">
           <header><span>HOST·03</span><h2>Verifier</h2></header>
           <dl>
-            <div><dt>Tests</dt><ProvenanceValue value={proof?.hostVerification?.testsPassed === undefined || proof.hostVerification.testsTotal === undefined ? 'Not reported' : `${proof.hostVerification.testsPassed}/${proof.hostVerification.testsTotal}`} /></div>
+            <div><dt>Tests</dt><ProvenanceValue
+              value={proof?.hostVerification?.testsPassed === undefined || proof.hostVerification.testsTotal === undefined
+                ? 'Not reported'
+                : `${proof.hostVerification.testsPassed}/${proof.hostVerification.testsTotal}${proof.hostVerification.testsSkipped ? ` · ${proof.hostVerification.testsSkipped} replay-only` : ''}`}
+              fullValue={proof?.hostVerification?.scope === 'candidate-safe'
+                ? 'Candidate-safe host tests; replay binding guards run in the full release gate.'
+                : undefined}
+            /></div>
             <div><dt>Scenarios</dt><ProvenanceValue value={proof ? `${proof.scenariosPassed}/${proof.scenariosTotal}` : 'Not reported'} /></div>
             <div><dt>Assertions</dt><ProvenanceValue value={proof ? `${proof.assertionsPassed}/${proof.assertionsTotal}` : 'Not reported'} /></div>
           </dl>

@@ -116,6 +116,8 @@ export interface MigrationProofBundle {
   hostVerification?: {
     testsPassed: number;
     testsTotal: number;
+    testsSkipped?: number;
+    scope?: "candidate-safe" | "full-release";
     source: "recorded-command-log" | "live-command-output";
   };
   coverage: {
