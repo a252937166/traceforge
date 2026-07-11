@@ -40,12 +40,16 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 }
 
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
+const repositoryUrl = 'https://github.com/a252937166/traceforge'
 const liveRunEvidenceUrl = 'https://github.com/a252937166/traceforge/tree/main/docs/evidence/live-champion-run'
+const proofVerificationUrl = 'https://github.com/a252937166/traceforge#verify-the-proof-digest-locally'
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.7'
-const localRunnerCommit = 'e2a7bafe88a4a486d650f33faa7fe9a13de45fb4'
+const localRunnerTag = 'local-runner-v0.1.9'
+const localRunnerCommit = 'a2ce8b2394caf5d1491c2b142f99a8421f3cec2d'
 const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
+const localRunnerTagUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
+const localRunnerEvidenceUrl = `https://github.com/${localRunnerRepository}/tree/main/docs/evidence/local-runner-v0.1.9`
 
 const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
 
@@ -268,6 +272,194 @@ function acceptedCandidate(candidates: MigrationCandidate[]): MigrationCandidate
   return [...candidates].reverse().find(({ status }) => status === 'accepted')
 }
 
+function ReleaseEvidenceStrip({ release }: { release?: ReleaseIdentity }) {
+  const productionCommitUrl = release?.sha
+    ? `${repositoryUrl}/commit/${release.sha}`
+    : '/api/health'
+
+  return (
+    <section className="release-evidence-strip" aria-label="Release evidence">
+      <a className="release-evidence-item" href={productionCommitUrl} target="_blank" rel="noreferrer">
+        <small>Production</small>
+        <strong>{release ? release.sha.slice(0, 7) : 'Checking…'}</strong>
+        <span>{release ? `API-attested · ${release.version}` : 'Health manifest pending'}</span>
+      </a>
+      <a className="release-evidence-item" href={`${repositoryUrl}/commit/${localRunnerCommit}`} target="_blank" rel="noreferrer">
+        <small>Pinned runner</small>
+        <strong>v0.1.9 · {localRunnerCommitShort}</strong>
+        <span>Executable source commit · no binary claim</span>
+      </a>
+      <a className="release-evidence-item evidence-pass" href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">
+        <small>Real local run</small>
+        <strong>PASS · 7/7</strong>
+        <span>v0.1.9 · 35/35 assertions · archived</span>
+      </a>
+      <a className="release-evidence-item" href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">
+        <small>Source run</small>
+        <strong>4 GPT · 1 Codex</strong>
+        <span>Recorded model evidence · archived</span>
+      </a>
+      <a className="release-evidence-item" href="/api/health" target="_blank" rel="noreferrer">
+        <small>Deployment</small>
+        <strong>traceforge.axiqo.xyz</strong>
+        <span>Live, mutable health manifest</span>
+      </a>
+    </section>
+  )
+}
+
+function TrustBoundaryDiagram() {
+  return (
+    <div className="boundary-diagram">
+      <article>
+        <span>01 · Public website</span>
+        <h3>Guide + proof replay</h3>
+        <ul>
+          <li>Cannot browse local files</li>
+          <li>Cannot read Codex credentials or history</li>
+          <li>Cannot start a local run by itself</li>
+        </ul>
+      </article>
+      <article>
+        <span>02 · Local Runner</span>
+        <h3>127.0.0.1 handoff</h3>
+        <ul>
+          <li>Runs the fixed demo fixture</li>
+          <li>Shows scope before the writing turn</li>
+          <li>Keeps diff and proof on this machine</li>
+        </ul>
+      </article>
+      <article>
+        <span>03 · Codex</span>
+        <h3>Explicit bounded build</h3>
+        <ul>
+          <li>Authenticates locally</li>
+          <li>Writes one allowlisted candidate file</li>
+          <li>Cannot commit, push, merge, or deploy</li>
+        </ul>
+      </article>
+    </div>
+  )
+}
+
+function CurrentActivity({ state, mode, transport }: {
+  state: MigrationState
+  mode: ExecutionMode
+  transport: MigrationTransport
+}) {
+  const activeStage = migrationStages.find((stage) => state.stages[stage].status === 'active')
+    ?? state.job?.currentStage
+    ?? migrationStages.find((stage) => state.stages[stage].status === 'pending')
+  const latestEvent = state.events[state.events.length - 1]
+  const terminal = state.job?.status === 'passed' || state.job?.status === 'failed'
+
+  return (
+    <div className="run-focus-grid">
+      <article className="current-activity" aria-live="polite">
+        <span>Current activity</span>
+        <h3>{terminal ? (state.job?.status === 'passed' ? 'Proof bundle issued' : 'Run stopped with evidence') : displayTerminology(latestEvent?.title) ?? `Waiting for ${activeStage}`}</h3>
+        <p>{displayTerminology(latestEvent?.detail ?? latestEvent?.payload?.message) ?? modeDisclosure(mode, state)}</p>
+        <dl>
+          <div><dt>Stage</dt><dd>{activeStage ?? state.job?.status ?? 'queued'}</dd></div>
+          <div><dt>Transport</dt><dd>{transportLabel(transport, state)}</dd></div>
+          <div><dt>Run</dt><dd><code>{formatShort(state.job?.id, 24)}</code></dd></div>
+        </dl>
+      </article>
+      <aside className="run-constraints" aria-label="Run boundaries">
+        <span>Boundaries</span>
+        <h3>{mode === 'recorded-replay' ? 'Recorded model work · fresh host proof' : 'Host-only deterministic proof'}</h3>
+        <ul>
+          <li>No local source upload</li>
+          <li>No silent mode substitution</li>
+          <li>Host-issued events only</li>
+          <li>Missing evidence stays unreported</li>
+        </ul>
+      </aside>
+    </div>
+  )
+}
+
+function ProofOutcome({ state, mode, onInspect }: {
+  state: MigrationState
+  mode: ExecutionMode
+  onInspect: (event: MigrationEvent) => void
+}) {
+  const proof = state.proof
+  if (!proof) return null
+  const proofCandidate = proof.candidate
+  const candidateEvent = acceptedCandidate(state.candidates)
+  const candidateId = proofCandidate?.implementationId ?? candidateEvent?.id
+  const changedFiles = proofCandidate?.changedFiles ?? candidateEvent?.changedFiles ?? []
+  const sourceDigest = proofCandidate?.sourceDigest ?? state.artifacts.find(({ kind }) => kind === 'source')?.digest
+  const diffDigest = proofCandidate?.diffDigest ?? state.artifacts.find(({ kind }) => kind === 'diff')?.digest
+  const proofArtifact = state.artifacts.find(({ kind }) => kind === 'proof')
+  const passing = proof.status === 'PASSED' && proof.mismatchCount === 0
+
+  return (
+    <section className="proof-outcome" aria-labelledby="proof-outcome-title">
+      <header className={`proof-verdict ${passing ? 'is-passing' : 'is-failing'}`}>
+        <span>{passing ? 'Integrity checks complete' : 'Evidence preserved · review required'}</span>
+        <div>
+          <h2 id="proof-outcome-title">{proof.status} · {proof.scenariosPassed}/{proof.scenariosTotal} scenarios</h2>
+          <p>{proof.mismatchCount} mismatch{proof.mismatchCount === 1 ? '' : 'es'} · proof {formatDigest(proof.digest)}</p>
+        </div>
+      </header>
+
+      <div className="proof-result-grid">
+        <article>
+          <span>01</span><h3>What changed</h3>
+          <dl>
+            <div><dt>Candidate</dt><dd>{candidateId ?? 'Not reported'}</dd></div>
+            <div><dt>Files</dt><dd>{changedFiles.length}</dd></div>
+            <div><dt>Revisions</dt><dd>{state.candidates.length}</dd></div>
+            <div><dt>Diff</dt><dd title={diffDigest}>{formatDigest(diffDigest)}</dd></div>
+          </dl>
+        </article>
+        <article>
+          <span>02</span><h3>What passed</h3>
+          <dl>
+            <div><dt>Host tests</dt><dd>{proof.hostVerification?.testsPassed === undefined || proof.hostVerification.testsTotal === undefined ? 'Not reported' : `${proof.hostVerification.testsPassed}/${proof.hostVerification.testsTotal}`}</dd></div>
+            <div><dt>Scenarios</dt><dd>{proof.scenariosPassed}/{proof.scenariosTotal}</dd></div>
+            <div><dt>Assertions</dt><dd>{proof.assertionsPassed}/{proof.assertionsTotal}</dd></div>
+            <div><dt>Policy</dt><dd>{proof.mismatchCount === 0 ? 'No mismatch' : `${proof.mismatchCount} mismatches`}</dd></div>
+          </dl>
+        </article>
+        <article>
+          <span>03</span><h3>What is proven</h3>
+          <dl>
+            <div><dt>Source</dt><dd title={sourceDigest}>{formatDigest(sourceDigest)}</dd></div>
+            <div><dt>Diff</dt><dd title={diffDigest}>{formatDigest(diffDigest)}</dd></div>
+            <div><dt>Proof</dt><dd title={proof.digest}>{formatDigest(proof.digest)}</dd></div>
+            <div><dt>Scope</dt><dd>{proof.hostVerification?.scope ?? 'Not reported'}</dd></div>
+          </dl>
+        </article>
+      </div>
+
+      <ul className="verification-checklist" aria-label="Verification results">
+        <li className={proof.digest ? 'verified' : ''}>Proof digest reported</li>
+        <li className={proof.hostVerification ? 'verified' : ''}>Host verification reported</li>
+        <li className={proof.scenariosPassed === proof.scenariosTotal ? 'verified' : ''}>Differential scenarios checked</li>
+        <li className={diffDigest ? 'verified' : ''}>Candidate diff bound</li>
+      </ul>
+
+      <div className="proof-actions">
+        <a className="action-primary" href={proofVerificationUrl} target="_blank" rel="noreferrer">Verify proof</a>
+        {proofArtifact && <a className="action-secondary" href={proofArtifact.downloadUrl} download>Download proof bundle</a>}
+        <a className="action-secondary" href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">Open source evidence</a>
+      </div>
+
+      <div className="proof-detail-stack">
+        <details className="proof-detail"><summary><span>Reasoning and counterexamples</span><small>{state.hypotheses.length} hypotheses</small></summary><HypothesisLoom state={state} /></details>
+        <details className="proof-detail"><summary><span>Differential scenarios</span><small>{proof.scenariosTotal} scenarios</small></summary><ScenarioMatrix state={state} /></details>
+        <details className="proof-detail"><summary><span>Chain of custody</span><small>Server-reported</small></summary><ProvenanceStrip state={state} mode={mode} /></details>
+        <details className="proof-detail"><summary><span>Candidate history</span><small>{state.candidates.length} revisions</small></summary><CandidateHistory state={state} /></details>
+        <details className="proof-detail"><summary><span>Raw run events</span><small>{state.events.length} events</small></summary><EventConsole events={[...state.events].reverse()} onInspect={onInspect} /></details>
+        <details className="proof-detail"><summary><span>Evidence artifacts</span><small>{state.artifacts.length} files</small></summary><ArtifactDock artifacts={state.artifacts} /></details>
+      </div>
+    </section>
+  )
+}
+
 export function ProvenanceStrip({ state, mode }: { state: MigrationState; mode: ExecutionMode }) {
   const proof = state.proof
   const invocations = proof?.modelInvocations ?? []
@@ -423,17 +615,18 @@ export default function App() {
   const [starting, setStarting] = useState(false)
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
   const [localRunnerOpen, setLocalRunnerOpen] = useState(false)
+  const [runnerStep, setRunnerStep] = useState<0 | 1 | 2>(0)
+  const [boundaryOpen, setBoundaryOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [releaseIdentity, setReleaseIdentity] = useState<ReleaseIdentity>()
   const subscription = useRef<(() => void) | undefined>(undefined)
   const evidenceDialogRef = useRef<HTMLDialogElement>(null)
   const localRunnerDialogRef = useRef<HTMLDialogElement>(null)
+  const localRunnerShellRef = useRef<HTMLDivElement>(null)
+  const boundaryDialogRef = useRef<HTMLDialogElement>(null)
 
   const active = state.job?.status === 'queued' || state.job?.status === 'running'
   const selectedMode = state.job?.executionMode ?? executionMode
-  const proofHeadline = state.proof
-    ? `${state.proof.status} · ${state.proof.scenariosPassed}/${state.proof.scenariosTotal} scenarios`
-    : 'No proof issued'
 
   const latestEvents = useMemo(() => [...state.events].reverse(), [state.events])
 
@@ -493,8 +686,40 @@ export default function App() {
     return () => document.documentElement.classList.remove('runner-modal-open')
   }, [localRunnerOpen])
 
+  useEffect(() => {
+    const dialog = boundaryDialogRef.current
+    if (!dialog) return
+
+    if (boundaryOpen) {
+      if (!dialog.open) {
+        if (typeof dialog.showModal === 'function') dialog.showModal()
+        else dialog.setAttribute('open', '')
+      }
+      document.documentElement.classList.add('boundary-modal-open')
+    } else {
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') dialog.close()
+        else dialog.removeAttribute('open')
+      }
+      document.documentElement.classList.remove('boundary-modal-open')
+    }
+
+    return () => document.documentElement.classList.remove('boundary-modal-open')
+  }, [boundaryOpen])
+
+  useEffect(() => {
+    if (!localRunnerOpen) return
+    const headingIds = ['runner-install-title', 'runner-review-title', 'runner-proof-title'] as const
+    const animationFrame = window.requestAnimationFrame(() => {
+      localRunnerShellRef.current?.scrollTo?.({ top: 0, behavior: 'auto' })
+      document.getElementById(headingIds[runnerStep])?.focus()
+    })
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [localRunnerOpen, runnerStep])
+
   const openLocalRunner = () => {
     setCopyStatus('idle')
+    setRunnerStep(0)
     setLocalRunnerOpen(true)
   }
 
@@ -541,14 +766,19 @@ export default function App() {
     }
   }
 
-  const begin = async () => {
+  const begin = async (mode: ExecutionMode = executionMode) => {
     subscription.current?.()
     setStarting(true)
     setError(undefined)
     setInspectedEvent(undefined)
+    setExecutionMode(mode)
     try {
-      const job = await startMigration(executionMode)
+      const job = await startMigration(mode)
       setState(createMigrationState(job))
+      window.requestAnimationFrame(() => {
+        const workspace = document.getElementById('run-workspace')
+        if (typeof workspace?.scrollIntoView === 'function') workspace.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
       subscription.current = subscribeToMigration(job.id, {
         onEvent: (event) => {
           setState((current) => reduceMigrationEvent(current, event))
@@ -565,7 +795,7 @@ export default function App() {
       })
     } catch (startError) {
       const detail = startError instanceof ApiError ? startError.message : 'The migration could not be started.'
-      setError(executionMode === 'live-ai'
+      setError(mode === 'live-ai'
         ? `${detail} Live AI stopped; no recording or deterministic result was substituted.`
         : detail)
       setTransport('closed')
@@ -575,204 +805,172 @@ export default function App() {
   }
 
   return (
-    <main className="migration-workbench">
-      <header className="hero">
-        <nav aria-label="TraceForge identity">
-          <a className="wordmark" href="#top" aria-label="TraceForge home">TRACEFORGE <span>/ MIGRATION LOOM</span></a>
-          <span className={`transport transport-${transport}`}>{transportLabel(transport, state)}</span>
-        </nav>
-        <div className="hero-copy" id="top">
-          <span className="eyebrow">Behavior → contract → software → proof</span>
-          <h1>Modernize undocumented workflows without guessing.</h1>
-          <p>GPT-5.6 proposes and challenges rules from evidence. Codex rebuilds the bounded workflow. An independent host verifier proves what matches—and exposes what does not.</p>
+    <main className="traceforge-page">
+      <header className="site-header">
+        <a className="site-wordmark" href="#top" aria-label="TraceForge home">TRACEFORGE <span>/ PROOF RECORDER</span></a>
+        <div className="site-tools">
+          <button type="button" className="local-boundary-trigger" onClick={() => setBoundaryOpen(true)} aria-haspopup="dialog">Local boundary</button>
+          <a className="site-release" href={releaseIdentity ? `${repositoryUrl}/commit/${releaseIdentity.sha}` : '/api/health'} target="_blank" rel="noreferrer">
+            {releaseIdentity ? releaseIdentity.sha.slice(0, 7) : 'release…'}
+          </a>
         </div>
-        <div className="mode-selector" aria-label="Execution mode">
-          {publicModeOrder.map((mode) => {
-            const copy = modeCopy[mode]
-            return (
-              <label
-                key={mode}
-                className={executionMode === mode ? 'is-selected' : ''}
-              >
-                <input
-                  type="radio"
-                  name="execution-mode"
-                  value={mode}
-                  checked={executionMode === mode}
-                  disabled={active || starting}
-                  onChange={() => setExecutionMode(mode)}
-                />
-                <span>
-                  <strong>{copy.title}</strong>
-                  <small>{copy.label}</small>
-                </span>
-              </label>
-            )
-          })}
-          <button
-            className="local-runner-entry"
-            type="button"
-            onClick={openLocalRunner}
-            disabled={active || starting}
-            aria-haspopup="dialog"
-          >
-            <span className="local-runner-sigil" aria-hidden="true">↗</span>
-            <span>
-              <strong>Build live with my Codex</strong>
-              <small>Recorded GPT-5.6 · local Codex · fresh local proof</small>
-            </span>
-            <em>local</em>
-          </button>
-        </div>
-        <div className="run-controls">
-          <button className="primary-action" type="button" onClick={begin} disabled={active || starting}>
-            {starting
-              ? 'Starting…'
-              : active
-                ? 'Migration running'
-                : actionLabel(executionMode, state.job?.executionMode === executionMode)}
-          </button>
-          <span>{state.job ? `Job ${state.job.id} · ${state.job.status}` : actionHelper(executionMode)}</span>
-        </div>
-        <div className={`mode-disclosure mode-${executionMode}`}>
-          <strong>{modeCopy[executionMode].label}</strong>
-          <div className="mode-disclosure-body">
-            <p>{modeDisclosure(executionMode, state)}</p>
-            {executionMode === 'recorded-replay' && (
-              <a href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">Inspect the authenticated live-run evidence ↗</a>
-            )}
-          </div>
-        </div>
-        {error && <div className="error-banner" role="alert"><strong>Run stopped</strong><span>{error}</span></div>}
       </header>
 
-      <StageRail state={state} />
-
-      <section className="proof-summary" aria-label="Current verification summary">
-        <span><small>Mode</small><strong>{modeCopy[selectedMode].title}</strong></span>
-        <span><small>Model</small><strong>{state.job?.modelId ?? (selectedMode === 'deterministic-only' ? 'No model' : 'Pending')}</strong></span>
-        <span><small>Proof</small><strong>{proofHeadline}</strong></span>
-        <span><small>Mismatches</small><strong>{state.proof?.mismatchCount ?? '—'}</strong></span>
+      <section className="landing-hero" id="top">
+        <div className="landing-copy">
+          <span className="hero-kicker">Local migration proof</span>
+          <h1>Prove what changed.<br />Keep Codex local.</h1>
+          <p>Rebuild one bounded legacy workflow, preserve the failed attempts, and issue a proof that says exactly what the verifier checked.</p>
+          <div className="hero-actions">
+            <button className="action-primary" type="button" onClick={openLocalRunner} disabled={active || starting}>Start a local proof run <span aria-hidden="true">↗</span></button>
+            <button className="action-link" type="button" onClick={() => void begin('recorded-replay')} disabled={active || starting}>
+              {starting ? 'Starting judge replay…' : 'Inspect a completed proof'}
+            </button>
+          </div>
+          <p className="hero-assurance">No local files, Codex credentials, generated source, or session history are sent to this website.</p>
+        </div>
+        <div className="custody-trace" aria-label="Proof custody path">
+          <span className="trace-label">Proof path</span>
+          <ol>
+            <li><i>01</i><span><strong>Recorded evidence</strong><small>Contract + failed proofs</small></span></li>
+            <li><i>02</i><span><strong>Local Codex</strong><small>One explicit bounded build</small></span></li>
+            <li><i>03</i><span><strong>Host verifier</strong><small>Hidden differential checks</small></span></li>
+            <li><i>04</i><span><strong>Proof bundle</strong><small>Diff + scenarios + digests</small></span></li>
+          </ol>
+        </div>
       </section>
 
-      <ProvenanceStrip state={state} mode={selectedMode} />
+      <ul className="trust-boundary-strip" aria-label="Trust boundaries">
+        <li>Local-only Runner</li>
+        <li>Explicit Codex approval</li>
+        <li>Recomputable proof digest</li>
+      </ul>
 
-      <div className="workbench-grid">
-        <div className="workbench-primary">
-          <HypothesisLoom state={state} />
-          <ScenarioMatrix state={state} />
-          <CandidateHistory state={state} />
-        </div>
-        <div className="workbench-secondary">
-          <EventConsole events={latestEvents} onInspect={setInspectedEvent} />
-          <ArtifactDock artifacts={state.artifacts} />
-        </div>
-      </div>
+      <ReleaseEvidenceStrip release={releaseIdentity} />
 
-      <footer className="release-identity" role="contentinfo" aria-label="Deployed release identity">
-        <span>API-attested deployment</span>
-        <div>
-          <strong title={releaseIdentity?.sha}>
-            {releaseIdentity ? releaseLabel(releaseIdentity) : 'Release identity unavailable'}
-          </strong>
-          <small>
-            {releaseIdentity ? `Built ${formatTime(releaseIdentity.builtAt)}` : 'Inspect the health endpoint before relying on this deployment.'}
-          </small>
-        </div>
-        <a href="/api/health" target="_blank" rel="noreferrer">Inspect /api/health ↗</a>
+      {error && <div className="run-error" role="alert"><strong>Run stopped</strong><span>{error}</span></div>}
+
+      {!state.job ? (
+        <section className="judge-mode" aria-labelledby="judge-mode-title">
+          <header>
+            <span>Judge mode</span>
+            <div><h2 id="judge-mode-title">One product. Two honest paths.</h2><p>Use the fixed local demo for a real Codex writing turn, or inspect the recorded run without credentials.</p></div>
+          </header>
+          <div className="judge-path-grid">
+            <article>
+              <span>Recommended · real local build</span>
+              <h3>Rebuild the fixed demo locally</h3>
+              <p>The pinned Runner opens its own <code>127.0.0.1</code> page. Review the one-file scope, then approve this Codex run.</p>
+              <button type="button" className="action-secondary" onClick={openLocalRunner}>Open local Runner guide</button>
+            </article>
+            <article>
+              <span>No credentials · public replay</span>
+              <h3>Inspect a completed proof</h3>
+              <p>Replay the provenance-bound GPT-5.6 and Codex events, execute all disclosed scenarios, and issue a fresh host proof.</p>
+              <button type="button" className="action-secondary" onClick={() => void begin('recorded-replay')} disabled={starting}>Start judge replay</button>
+            </article>
+          </div>
+          <details className="advanced-modes">
+            <summary>Advanced proof modes</summary>
+            <div className="sample-mode-selector" aria-label="Execution mode">
+              {publicModeOrder.map((mode) => {
+                const copy = modeCopy[mode]
+                return (
+                  <label key={mode} className={executionMode === mode ? 'is-selected' : ''}>
+                    <input type="radio" name="execution-mode" value={mode} checked={executionMode === mode} disabled={starting} onChange={() => setExecutionMode(mode)} />
+                    <span><strong>{copy.title}</strong><small>{copy.detail}</small></span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="advanced-run-action">
+              <button type="button" className="action-secondary" onClick={() => void begin(executionMode)} disabled={starting}>{actionLabel(executionMode, false)}</button>
+              <span>{actionHelper(executionMode)}</span>
+            </div>
+          </details>
+        </section>
+      ) : (
+        <section className="run-workspace" id="run-workspace" aria-labelledby="run-workspace-title">
+          <header className="run-header">
+            <div><span>Judge walkthrough</span><h2 id="run-workspace-title">{modeCopy[selectedMode].title}</h2><p>{modeDisclosure(selectedMode, state)}</p></div>
+            <div className="run-identity"><small>Run</small><code title={state.job.id}>{formatShort(state.job.id, 22)}</code><strong>{state.job.status}</strong></div>
+          </header>
+          <StageRail state={state} />
+          <CurrentActivity state={state} mode={selectedMode} transport={transport} />
+          {!state.proof && (
+            <details className="raw-run-output">
+              <summary><span>View raw server output</span><small>{state.events.length} events</small></summary>
+              <EventConsole events={latestEvents} onInspect={setInspectedEvent} />
+            </details>
+          )}
+          <ProofOutcome state={state} mode={selectedMode} onInspect={setInspectedEvent} />
+        </section>
+      )}
+
+      <section className="boundary-callout" aria-labelledby="boundary-callout-title">
+        <div><span>Local boundary</span><h2 id="boundary-callout-title">The public site guides. The local Runner executes.</h2></div>
+        <p>TraceForge deliberately has no public-to-local pairing or heartbeat. The pinned command opens a private loopback page where scope, sign-in, approval, execution, and proof remain on your machine.</p>
+        <button type="button" onClick={() => setBoundaryOpen(true)}>Inspect the boundary</button>
+      </section>
+
+      <footer className="product-footer" role="contentinfo">
+        <a href={repositoryUrl} target="_blank" rel="noreferrer">Source</a>
+        <a href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">Live evidence</a>
+        <a href="/api/health" target="_blank" rel="noreferrer">Health manifest</a>
+        <span>{releaseIdentity ? `${releaseLabel(releaseIdentity)} · built ${formatTime(releaseIdentity.builtAt)}` : 'Release identity unavailable'}</span>
       </footer>
 
-      <dialog
-        ref={localRunnerDialogRef}
-        className="runner-dialog"
-        aria-labelledby="runner-dialog-title"
-        aria-describedby="runner-dialog-description"
-        onClose={() => setLocalRunnerOpen(false)}
-        onCancel={() => setLocalRunnerOpen(false)}
-      >
+      <dialog ref={boundaryDialogRef} className="boundary-dialog" aria-labelledby="boundary-dialog-title" onClose={() => setBoundaryOpen(false)} onCancel={() => setBoundaryOpen(false)}>
+        {boundaryOpen && <div className="boundary-dialog-shell"><header><div><span>Trust model</span><h2 id="boundary-dialog-title">Where every capability stops.</h2></div><button type="button" onClick={() => setBoundaryOpen(false)} aria-label="Close local boundary" autoFocus>×</button></header><TrustBoundaryDiagram /></div>}
+      </dialog>
+
+      <dialog ref={localRunnerDialogRef} className="run-wizard" aria-labelledby="runner-dialog-title" aria-describedby="runner-dialog-description" onClose={() => setLocalRunnerOpen(false)} onCancel={() => setLocalRunnerOpen(false)}>
         {localRunnerOpen && (
-          <div className="runner-dialog-shell">
-            <header>
-              <span>TraceForge / Local Runner</span>
-              <button type="button" onClick={() => setLocalRunnerOpen(false)} aria-label="Close Local Runner launcher">×</button>
+          <div className="run-wizard-shell" ref={localRunnerShellRef}>
+            <header className="wizard-header">
+              <div><span>TraceForge / Local Runner</span><h2 id="runner-dialog-title">Start a bounded proof run.</h2><p id="runner-dialog-description">Current release: fixed damaged-returns demo. It does not browse or modify your own project.</p></div>
+              <button type="button" onClick={() => setLocalRunnerOpen(false)} aria-label="Close Local Runner guide">×</button>
             </header>
-            <div className="runner-dialog-content">
-              <div className="runner-intro">
-                <span>Optional local build</span>
-                <h2 id="runner-dialog-title">Build live with your local Codex.</h2>
-                <p id="runner-dialog-description">
-                  The public page cannot start or inspect a local process. Run one pinned command to open a localhost confirmation page, then approve the bounded build on your machine.
-                </p>
-              </div>
+            <ol className="wizard-steps" aria-label="Local Runner guide steps">
+              {(['Start Runner', 'Review locally', 'Collect proof'] as const).map((label, index) => <li key={label} className={runnerStep === index ? 'is-current' : runnerStep > index ? 'is-complete' : ''}><button type="button" onClick={() => setRunnerStep(index as 0 | 1 | 2)} aria-current={runnerStep === index ? 'step' : undefined}><i>{String(index + 1).padStart(2, '0')}</i><span>{label}</span></button></li>)}
+            </ol>
 
-              <ol className="runner-provenance" aria-label="Local run provenance">
-                <li><small>Source</small><strong>Recorded GPT-5.6 evidence</strong><span>Digest-verified contract + failed proofs</span></li>
-                <li><small>Builder</small><strong>Local Codex · live</strong><span>Runner-owned Codex sign-in</span></li>
-                <li><small>Verifier</small><strong>Local host · live</strong><span>Fresh post-turn input</span></li>
-                <li><small>Output</small><strong>Fresh local proof</strong><span>Diff + scenarios + digests</span></li>
-              </ol>
+            <div className="wizard-step-panel">
+              {runnerStep === 0 && <section className="runner-install" aria-labelledby="runner-install-title">
+                <div className="wizard-section-heading"><span>01 · Install</span><div><h3 id="runner-install-title" tabIndex={-1}>Launch the pinned source release</h3><p>macOS / Linux · Git, Node.js 22+, Corepack, Codex CLI 0.144.1</p></div></div>
+                <div className="runner-command"><code>{localRunnerCommand}</code><button type="button" onClick={() => void copyRunnerCommand()}>{copyStatus === 'copied' ? 'Copied' : 'Copy command'}</button></div>
+                <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">{copyStatus === 'copied' ? 'Command copied. This public page cannot detect the Runner; continue in the localhost tab it opens.' : copyStatus === 'failed' ? 'Clipboard access is blocked. Select the command and copy it manually.' : `Pinned commit ${localRunnerCommit} · source install · no binary checksum claim`}</p>
+                <dl className="runner-release-facts"><div><dt>Tag</dt><dd>{localRunnerTag}</dd></div><div><dt>Commit</dt><dd><code>{localRunnerCommit}</code></dd></div><div><dt>Platform</dt><dd>macOS / Linux</dd></div><div><dt>Artifact</dt><dd>Not published · source install</dd></div></dl>
+                <details className="command-disclosure"><summary>What this command does</summary><ol><li>Clones the public source tag into a temporary directory.</li><li>Rejects the checkout unless its Git commit equals <code>{localRunnerCommitShort}</code>.</li><li>Installs the lockfile-pinned dependencies for the current Node architecture.</li><li>Starts a random-port server bound only to <code>127.0.0.1</code>.</li><li>Opens a private localhost page; no Codex writing turn starts yet.</li><li>Stops with <code>Ctrl+C</code>; the temporary run directory can then be removed.</li></ol></details>
+                <nav className="runner-resource-links" aria-label="Runner resources"><a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect commit</a><a href={localRunnerTagUrl} target="_blank" rel="noreferrer">Browse tag</a><a href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">Real run evidence</a><a href={repositoryUrl} target="_blank" rel="noreferrer">Repository</a></nav>
+              </section>}
 
-              <section className="runner-launch" aria-labelledby="runner-launch-title">
-                <div className="runner-launch-heading">
-                  <div><span>First run</span><h3 id="runner-launch-title">Launch the pinned open-source runner</h3></div>
-                  <a href={localRunnerSourceUrl} target="_blank" rel="noreferrer">Inspect {localRunnerTag} · {localRunnerCommitShort} ↗</a>
+              {runnerStep === 1 && <section className="runner-review" aria-labelledby="runner-review-title">
+                <div className="wizard-section-heading"><span>02 · Local review</span><div><h3 id="runner-review-title" tabIndex={-1}>Approve one fixed Codex build on localhost</h3><p>The public site intentionally cannot see whether the Runner is open.</p></div></div>
+                <div className="local-handoff-note"><span>Public status</span><strong>Handoff to localhost</strong><p>No pairing, heartbeat, file browser, or approval state crosses this boundary.</p></div>
+                <div className="scope-preview">
+                  <article><span>Fixed demo</span><h4>Damaged returns v1</h4><p>Recorded contract, failed proofs, disclosed scenarios, incomplete candidate.</p></article>
+                  <article><span>Write scope</span><h4>One candidate file</h4><p>Temporary writer workspace · no arbitrary project selection.</p></article>
+                  <article><span>Hidden</span><h4>Verifier + post-turn input</h4><p>Legacy source, tests, and verification input are withheld from Codex.</p></article>
+                  <article><span>Disabled</span><h4>Git publication + agent command network</h4><p>The Codex service connection remains required; commit, push, merge, and deploy stay blocked.</p></article>
                 </div>
-                <div className="runner-platform-tabs" aria-label="Verified Local Runner platform">
-                  <strong>Verified on macOS / Linux</strong>
-                  <span>Windows is not supported by this release.</span>
-                </div>
-                <div className="runner-command">
-                  <code>{localRunnerCommand}</code>
-                  <button type="button" onClick={() => void copyRunnerCommand()}>
-                    {copyStatus === 'copied' ? 'Copied' : 'Copy command'}
-                  </button>
-                </div>
-                <p className="runner-prerequisites">
-                  Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.
-                </p>
-                <div className="runner-gate-compare" aria-label="Release identity comparison">
-                  <div>
-                    <span>Hosted demo release</span>
-                    <strong>{releaseIdentity ? `${releaseIdentity.sha.slice(0, 12)} · API + web` : 'Unavailable · inspect /api/health'}</strong>
-                  </div>
-                  <div>
-                    <span>Local executable release</span>
-                    <strong>{localRunnerCommit.slice(0, 12)} · {localRunnerTag}</strong>
-                  </div>
-                </div>
-                <div className="runner-gate-compare" aria-label="Verification gate comparison">
-                  <div><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
-                  <div><span>Source champion gate</span><strong>56 candidate-safe tests + 4 separate replay guards</strong></div>
-                </div>
-                <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">
-                  {copyStatus === 'copied'
-                    ? 'Command copied. Run it in a terminal; the runner opens its localhost confirmation page.'
-                    : copyStatus === 'failed'
-                      ? 'Clipboard access is blocked. Select the command above and copy it manually.'
-                    : `Pinned tag + commit ${localRunnerCommitShort} · fixed fixture · no unversioned latest install`}
-                </p>
-              </section>
+                <p className="approval-note"><strong>Approval is explicit.</strong> The localhost button starts this one writing turn only after preflight and local sign-in. This release does not claim a cryptographically signed approval manifest.</p>
+              </section>}
 
-              <section className="runner-boundaries" aria-labelledby="runner-boundaries-title">
-                <div className="runner-boundaries-heading">
-                  <span>Before the Codex writing turn</span>
-                  <h3 id="runner-boundaries-title">The local confirmation page shows the complete scope.</h3>
-                </div>
-                <dl>
-                  <div><dt>Codex can read</dt><dd>One contract, three failed proofs, disclosed scenarios, and one incomplete candidate.</dd></div>
-                  <div><dt>Codex can write</dt><dd>One candidate file in a temporary writer workspace.</dd></div>
-                  <div><dt>Kept hidden</dt><dd>Legacy source, verifier, tests, and the post-turn verification input.</dd></div>
-                  <div><dt>Disabled</dt><dd>Agent command network, commit, push, merge, and deploy. The Codex service connection remains required.</dd></div>
-                </dl>
-                <p><strong>Launch preflight is explicit.</strong> The terminal command clones and installs the pinned Local Runner release, verifies its full executable SHA, prepares the fixture and private configuration, starts the loopback server, and checks Codex access. The hosted demo SHA in the footer identifies a separate API/web deployment. No Codex writing turn or verifier command runs before <em>Start local build</em>.</p>
-                <p><strong>Authentication stays local.</strong> Codex handles sign-in on this machine. This public page cannot read tokens, local files, Codex history, generated source, or proof contents.</p>
-              </section>
-
-              <div className="runner-actions">
-                <button type="button" className="primary-action" onClick={() => void copyRunnerCommand()}>Copy launch command</button>
-                <button type="button" className="secondary-action" onClick={continueWithReplay}>Continue with verified replay</button>
-              </div>
+              {runnerStep === 2 && <section className="runner-proof-preview" aria-labelledby="runner-proof-title">
+                <div className="wizard-section-heading"><span>03 · Proof</span><div><h3 id="runner-proof-title" tabIndex={-1}>Follow the local run to a recomputable result</h3><p>The localhost page streams real session state; the public site receives nothing.</p></div></div>
+                <ol className="local-run-stages"><li>Preflight</li><li>Sign in</li><li>Review scope</li><li>Codex build</li><li>Host verify</li><li>Proof</li></ol>
+                <div className="proof-preview-grid"><article><span>What changed</span><strong>One changed file + diff digest</strong></article><article><span>What passed</span><strong>15 tests + 7 scenarios + 35 assertions</strong></article><article><span>What is bound</span><strong>Runner commit + input + candidate + output digests</strong></article></div>
+                <p className="approval-note">A fresh local bundle includes PASS/FAIL, mismatch counts, SHA-256 digests, diff, command-output digests, and a verification nonce. It does not claim a Runner signature or trusted timestamp.</p>
+                <a className="runner-evidence-link" href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">Inspect the archived v0.1.9 run <span aria-hidden="true">↗</span></a>
+              </section>}
             </div>
+
+            <footer className="wizard-actions">
+              {runnerStep > 0 && <button type="button" className="action-link" onClick={() => setRunnerStep((runnerStep - 1) as 0 | 1)}>Back</button>}
+              {runnerStep < 2 && <button type="button" className="action-secondary" onClick={() => setRunnerStep((runnerStep + 1) as 1 | 2)}>Next: {runnerStep === 0 ? 'review local scope' : 'see proof output'}</button>}
+              <button type="button" className="action-link" onClick={() => { continueWithReplay(); void begin('recorded-replay') }}>Inspect completed proof instead</button>
+            </footer>
           </div>
         )}
       </dialog>

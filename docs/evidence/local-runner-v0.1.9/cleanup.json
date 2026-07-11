@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-07-11T18:56:06.440Z",
+  "sessionPhase": "deleted",
+  "deleteRequested": true,
+  "sessionRootDeleted": true,
+  "writerRootDeleted": true,
+  "verifierRootDeleted": true,
+  "verifierWorktreeRemoved": true,
+  "verifierWorktreeUnregistered": true,
+  "codexHomeLockReleased": true,
+  "loopbackServerClosed": true
+}

@@ -1,0 +1,269 @@
+{
+  "version": "traceforge.local-proof.v1",
+  "proofId": "local_proof_a50ec1f9-1761-46c1-94c8-1c64a792ffb7",
+  "sessionId": "local_d634a262-5fa1-4fd7-93e5-aa5accd74890",
+  "status": "PASSED",
+  "claim": "Evidence-bounded local Codex rebuild verified against the executed host suite.",
+  "provenance": {
+    "archaeology": "recorded-gpt-5.6",
+    "build": "live-local-codex",
+    "verification": "live-local-host",
+    "sourceRunId": "migration_efaa0383-628a-4fba-94df-96bfe344bcbe"
+  },
+  "runner": {
+    "version": "0.1.9",
+    "releaseTag": "local-runner-v0.1.9",
+    "releaseCommit": "a2ce8b2394caf5d1491c2b142f99a8421f3cec2d",
+    "manifestDigest": "sha256:40ed6ba452de45a9cc4262cb93d19c1978d7d34ecadbf382597d8b6611466cfe",
+    "buildPermissionProfile": "traceforge-build",
+    "verifyPermissionProfile": "traceforge-verify"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "threadId": "019f5288-3b94-7a71-a087-032825fff3fa",
+    "turnId": "019f5288-3bf7-7b71-bd0d-c44b209094f6",
+    "turnCompletedAt": "2026-07-11T18:55:58.180Z",
+    "usage": {
+      "totalTokens": 30886,
+      "inputTokens": 30458,
+      "cachedInputTokens": 28416,
+      "outputTokens": 428,
+      "reasoningOutputTokens": 314
+    }
+  },
+  "repairInput": {
+    "digest": "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+    "contractDigest": "sha256:235acdcc4a120bf5965035dc8c43658dac534a4f85da7bbc78b26c01fcafc716",
+    "failedProofDigests": [
+      "sha256:f242aabce2cb8b436593070a3f0b1c26451909e5d318518eab60e62dd5029502",
+      "sha256:409b421be3e1285dc4d9cc814ef87b7915c6682b10cd00acd665b61744d8d7d1",
+      "sha256:5861c57d1dc16e61697b01cc3ead70c7548fdfead197994774d7861e29788906",
+      "sha256:b3ea08c0626d2bb02d78bc27d0697a7b1faec141e4fb15849a41048e8fed697a"
+    ],
+    "visibleScenarioIds": [
+      "observed-standard-damaged-4500",
+      "observed-vip-damaged-12000",
+      "counterexample-vip-damaged-50000",
+      "counterexample-vip-damaged-no-sellable",
+      "boundary-standard-damaged-49999",
+      "boundary-standard-damaged-50000",
+      "live-covered-high-migration_efaa0383-628a-4fba-94df-96bfe344bcbe"
+    ]
+  },
+  "candidate": {
+    "path": "apps/api/src/candidates/generated-return-workflow.ts",
+    "baseSourceDigest": "sha256:05844477fc80904aebf51825c10f20611c8f6a1dc2af117079a17dc60bf2503f",
+    "sourceDigest": "sha256:311c039e2402220e1311a71239865967d46c764c7e361e6ec3e0bb6c9d820910",
+    "diffDigest": "sha256:5c51b3f7bd93a75c5dbeeb1d82b47086480d92a49ace52d26dc451479082386f",
+    "changedFiles": [
+      "apps/api/src/candidates/generated-return-workflow.ts"
+    ],
+    "policy": {
+      "sourceDigest": "sha256:311c039e2402220e1311a71239865967d46c764c7e361e6ec3e0bb6c9d820910",
+      "changedFunction": "executeGeneratedReturnWorkflow",
+      "allowedImports": [
+        "../scenarios.js",
+        "../types.js"
+      ]
+    },
+    "structuredOutputDigest": "sha256:b93690b79dd5e55600f3657df60ebb2a534f610b7a9e77ba64c31ba18d305347"
+  },
+  "verification": {
+    "inputCreatedAt": "2026-07-11T18:56:00.925Z",
+    "nonceDigest": "sha256:fbf224c75eaf3f4d1653a4f921752af03697690bb5ee20c239514625c2222ff0",
+    "commands": [
+      {
+        "name": "install",
+        "executor": "trusted-host",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "install",
+          "--offline",
+          "--frozen-lockfile"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:de4e9a1171cb80d5cb8594e782d94597445ee2042559ffe47b3fb59e3dc02076",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "apiTests",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--test",
+          "--import",
+          "tsx",
+          "tests/champion-workflow.test.ts",
+          "tests/workflow.test.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:b8c15280b9a7a456f422544079ed83eb144501a0b1b13c9faa831d26dd7092e6",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "generatedSuite",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--import",
+          "tsx",
+          "scripts/verify-generated.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:5d991d7d34e2dd94effc9d3b323cfd5fe11aed5b0558a2e8ba0925b2e54d2e73",
+        "stderrDigest": "sha256:2e1a95c216e5b2584bd68edf79cd25e0fbf14b207e88c1a16ed5ae4425f80029",
+        "diagnosticCode": "OK"
+      }
+    ],
+    "tests": {
+      "discovered": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "candidateSafeTotal": 15
+    },
+    "suite": {
+      "repairInputDigest": "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+      "candidateVersion": "generated",
+      "status": "PASSED",
+      "expectedScenarioIds": [
+        "observed-standard-damaged-4500",
+        "observed-vip-damaged-12000",
+        "counterexample-vip-damaged-50000",
+        "counterexample-vip-damaged-no-sellable",
+        "boundary-standard-damaged-49999",
+        "boundary-standard-damaged-50000",
+        "host-hidden-3f4d1653a4f9"
+      ],
+      "summary": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "runs": [
+        {
+          "scenarioId": "observed-standard-damaged-4500",
+          "partition": "observed",
+          "runId": "run_03f4f77d-781f-4f81-950f-38de8f60c62e",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_4db5c5e8-2780-46eb-8f09-7d68fe30a624",
+          "proofDigest": "sha256:c2af458845d5f59941f006a7c042fd25932a8aa934b57a769a42c504573aea91",
+          "legacyTraceId": "trace_9a0ea7fd-76ab-472d-9fa9-095d811cd8ee",
+          "candidateTraceId": "trace_fcbaa2fd-c112-483f-8b9e-fbdee78d89ab",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "observed-vip-damaged-12000",
+          "partition": "observed",
+          "runId": "run_37cd18df-b5fb-42d7-87ba-3f765e47f80d",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_bde08af9-4c54-4e02-a041-6f43bbf5d065",
+          "proofDigest": "sha256:42d568d185d9555165f35edb55760cd8f23d91f1aaa54e2e5d74a1e8c7cc9527",
+          "legacyTraceId": "trace_daafa79d-27cf-47a6-b39f-98f5ead4712d",
+          "candidateTraceId": "trace_cf80d5eb-b54e-4009-9697-2efcbf02192f",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "counterexample-vip-damaged-50000",
+          "partition": "counterexample",
+          "runId": "run_292a4027-6ac3-43df-862d-866ab7090a65",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_9b29dec8-d955-4d8b-a088-d55983ad8719",
+          "proofDigest": "sha256:120cebdadd4b07711b697880427af4920a6ea69a7c8999614e383ba7fa9d969d",
+          "legacyTraceId": "trace_3913d10a-8166-46f9-b561-adf68b5030e3",
+          "candidateTraceId": "trace_9eb43011-1ffa-4a5f-aed0-4a8fad2b59a3",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "counterexample-vip-damaged-no-sellable",
+          "partition": "counterexample",
+          "runId": "run_db9522ce-d1d9-4d8e-809b-c5af78593ab9",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_95a9a1ec-5f0f-417d-9fa2-b0a32167dba9",
+          "proofDigest": "sha256:89889a19d29889bf2fd066ab32d71298c038d5de4b357fef0dfcef0cadd2bcea",
+          "legacyTraceId": "trace_cadeffa3-0764-4068-ab58-925769e92f75",
+          "candidateTraceId": "trace_79ae4ba0-19bf-4c1c-8bed-d56a3763fe51",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-49999",
+          "partition": "boundary",
+          "runId": "run_5f3d10e3-5356-4b5a-b316-7fce6d21271b",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_ee02b5d5-61c1-4d3c-906a-49820cbcd508",
+          "proofDigest": "sha256:0661ae6c8e1ebc2f0e77f72ca5dd4c0ff21a5dbc00bb88ca099584fd2df0312c",
+          "legacyTraceId": "trace_53a20e51-fd19-4e6d-91ae-a33f9f26edb1",
+          "candidateTraceId": "trace_2c8a214e-89b3-4ce0-9382-f26acaa42390",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-50000",
+          "partition": "boundary",
+          "runId": "run_eb5e2e8b-1905-4261-8fde-ef614fcd7a77",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_51ce1331-2264-4098-bd62-cb827830d5bd",
+          "proofDigest": "sha256:dc5e08dad20dcf05a1f6f370d1cb210a09dc0336c199df63c4755273f1ebd68a",
+          "legacyTraceId": "trace_263cbd03-fdc7-4083-af3f-08e0c853f282",
+          "candidateTraceId": "trace_3d78336e-3e18-438e-9474-c76a72259c41",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "host-hidden-3f4d1653a4f9",
+          "partition": "held-out",
+          "runId": "run_5c64ea93-d561-49e9-85e5-64e479b8d02b",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_dde57cef-6e4d-44ae-881d-a37c2e5603ad",
+          "proofDigest": "sha256:cf0b22232e964ec6a302194b6600e9474a13b6502f9ee8f3a7cf3852955f9855",
+          "legacyTraceId": "trace_8379f4b6-b950-47e1-8280-4fd7e6bc84ae",
+          "candidateTraceId": "trace_69c29ddc-96e5-4129-89eb-966c4e9e753e",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        }
+      ]
+    },
+    "suiteValidation": {
+      "passed": true,
+      "problems": []
+    }
+  },
+  "limitations": [
+    "Recorded GPT-5.6 archaeology is source evidence; only the Codex build and host verification ran live on this machine.",
+    "The proof covers the seven executed returns scenarios and five asserted behavior fields per scenario, including atomic failure semantics for exhausted replacement stock.",
+    "SHA-256 provides recomputable integrity, not identity, timestamping, or non-repudiation."
+  ],
+  "generatedAt": "2026-07-11T18:56:03.269Z",
+  "digest": "sha256:0218e92475eb2c08cd875e2a5363ff6a0b71800d17503b5fb5381387d544453b"
+}

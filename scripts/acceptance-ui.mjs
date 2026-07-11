@@ -51,14 +51,14 @@ async function buildAndReadStaticContract() {
   assert.match(html, /<[^>]+ id="root"[^>]*><\/[^>]+>/);
   for (const token of [
     "TRACEFORGE",
-    "MIGRATION LOOM",
+    "PROOF RECORDER",
+    "Start a local proof run",
+    "Inspect a completed proof",
     "Replay a verified run",
     "Host-only proof",
-    "Build live with my Codex",
-    "local-runner-v0.1.7",
-    "e2a7bafe88a4a486d650f33faa7fe9a13de45fb4",
-    "15 focused candidate tests + 7 differential scenarios",
-    "56 candidate-safe tests + 4 separate replay guards",
+    "local-runner-v0.1.9",
+    "a2ce8b2394caf5d1491c2b142f99a8421f3cec2d",
+    "15 tests + 7 scenarios + 35 assertions",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -70,7 +70,7 @@ async function buildAndReadStaticContract() {
   ]) {
     assert.ok(scripts.includes(token), `web bundle is missing ${token}`);
   }
-  for (const token of ["migration-workbench", "stage-rail", "release-identity", "focus-visible", "prefers-reduced-motion"]) {
+  for (const token of ["traceforge-page", "landing-hero", "stage-rail", "proof-outcome", "run-wizard", "focus-visible", "prefers-reduced-motion"]) {
     assert.ok(styles.includes(token), `web stylesheet is missing ${token}`);
   }
 
@@ -109,12 +109,14 @@ async function runIncrementalBrowserAcceptance(webBase) {
       transportStates: [],
       terminalRendered: false,
       inferActiveRenderedBeforeTerminal: false,
-      hypothesisRenderedBeforeTerminal: false,
+      currentActivityUpdatedBeforeTerminal: false,
     };
     window.__traceforgeAcceptance = trace;
 
     const sampleDom = () => {
-      const transport = document.querySelector(".transport")?.textContent?.trim();
+      const transport = [...document.querySelectorAll(".current-activity dl > div")]
+        .find((entry) => entry.querySelector("dt")?.textContent?.trim() === "Transport")
+        ?.querySelector("dd")?.textContent?.trim();
       if (transport && trace.transportStates.at(-1) !== transport) {
         trace.transportStates.push(transport);
       }
@@ -126,9 +128,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
         if (infer?.classList.contains("stage-active")) {
           trace.inferActiveRenderedBeforeTerminal = true;
         }
-        if (document.querySelector(".hypothesis")) {
-          trace.hypothesisRenderedBeforeTerminal = true;
-        }
+        const currentActivity = document.querySelector(".current-activity h3")?.textContent?.trim();
+        if (currentActivity && !currentActivity.startsWith("Waiting for")) trace.currentActivityUpdatedBeforeTerminal = true;
       }
       if (terminalRenderedNow) trace.terminalRendered = true;
     };
@@ -144,45 +145,56 @@ async function runIncrementalBrowserAcceptance(webBase) {
 
   try {
     await page.goto(webBase, { waitUntil: "networkidle" });
-    const recordedMode = page.getByRole("radio", { name: /Replay a verified run/ });
-    const localRunnerCta = page.getByRole("button", { name: /Build live with my Codex/ });
-    const judgeCta = page.getByRole("button", { name: "Run the verified migration", exact: true });
-    assert.equal(await recordedMode.isChecked(), true, "the public judge demo must be selected by default");
+    const recordedMode = page.locator('input[name="execution-mode"][value="recorded-replay"]');
+    const localRunnerCta = page.getByRole("button", { name: "Start a local proof run", exact: true });
+    const judgeCta = page.getByRole("button", { name: "Inspect a completed proof", exact: true });
+    assert.equal(await recordedMode.isChecked(), true, "the advanced public replay mode must be selected by default");
+    const selectedMode = await recordedMode.getAttribute("value");
     assert.equal(
       await page.getByRole("radio", { name: /New live AI run/ }).count(),
       0,
       "the public deployment must not expose an unusable fresh Live AI radio",
     );
-    assert.equal(await localRunnerCta.isEnabled(), true, "the optional Local Runner launcher must be actionable");
-    assert.equal(await judgeCta.isEnabled(), true, "the judge demo CTA must be immediately actionable");
-    const releaseFooter = page.getByRole("contentinfo", { name: "Deployed release identity" });
-    await releaseFooter.waitFor({ state: "visible" });
-    assert.match(await releaseFooter.innerText(), /Release [a-f0-9]{7} · Local Runner v0\.1\.7/);
+    assert.equal(await localRunnerCta.isEnabled(), true, "the single primary Local Runner CTA must be actionable");
+    assert.equal(await judgeCta.isEnabled(), true, "the completed-proof CTA must be immediately actionable");
+    assert.equal(await page.locator(".landing-hero .action-primary").count(), 1, "the first screen must have one primary action");
+    assert.equal(await page.locator(".stage-rail").count(), 0, "idle landing must not render an empty stage rail");
+    assert.equal(await page.locator(".provenance-strip").count(), 0, "idle landing must not render an empty provenance grid");
+    const releaseEvidence = page.getByRole("region", { name: "Release evidence" });
+    await releaseEvidence.waitFor({ state: "visible" });
+    assert.match(await releaseEvidence.innerText(), /Production[\s\S]+Pinned runner[\s\S]+Real local run[\s\S]+Source run[\s\S]+Deployment/i);
+    assert.match(await releaseEvidence.innerText(), /v0\.1\.9/);
+    assert.equal(
+      await releaseEvidence.getByRole("link", { name: /Real local run/ }).getAttribute("href"),
+      "https://github.com/a252937166/traceforge/tree/main/docs/evidence/local-runner-v0.1.9",
+    );
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
     assert.ok(
       desktopCtaBox.y + desktopCtaBox.height <= 900,
       "the judge demo CTA must remain in the 1440x900 first viewport",
     );
-    const initialDisclosure = await page.locator(".mode-disclosure").innerText();
-    assert.match(initialDisclosure, /recorded AI, fresh proof/i);
-    assert.match(initialDisclosure, /No model call is claimed during replay/i);
-    assert.equal(
-      await page.getByRole("link", { name: /Inspect the authenticated live-run evidence/ }).count(),
-      1,
-      "the public demo must link to its source live-run evidence",
-    );
+    assert.match(await page.locator(".hero-assurance").innerText(), /No local files, Codex credentials, generated source, or session history/);
+    assert.equal(await page.getByRole("list", { name: "Trust boundaries" }).locator("li").count(), 3);
 
     await localRunnerCta.click();
-    const runnerDialog = page.getByRole("dialog", { name: "Build live with your local Codex." });
+    const runnerDialog = page.getByRole("dialog", { name: "Start a bounded proof run." });
     await runnerDialog.waitFor({ state: "visible" });
+    assert.match(await runnerDialog.innerText(), /fixed damaged-returns demo/i);
+    assert.match(await runnerDialog.innerText(), /does not browse or modify your own project/i);
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
-    assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.7/);
-    assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit e2a7baf/);
-    assert.match(await runnerDialog.innerText(), /15 focused candidate tests \+ 7 differential scenarios/);
-    assert.match(await runnerDialog.innerText(), /56 candidate-safe tests \+ 4 separate replay guards/);
-    await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.9/);
+    assert.match(await runnerDialog.innerText(), /a2ce8b2394caf5d1491c2b142f99a8421f3cec2d/);
+    assert.match(await runnerDialog.innerText(), /no binary checksum claim/i);
+    assert.equal(await runnerDialog.getByRole("button", { name: "Copy command" }).count(), 1);
+    await runnerDialog.getByRole("button", { name: "Next: review local scope" }).click();
+    assert.match(await runnerDialog.innerText(), /Handoff to localhost/);
+    assert.match(await runnerDialog.innerText(), /No pairing, heartbeat, file browser, or approval state/);
+    assert.match(await runnerDialog.innerText(), /One candidate file/);
+    await runnerDialog.getByRole("button", { name: "Next: see proof output" }).click();
+    assert.match(await runnerDialog.innerText(), /15 tests \+ 7 scenarios \+ 35 assertions/);
+    assert.match(await runnerDialog.innerText(), /does not claim a Runner signature or trusted timestamp/i);
+    await runnerDialog.getByRole("button", { name: "Close Local Runner guide" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
 
     await judgeCta.click();
@@ -203,8 +215,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
       "Infer must render active before Migration completed appears",
     );
     assert.ok(
-      trace.hypothesisRenderedBeforeTerminal,
-      "a hypothesis must render before Migration completed appears",
+      trace.currentActivityUpdatedBeforeTerminal,
+      "the focused current-activity card must update before the terminal event",
     );
     assert.equal(pollingRequests.length, 0, "a healthy SSE run must not issue the JSON polling fallback");
     assert.equal(trace.transportStates.includes("recovering"), false, "transport must never render polling recovery on a healthy run");
@@ -212,10 +224,12 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.equal(sseResponse?.status, 200, "browser SSE request must return HTTP 200");
     assert.match(sseResponse?.contentType ?? "", /text\/event-stream/);
 
-    const eventCountLabel = await page.locator(".event-console .section-heading small").textContent();
+    const rawEventsDetails = page.locator("details.proof-detail").filter({ hasText: "Raw run events" });
+    await rawEventsDetails.locator("summary").click();
+    const eventCountLabel = await rawEventsDetails.locator(".event-console .section-heading small").textContent();
     const eventCount = Number.parseInt(eventCountLabel ?? "0", 10);
     assert.ok(eventCount >= 25, "browser must incrementally receive the complete server event ledger");
-    const completedDisclosure = await page.locator(".mode-disclosure").innerText();
+    const completedDisclosure = await page.locator(".run-header p").innerText();
     assert.match(completedDisclosure, /authenticated model work was recorded/i);
     assert.match(completedDisclosure, /issues a fresh proof/i);
     assert.match(completedDisclosure, /No model call is made during replay/i);
@@ -326,22 +340,27 @@ async function runIncrementalBrowserAcceptance(webBase) {
       deviceScaleFactor: 3,
     });
     await mobile.goto(webBase, { waitUntil: "networkidle" });
-    const mobileRecordedMode = mobile.getByRole("radio", { name: /Replay a verified run/ });
-    const mobileLocalRunnerCta = mobile.getByRole("button", { name: /Build live with my Codex/ });
-    const mobileJudgeCta = mobile.getByRole("button", { name: "Run the verified migration", exact: true });
-    assert.equal(await mobileRecordedMode.isChecked(), true, "mobile must default to the actionable judge demo");
+    const mobileRecordedMode = mobile.locator('input[name="execution-mode"][value="recorded-replay"]');
+    const mobileLocalRunnerCta = mobile.getByRole("button", { name: "Start a local proof run", exact: true });
+    const mobileJudgeCta = mobile.getByRole("button", { name: "Inspect a completed proof", exact: true });
+    assert.equal(await mobileRecordedMode.isChecked(), true, "mobile advanced options must default to replay");
     assert.equal(
       await mobile.getByRole("radio", { name: /New live AI run/ }).count(),
       0,
       "mobile must not render an unusable fresh Live AI radio",
     );
-    assert.equal(await mobileLocalRunnerCta.isEnabled(), true, "mobile must expose the optional Local Runner launcher");
-    const mobileCtaBox = await mobileJudgeCta.boundingBox();
-    assert.ok(mobileCtaBox, "mobile judge CTA must be rendered");
+    assert.equal(await mobileLocalRunnerCta.isEnabled(), true, "mobile must expose the primary Local Runner launcher");
+    assert.equal(await mobile.locator(".stage-rail").count(), 0, "mobile idle landing must not render empty stages");
+    const mobileCtaBox = await mobileLocalRunnerCta.boundingBox();
+    assert.ok(mobileCtaBox, "mobile primary CTA must be rendered");
     assert.ok(
       mobileCtaBox.y + mobileCtaBox.height <= 844,
-      "mobile judge CTA must remain in the 390x844 first viewport",
+      "mobile primary CTA must remain in the 390x844 first viewport",
     );
+    const mobileInitialWidth = await mobile.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    assert.equal(mobileInitialWidth.scroll, mobileInitialWidth.client, "mobile landing must not overflow horizontally");
+    await mobileJudgeCta.click();
+    await mobile.getByText("PASSED · 7/7 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
     const mobileStageRail = await mobile.locator(".stage-rail").evaluate((rail) => {
       const railRect = rail.getBoundingClientRect();
       const items = [...rail.querySelectorAll("li")].map((item) => {
@@ -358,6 +377,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
         scrollWidth: rail.scrollWidth,
         railLeft: railRect.left,
         railRight: railRect.right,
+        minLabelFontSize: Math.min(...[...rail.querySelectorAll("small")].map((label) => Number.parseFloat(getComputedStyle(label).fontSize))),
         items,
       };
     });
@@ -375,6 +395,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
         `mobile stage ${item.label} must remain inside the visible rail`,
       );
     }
+    assert.ok(mobileStageRail.minLabelFontSize >= 11, "mobile stage status text must remain at least 11px");
     await mobile.close();
 
     return {
@@ -383,17 +404,17 @@ async function runIncrementalBrowserAcceptance(webBase) {
       sseResponse,
       eventCount,
       inferActiveRenderedBeforeTerminal: trace.inferActiveRenderedBeforeTerminal,
-      hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
+      currentActivityUpdatedBeforeTerminal: trace.currentActivityUpdatedBeforeTerminal,
       pollingFallbackRequests: pollingRequests,
       finalProof: await page.getByText("PASSED · 7/7 scenarios", { exact: true }).textContent(),
       initialExperience: {
-        selectedMode: await recordedMode.getAttribute("value"),
+        selectedMode,
         publicFreshLiveAiTriggerAbsent: true,
         localRunnerAvailable: await localRunnerCta.isEnabled(),
         desktopCtaBox,
         mobileCtaBox,
         evidenceLinkVisible: true,
-        releaseIdentity: await releaseFooter.innerText(),
+        releaseEvidence: await releaseEvidence.innerText(),
       },
       evidenceDrawer: {
         viewport: { width: 764, height: 843 },
@@ -462,7 +483,7 @@ try {
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
   assert.match(health.body.release?.sha ?? "", /^[a-f0-9]{40}$/);
-  assert.equal(health.body.release?.version, "local-runner-v0.1.7");
+  assert.equal(health.body.release?.version, "local-runner-v0.1.9");
 
   const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
 

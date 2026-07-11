@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-07-11T18:56:03.923Z",
+  "releaseTag": "local-runner-v0.1.9",
+  "releaseCommit": "a2ce8b2394caf5d1491c2b142f99a8421f3cec2d",
+  "runnerVersion": "0.1.9",
+  "route": "headless Playwright clicked Start local build on the loopback UI",
+  "terminalPhase": "passed",
+  "pageErrors": [],
+  "proofId": "local_proof_a50ec1f9-1761-46c1-94c8-1c64a792ffb7",
+  "proofDigest": "sha256:0218e92475eb2c08cd875e2a5363ff6a0b71800d17503b5fb5381387d544453b",
+  "proofDigestValid": true,
+  "proofDigestVerifier": "clone-local-repair",
+  "diffDigest": "sha256:5c51b3f7bd93a75c5dbeeb1d82b47086480d92a49ace52d26dc451479082386f",
+  "model": "gpt-5.6-sol",
+  "threadId": "019f5288-3b94-7a71-a087-032825fff3fa",
+  "turnId": "019f5288-3bf7-7b71-bd0d-c44b209094f6",
+  "tokenUsage": {
+    "totalTokens": 30886,
+    "inputTokens": 30458,
+    "cachedInputTokens": 28416,
+    "outputTokens": 428,
+    "reasoningOutputTokens": 314
+  },
+  "tests": {
+    "discovered": 15,
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "candidateSafeTotal": 15
+  },
+  "scenarios": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "assertions": 35,
+  "mismatches": 0,
+  "stockoutScenario": {
+    "scenarioId": "counterexample-vip-damaged-no-sellable",
+    "status": "PASSED",
+    "assertions": 5
+  },
+  "changedFiles": [
+    "apps/api/src/candidates/generated-return-workflow.ts"
+  ]
+}

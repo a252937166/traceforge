@@ -20,10 +20,10 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-EXPECTED_SHA="e2a7bafe88a4a486d650f33faa7fe9a13de45fb4" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.7 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command clones the pinned `local-runner-v0.1.7` tag into a new temporary directory and refuses to continue unless it resolves to commit `e2a7bafe88a4a486d650f33faa7fe9a13de45fb4`. After that comparison succeeds, it exports the checked-out SHA as `TRACEFORGE_LOCAL_RELEASE_SHA`. The Runner independently compares that full value with `git rev-parse HEAD` before preparing a session, then binds the same SHA into `proof.runner.releaseCommit`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.7` tag if the pinned fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.9` tag into a new temporary directory and refuses to continue unless it resolves to commit `a2ce8b2394caf5d1491c2b142f99a8421f3cec2d`. After that comparison succeeds, it exports the checked-out SHA as `TRACEFORGE_LOCAL_RELEASE_SHA`. The Runner independently compares that full value with `git rev-parse HEAD` before preparing a session, then binds the same SHA into `proof.runner.releaseCommit`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.7` tag if the pinned fixture commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2` is absent, then verifies that the tag peels to that manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
 The two release identities have separate meanings. The **hosted demo release SHA** shown in the public footer and `/api/health` identifies the deployed API/web package. The **local executable release SHA** shown by the launcher, localhost preflight, and local proof identifies the exact checked-out Runner code that executed on the reviewer's machine. They may differ because the hosted deployment can move without changing an immutable Local Runner tag.
 
@@ -31,9 +31,11 @@ This is a one-terminal-command launch, not a browser-to-Codex connection. There 
 
 ## Verified real run
 
-The complete `local-runner-v0.1.6` path has been executed from a fresh temporary checkout by clicking **Start local build** on the loopback page. That historical run's captured `gpt-5.6-sol` turn passed `13/13` focused tests, `6/6` differential scenarios, and `30/30` assertions with zero mismatches; UI-triggered deletion then removed the session, writer, verifier, worktree, and Codex lock. The sanitized [proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.6/README.md) remain committed as historical evidence, not as a claim about the updated source profile.
+The complete `local-runner-v0.1.6` path was executed from a fresh temporary checkout by clicking **Start local build** on the loopback page. That historical run's captured `gpt-5.6-sol` turn passed `13/13` focused tests, `6/6` differential scenarios, and `30/30` assertions with zero mismatches; UI-triggered deletion then removed the session, writer, verifier, worktree, and Codex lock. The sanitized [proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.6/README.md) remain committed as explicitly historical evidence, not as a claim about the current source profile.
 
-The planned v0.1.7 source profile binds recorded archaeology to live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, with `4` initial unknowns, `4` resolved unknowns, and `0` remaining. Its immutable repair input is `sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8`, based on source commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2`. The updated local gate is `15/15` focused tests plus six visible scenarios and one post-turn verification-only scenario (`7/7`, `35/35`, zero mismatches when passing). A new v0.1.7 real-run artifact must be captured before those planned-release facts are described as a tagged end-to-end run.
+The current `local-runner-v0.1.9` path was executed from a fresh tag clone through the real loopback UI, driven headlessly only for evidence capture. Its real `gpt-5.6-sol` turn passed `15/15` focused tests, six visible scenarios plus one post-turn verification-only scenario (`7/7`, `35/35`), and all `5/5` exhausted-stock failure assertions with zero mismatches. Proof `sha256:0218e92475eb2c08cd875e2a5363ff6a0b71800d17503b5fb5381387d544453b` records thread `019f5288-3b94-7a71-a087-032825fff3fa`; diff `sha256:5c51b3f7bd93a75c5dbeeb1d82b47086480d92a49ace52d26dc451479082386f` binds the one permitted candidate change. The captured cleanup check is true for session deletion, writer deletion, verifier deletion, worktree removal and unregistration, lock release, and loopback-server closure. Inspect the [sanitized v0.1.9 proof, diff, preflight, cleanup checks, and full-resolution screenshot](evidence/local-runner-v0.1.9/README.md).
+
+That v0.1.9 run binds recorded archaeology to live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, with `4` initial unknowns, `4` resolved unknowns, and `0` remaining. Its immutable repair input is `sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8`, based on fixture commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2` under tag `local-runner-fixture-v0.1.7`.
 
 ## First-run requirements
 
@@ -46,6 +48,8 @@ The planned v0.1.7 source profile binds recorded archaeology to live migration `
 - macOS or Linux, with a browser. A printed localhost URL is the fallback when automatic opening is unavailable. Windows is not supported by this verified release.
 
 The Runner fails closed on a different Codex version. For example, an unsupported binary produces `LOCAL_CODEX_VERSION_UNSUPPORTED:expected=0.144.1:actual=...`; it does not silently continue with an unverified protocol or substitute another model.
+
+Preflight does not trust cached account metadata: it asks Codex to refresh the dedicated sign-in, checks the server-classified usage-limit state, and confirms that `gpt-5.6-sol` is currently advertised. A revoked refresh token returns to the sign-in flow; a reached usage limit stops before any writing turn.
 
 ## What is recorded and what is live
 
@@ -88,7 +92,7 @@ corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champ
 corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts
 ```
 
-The first command is the socket-free candidate gate (`15/15` focused tests in the planned v0.1.7 profile). The second emits the seven-scenario suite: six visible scenarios plus one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
+The first command is the socket-free candidate gate (`15/15` focused tests in the verified v0.1.9 profile). The second emits the seven-scenario suite: six visible scenarios plus one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
 
 The localhost confirmation and result views show this comparison explicitly:
 
@@ -151,6 +155,7 @@ An ungraceful process kill or power loss can leave a temporary session directory
 | `LOCAL_CODEX_VERSION_UNSUPPORTED` | The installed CLI is not exactly `0.144.1`. Use the verified release; the Runner intentionally has no compatibility fallback. |
 | `LOCAL_CODEX_HOME_IN_USE` | Another live Local Runner owns the dedicated Codex home. Finish or cancel that session before retrying. A stale dead-process lock is recovered once automatically. |
 | `LOCAL_MODEL_UNAVAILABLE` | The signed-in ChatGPT account did not advertise `gpt-5.6-sol`. Use an eligible account; no alternate model is substituted. |
+| `LOCAL_CODEX_USAGE_LIMIT` | Codex's refreshed account state reports a reached usage limit. Wait for the account limit to reset or use an eligible account; no writing turn has started. |
 | `LOCAL_LOGIN_FAILED` or `LOCAL_LOGIN_INCOMPLETE` | Retry preflight/sign-in, finish the OpenAI/ChatGPT browser flow, and check that the Codex service is reachable. |
 | Browser did not open | Open the one-time `http://127.0.0.1:...` URL printed by the terminal. The Runner is not exposed on the LAN. |
 | `LOCAL_CODEX_HOME_MUST_BE_DEDICATED` | Remove an unsafe override. Use the default directory or a dedicated path outside `~/.codex`, the repository, and the session. |

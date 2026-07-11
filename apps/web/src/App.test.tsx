@@ -67,7 +67,7 @@ function installEventSource() {
   vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource)
 }
 
-function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'deterministic-only' = 'live-ai') {
+function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'deterministic-only' = 'recorded-replay') {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/health') {
@@ -77,7 +77,7 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
         gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
         release: {
           sha: 'de748868292639c57abea7b8d53e933987bea03e',
-          version: 'local-runner-v0.1.7',
+          version: 'local-runner-v0.1.9',
           builtAt: '2026-07-11T14:30:00.000Z',
         },
       })
@@ -97,7 +97,7 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
 async function startMigration() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Run the verified migration' }))
-  await screen.findByText(/Job migration-01/)
+  await screen.findByTitle('migration-01')
   return user
 }
 
@@ -113,7 +113,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.7',
+            version: 'local-runner-v0.1.9',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -128,18 +128,39 @@ describe('TraceForge Migration Loom', () => {
     vi.unstubAllGlobals()
   })
 
-  it('starts with five honest stages and no manufactured result', () => {
+  it('starts with one primary local-run CTA and no empty run panels', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'Modernize undocumented workflows without guessing.' })).toBeInTheDocument()
-    const rail = screen.getByRole('list', { name: 'Migration stages' })
-    for (const stage of ['observe', 'infer', 'challenge', 'build', 'verify']) {
-      expect(within(rail).getByText(stage)).toBeInTheDocument()
-    }
-    expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
-    expect(screen.getByText('No proof issued')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Server-reported provenance' })).toHaveTextContent('Not reported')
+    expect(screen.getByRole('heading', { name: 'Prove what changed. Keep Codex local.' })).toBeInTheDocument()
+    const primaryActions = screen.getAllByRole('button', { name: 'Start a local proof run' })
+    expect(primaryActions).toHaveLength(1)
+    expect(primaryActions[0]).toHaveClass('action-primary')
+    expect(screen.getByRole('button', { name: 'Inspect a completed proof' })).toHaveClass('action-link')
+    expect(screen.getByText('No local files, Codex credentials, generated source, or session history are sent to this website.')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Migration stages' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Server-reported provenance' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No proof issued')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Download the evidence' })).not.toBeInTheDocument()
     expect(screen.queryByText(/sample success/i)).not.toBeInTheDocument()
+  })
+
+  it('explains and closes the public, loopback, and Codex trust boundaries', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Local boundary' }))
+    const dialog = screen.getByRole('dialog', { name: 'Where every capability stops.' })
+
+    expect(document.documentElement).toHaveClass('boundary-modal-open')
+    expect(within(dialog).getByRole('heading', { name: 'Guide + proof replay' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: '127.0.0.1 handoff' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Explicit bounded build' })).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Cannot read Codex credentials or history')
+    expect(dialog).toHaveTextContent('Cannot commit, push, merge, or deploy')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Close local boundary' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Where every capability stops.' })).not.toBeInTheDocument())
+    expect(document.documentElement).not.toHaveClass('boundary-modal-open')
   })
 
   it('shows a compact server-reported chain of custody without inventing missing fields', () => {
@@ -215,7 +236,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })
 
-  it('keeps replay as the default, offers local Codex, and identifies the deployment', async () => {
+  it('keeps replay as the advanced default and separates immutable release evidence', async () => {
     render(<App />)
 
     expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
@@ -225,61 +246,97 @@ describe('TraceForge Migration Loom', () => {
       'deterministic-only',
     ])
     expect(screen.queryByRole('radio', { name: /New live AI run/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Build live with my Codex/i })).toBeEnabled()
-    expect(screen.getByText('Recorded GPT-5.6 · local Codex · fresh local proof')).toBeInTheDocument()
-    expect(screen.getByText(/No model call is claimed during replay/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start a local proof run' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Inspect a completed proof' })).toBeEnabled()
     expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
-    expect(screen.getByRole('link', { name: /Inspect the authenticated live-run evidence/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Live evidence' })).toHaveAttribute(
       'href',
       expect.stringContaining('/docs/evidence/live-champion-run'),
     )
-    expect(await screen.findByText('Release de74886 · Local Runner v0.1.7')).toBeInTheDocument()
-    expect(screen.getByRole('contentinfo', { name: 'Deployed release identity' })).toHaveTextContent('Built')
+
+    const release = screen.getByRole('region', { name: 'Release evidence' })
+    const production = await within(release).findByRole('link', { name: /Production de74886/ })
+    const runner = within(release).getByRole('link', { name: /Pinned runner v0\.1\.9 · a2ce8b2/ })
+    const localRun = within(release).getByRole('link', { name: /Real local run PASS · 7\/7/ })
+    const sourceRun = within(release).getByRole('link', { name: /Source run 4 GPT · 1 Codex/ })
+    const deployment = within(release).getByRole('link', { name: /Deployment traceforge\.axiqo\.xyz/ })
+
+    expect(production).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/de748868292639c57abea7b8d53e933987bea03e')
+    expect(runner).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/a2ce8b2394caf5d1491c2b142f99a8421f3cec2d')
+    expect(runner).toHaveTextContent('Executable source commit · no binary claim')
+    expect(localRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/local-runner-v0.1.9'))
+    expect(localRun).toHaveTextContent('v0.1.9 · 35/35 assertions · archived')
+    expect(sourceRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/live-champion-run'))
+    expect(sourceRun).toHaveTextContent('Recorded model evidence · archived')
+    expect(deployment).toHaveAttribute('href', '/api/health')
+    expect(production).not.toHaveAttribute('href', runner.getAttribute('href'))
+    expect(screen.getByRole('contentinfo')).toHaveTextContent('Release de74886')
   })
 
-  it('opens a truthful pinned Local Runner launcher and keeps replay available', async () => {
+  it('opens a three-step fixed-demo Runner guide with one copy command and a replay exit', async () => {
+    const fetchMock = installSuccessfulApi('recorded-replay')
     render(<App />)
     const user = userEvent.setup()
     const clipboard = vi.spyOn(navigator.clipboard, 'writeText')
 
-    await user.click(screen.getByRole('radio', { name: /Host-only proof/ }))
-    await user.click(screen.getByRole('button', { name: /Build live with my Codex/i }))
+    await user.click(screen.getByRole('button', { name: 'Start a local proof run' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Build live with your local Codex.' })
+    const dialog = screen.getByRole('dialog', { name: 'Start a bounded proof run.' })
     expect(document.documentElement).toHaveClass('runner-modal-open')
-    expect(dialog).toHaveTextContent('The public page cannot start or inspect a local process.')
-    expect(dialog).toHaveTextContent('Authentication stays local.')
-    expect(dialog).toHaveTextContent('This public page cannot read tokens, local files, Codex history, generated source, or proof contents.')
-    expect(within(dialog).getByText('Recorded GPT-5.6 evidence')).toBeInTheDocument()
-    expect(within(dialog).getByText('Local Codex · live')).toBeInTheDocument()
-    expect(dialog).toHaveTextContent('Digest-verified contract + failed proofs')
-    expect(dialog).toHaveTextContent('one incomplete candidate')
-    expect(dialog).toHaveTextContent('temporary writer workspace')
-    expect(dialog).toHaveTextContent('Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.')
-    expect(dialog).toHaveTextContent('Verified on macOS / Linux')
-    expect(dialog).toHaveTextContent('Windows is not supported by this release.')
-    expect(dialog).toHaveTextContent('No Codex writing turn or verifier command runs before Start local build.')
-    expect(dialog).toHaveTextContent('Hosted demo release')
-    expect(dialog).toHaveTextContent('de7488682926 · API + web')
-    expect(dialog).toHaveTextContent('Local executable release')
-    expect(dialog).toHaveTextContent('e2a7bafe88a4 · local-runner-v0.1.7')
-    expect(dialog).toHaveTextContent('15 focused candidate tests + 7 differential scenarios')
-    expect(dialog).toHaveTextContent('56 candidate-safe tests + 4 separate replay guards')
-    expect(dialog).toHaveTextContent('Pinned tag + commit e2a7baf')
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.7/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Current release: fixed damaged-returns demo. It does not browse or modify your own project.')
+    const steps = within(dialog).getByRole('list', { name: 'Local Runner guide steps' })
+    expect(within(steps).getAllByRole('button')).toHaveLength(3)
+    expect(within(steps).getByRole('button', { name: /Start Runner/ })).toHaveAttribute('aria-current', 'step')
+    expect(within(steps).getByRole('button', { name: /Review locally/ })).not.toHaveAttribute('aria-current')
+    expect(within(steps).getByRole('button', { name: /Collect proof/ })).not.toHaveAttribute('aria-current')
+    expect(dialog).toHaveTextContent('Launch the pinned source release')
+    expect(dialog).toHaveTextContent('Pinned commit a2ce8b2394caf5d1491c2b142f99a8421f3cec2d · source install · no binary checksum claim')
+    expect(within(dialog).getAllByRole('button', { name: 'Copy command' })).toHaveLength(1)
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.9/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'EXPECTED_SHA="e2a7bafe88a4a486d650f33faa7fe9a13de45fb4" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.7 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
+      'EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
     ))
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
-    await user.click(within(dialog).getByRole('button', { name: 'Continue with verified replay' }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Build live with your local Codex.' })).not.toBeInTheDocument())
+    await user.click(within(dialog).getByRole('button', { name: 'Next: review local scope' }))
+    expect(within(steps).getByRole('button', { name: /Review locally/ })).toHaveAttribute('aria-current', 'step')
+    expect(dialog).toHaveTextContent('Approve one fixed Codex build on localhost')
+    expect(dialog).toHaveTextContent('Damaged returns v1')
+    expect(dialog).toHaveTextContent('One candidate file')
+    expect(dialog).toHaveTextContent('Temporary writer workspace · no arbitrary project selection.')
+    expect(dialog).toHaveTextContent('Approval is explicit.')
+    expect(within(dialog).queryByRole('button', { name: 'Copy command' })).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Next: see proof output' }))
+    expect(within(steps).getByRole('button', { name: /Collect proof/ })).toHaveAttribute('aria-current', 'step')
+    expect(dialog).toHaveTextContent('Follow the local run to a recomputable result')
+    const localStages = dialog.querySelector('.local-run-stages')
+    expect(localStages).not.toBeNull()
+    expect(within(localStages as HTMLElement).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Preflight',
+      'Sign in',
+      'Review scope',
+      'Codex build',
+      'Host verify',
+      'Proof',
+    ])
+    expect(dialog).toHaveTextContent('One changed file + diff digest')
+    expect(dialog).toHaveTextContent('15 tests + 7 scenarios + 35 assertions')
+    expect(dialog).toHaveTextContent('Runner commit + input + candidate + output digests')
+    expect(within(dialog).getByRole('link', { name: /Inspect the archived v0\.1\.9 run/ })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/docs/evidence/local-runner-v0.1.9'),
+    )
+
+    await user.click(within(dialog).getByRole('button', { name: 'Inspect completed proof instead' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Start a bounded proof run.' })).not.toBeInTheDocument())
     expect(document.documentElement).not.toHaveClass('runner-modal-open')
-    expect(screen.getByRole('radio', { name: /Replay a verified run/ })).toBeChecked()
-    expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
+    expect(await screen.findByRole('region', { name: 'Replay a verified run' })).toBeInTheDocument()
+    const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
+    expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({ executionMode: 'recorded-replay' })
   })
 
   it('posts recorded-replay explicitly and exposes its original timestamp', async () => {
@@ -290,8 +347,12 @@ describe('TraceForge Migration Loom', () => {
     await user.click(screen.getByRole('radio', { name: /Replay a verified run/ }))
     await user.click(screen.getByRole('button', { name: 'Run the verified migration' }))
 
-    expect(await screen.findByText(/authenticated model work was recorded/)).toBeInTheDocument()
-    expect(screen.getByText(/host executes all seven scenarios and issues a fresh proof/)).toBeInTheDocument()
+    const workspace = await screen.findByRole('region', { name: 'Replay a verified run' })
+    expect(workspace).toHaveTextContent(/authenticated model work was recorded/)
+    expect(workspace).toHaveTextContent(/host executes all seven scenarios and issues a fresh proof/)
+    expect(within(workspace).getByText('Current activity')).toBeInTheDocument()
+    expect(within(workspace).getByRole('complementary', { name: 'Run boundaries' })).toHaveTextContent('Recorded model work · fresh host proof')
+    expect(within(workspace).getByText('Waiting for observe')).toBeInTheDocument()
     const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
     expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({
       executionMode: 'recorded-replay',
@@ -306,9 +367,10 @@ describe('TraceForge Migration Loom', () => {
     await user.click(screen.getByRole('radio', { name: /Host-only proof/ }))
     await user.click(screen.getByRole('button', { name: 'Run the host proof' }))
 
-    expect(await screen.findByText(/Job migration-01/)).toBeInTheDocument()
-    expect(screen.getAllByText('No model').length).toBeGreaterThan(0)
-    expect(screen.getByText(/No GPT or Codex execution is claimed/)).toBeInTheDocument()
+    const workspace = await screen.findByRole('region', { name: 'Host-only proof' })
+    expect(workspace).toHaveTextContent('migration-01')
+    expect(workspace).toHaveTextContent('Host-only deterministic proof')
+    expect(workspace).toHaveTextContent(/No GPT or Codex execution is claimed/)
     const migrationRequest = fetchMock.mock.calls.find(([input]) => String(input) === '/api/migrations')
     expect(JSON.parse(String(migrationRequest?.[1]?.body))).toEqual({
       executionMode: 'deterministic-only',
@@ -354,7 +416,7 @@ describe('TraceForge Migration Loom', () => {
         },
       },
     })
-    expect(await screen.findByText('The browser received this rule before completion.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /hypothesis\.proposed/ })).toBeInTheDocument()
 
     source?.emit({
       id: 'evt-completed',
@@ -468,10 +530,16 @@ describe('TraceForge Migration Loom', () => {
     expect(screen.getByText('high-value-damaged')).toBeInTheDocument()
     expect(screen.getByText('host verification')).toBeInTheDocument()
     expect(screen.getByText('verification-only')).toBeInTheDocument()
-    expect(screen.getByText('Host replay includes a verification-only priority check.')).toBeInTheDocument()
+    expect(screen.getAllByText('Host replay includes a verification-only priority check.').length).toBeGreaterThan(0)
     expect(screen.getByText(/Model authorship is claimed only when the server reports it/)).toBeInTheDocument()
     expect(screen.queryByText('held-out')).not.toBeInTheDocument()
     expect(screen.getAllByText('PASSED')).toHaveLength(2)
+    expect(screen.getByRole('heading', { name: 'PASSED · 2/2 scenarios' })).toBeInTheDocument()
+    const verification = screen.getByRole('list', { name: 'Verification results' })
+    expect(within(verification).getByText('Proof digest reported')).toHaveClass('verified')
+    expect(within(verification).getByText('Differential scenarios checked')).toHaveClass('verified')
+    expect(within(verification).getByText('Host verification reported')).not.toHaveClass('verified')
+    expect(screen.getByRole('link', { name: 'Verify proof' })).toHaveAttribute('href', expect.stringContaining('#verify-the-proof-digest-locally'))
     expect(screen.getByRole('link', { name: /proof.json/ })).toHaveAttribute(
       'href',
       '/api/migrations/migration-01/downloads/proof.json',

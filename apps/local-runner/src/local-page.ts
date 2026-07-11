@@ -236,7 +236,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     const commandDiagnostics = {
       install: { label: "Offline dependency check", command: "corepack pnpm install --offline --frozen-lockfile" },
       apiTests: { label: "Candidate-safe API tests", command: "corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts" },
-      generatedSuite: { label: "Six-scenario differential suite", command: "corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts" },
+      generatedSuite: { label: "Seven-scenario differential suite", command: "corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts" },
     };
     const busyPhases = new Set(["preflight", "signing-in", "preparing", "codex", "verifying", "deleting"]);
 
