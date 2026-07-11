@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { prepareLocalFixture } from "./fixture.js";
-import { openLocalRunnerPage } from "./open-browser.js";
+import { openLocalRunnerPage, shouldOpenLocalRunnerPage } from "./open-browser.js";
 import { TraceForgeLocalActions } from "./runner-actions.js";
 import { startLocalRunnerServer, type LocalRunnerServer } from "./local-server.js";
 import { LocalRunnerSession } from "./session.js";
@@ -37,9 +37,13 @@ async function main(): Promise<void> {
       process.stdout.write(`[${snapshot.phase}] ${snapshot.title}${detail}\n`);
     });
     void session.initialize().catch(() => undefined);
-    await openLocalRunnerPage(server.url).catch(() => {
-      process.stdout.write("The browser did not open automatically. Open the localhost URL above.\n");
-    });
+    if (shouldOpenLocalRunnerPage()) {
+      await openLocalRunnerPage(server.url).catch(() => {
+        process.stdout.write("The browser did not open automatically. Open the localhost URL above.\n");
+      });
+    } else {
+      process.stdout.write("Automatic browser opening is disabled for this run.\n");
+    }
   } catch (error) {
     await shutdown(1);
     throw error;

@@ -6,8 +6,86 @@ import test from "node:test";
 
 import {
   acquireDedicatedCodexHomeLock,
+  inspectFreshLocalAccount,
   resolveLocalCodexExecutable,
 } from "../src/runner-actions.js";
+
+test("preflight forces an account refresh and checks rate limits before model discovery", async () => {
+  let accountOptions: unknown;
+  const calls: string[] = [];
+  const status = await inspectFreshLocalAccount({
+    async readAccount(options) {
+      calls.push("account");
+      accountOptions = options;
+      return {
+        account: { type: "chatgpt", planType: "plus" },
+        requiresOpenaiAuth: true,
+      };
+    },
+    async readRateLimits() {
+      calls.push("limits");
+      return { primaryUsedPercent: 12, rateLimitReached: false };
+    },
+    async listModels() {
+      calls.push("models");
+      return [{ id: "gpt-5.6-sol", model: "gpt-5.6-sol" }];
+    },
+  });
+
+  assert.deepEqual(accountOptions, { refreshToken: true });
+  assert.deepEqual(calls, ["account", "limits", "models"]);
+  assert.deepEqual(status, {
+    signedIn: true,
+    modelAvailable: true,
+    accountLabel: "ChatGPT plus",
+  });
+});
+
+test("preflight fails early with a fixed usage code and never discovers models", async () => {
+  let listedModels = false;
+  await assert.rejects(
+    inspectFreshLocalAccount({
+      async readAccount() {
+        return {
+          account: { type: "chatgpt", planType: "plus" },
+          requiresOpenaiAuth: true,
+        };
+      },
+      async readRateLimits() {
+        return { primaryUsedPercent: 100, rateLimitReached: true };
+      },
+      async listModels() {
+        listedModels = true;
+        return [];
+      },
+    }),
+    (error: unknown) => {
+      assert.equal(error instanceof Error ? error.message : "", "LOCAL_CODEX_USAGE_LIMIT");
+      return true;
+    },
+  );
+  assert.equal(listedModels, false);
+});
+
+test("preflight does not infer exhaustion from usedPercent without a server reached state", async () => {
+  const status = await inspectFreshLocalAccount({
+    async readAccount() {
+      return {
+        account: { type: "chatgpt", planType: "plus" },
+        requiresOpenaiAuth: true,
+      };
+    },
+    async readRateLimits() {
+      return { primaryUsedPercent: 100, rateLimitReached: false };
+    },
+    async listModels() {
+      return [{ id: "gpt-5.6-sol", model: "gpt-5.6-sol" }];
+    },
+  });
+
+  assert.equal(status.signedIn, true);
+  assert.equal(status.modelAvailable, true);
+});
 
 test("resolves Codex from the caller PATH before the hardened command PATH is built", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "traceforge-codex-resolution-"));

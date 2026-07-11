@@ -5,6 +5,8 @@ import {
   AppServerClient,
   VERIFIED_CODEX_VERSION,
   spawnAppServer,
+  type AccountRateLimitsResult,
+  type AccountReadOptions,
   type AccountReadResult,
 } from "./app-server-client.js";
 import type { LocalFixture } from "./fixture.js";
@@ -58,6 +60,35 @@ function accountLabel(account: AccountReadResult): string | undefined {
   if (account.account?.type !== "chatgpt") return undefined;
   const plan = account.account.planType;
   return plan ? `ChatGPT ${plan}` : "ChatGPT signed in";
+}
+
+interface FreshAccountClient {
+  readAccount(options?: AccountReadOptions): Promise<AccountReadResult>;
+  readRateLimits(): Promise<AccountRateLimitsResult>;
+  listModels(): Promise<Array<{ id: string; model: string }>>;
+}
+
+export async function inspectFreshLocalAccount(
+  client: FreshAccountClient,
+): Promise<Pick<LocalRunnerPreflight, "signedIn" | "modelAvailable" | "accountLabel">> {
+  const account = await client.readAccount({ refreshToken: true });
+  const signedIn = account.account?.type === "chatgpt";
+  let modelAvailable = true;
+  if (signedIn) {
+    const rateLimits = await client.readRateLimits();
+    if (rateLimits.rateLimitReached) {
+      throw new Error("LOCAL_CODEX_USAGE_LIMIT");
+    }
+    const models = await client.listModels();
+    modelAvailable = models.some(
+      ({ id, model }) => id === LOCAL_RUNNER_MANIFEST.model || model === LOCAL_RUNNER_MANIFEST.model,
+    );
+  }
+  return {
+    signedIn,
+    modelAvailable,
+    ...(accountLabel(account) ? { accountLabel: accountLabel(account) } : {}),
+  };
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -337,21 +368,11 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
   async preflight(): Promise<LocalRunnerPreflight> {
     try {
       const client = await this.ensureBuildClient();
-      const account = await client.readAccount();
-      const signedIn = account.account?.type === "chatgpt";
-      let modelAvailable = true;
-      if (signedIn) {
-        const models = await client.listModels();
-        modelAvailable = models.some(
-          ({ id, model }) => id === LOCAL_RUNNER_MANIFEST.model || model === LOCAL_RUNNER_MANIFEST.model,
-        );
-      }
+      const account = await inspectFreshLocalAccount(client);
       return {
         codexVersion: `codex-cli ${VERIFIED_CODEX_VERSION}`,
         releaseCommit: this.fixture.releaseCommit,
-        signedIn,
-        modelAvailable,
-        ...(accountLabel(account) ? { accountLabel: accountLabel(account) } : {}),
+        ...account,
       };
     } catch (error) {
       await this.closeBuildClientAndReleaseLock();
@@ -383,7 +404,7 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
       }, { timeoutMs: 10 * 60_000 });
       const params = object(notification.params);
       if (params.success !== true) throw new Error("LOCAL_LOGIN_FAILED");
-      const account = await client.readAccount();
+      const account = await client.readAccount({ refreshToken: true });
       if (account.account?.type !== "chatgpt") throw new Error("LOCAL_LOGIN_INCOMPLETE");
     } catch (error) {
       await this.closeBuildClientAndReleaseLock();

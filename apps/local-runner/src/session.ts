@@ -156,6 +156,15 @@ function safeFailureDetail(result: LocalRunnerProofSummary): string {
 const DELETE_RUN_ABORT_GRACE_MS = 1_250;
 const DELETE_CLEANUP_TIMEOUT_MS = 8_000;
 
+function waitingProvenance(): LocalRunnerSnapshot["provenance"] {
+  return {
+    evidence: "recorded",
+    codex: "waiting",
+    verifier: "waiting",
+    proof: "waiting",
+  };
+}
+
 async function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -203,12 +212,7 @@ export class LocalRunnerSession extends EventEmitter {
       ...COPY.preflight,
       model: "gpt-5.6-sol",
       updatedAt: now,
-      provenance: {
-        evidence: "recorded",
-        codex: "waiting",
-        verifier: "waiting",
-        proof: "waiting",
-      },
+      provenance: waitingProvenance(),
     };
   }
 
@@ -234,6 +238,21 @@ export class LocalRunnerSession extends EventEmitter {
     this.update({ phase, ...COPY[phase], ...patch });
   }
 
+  private setReady(preflight: LocalRunnerPreflight): void {
+    this.resultValue = null;
+    this.setPhase("ready", {
+      codexVersion: preflight.codexVersion,
+      localReleaseCommit: preflight.releaseCommit,
+      accountLabel: preflight.accountLabel,
+      detail: undefined,
+      errorCode: undefined,
+      startedAt: undefined,
+      threadId: undefined,
+      result: undefined,
+      provenance: waitingProvenance(),
+    });
+  }
+
   async initialize(): Promise<void> {
     if (this.deleteRequested) {
       throw new Error("LOCAL_SESSION_DELETED");
@@ -245,16 +264,23 @@ export class LocalRunnerSession extends EventEmitter {
         const preflight = await this.actions.preflight();
         if (this.deleteRequested) return;
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
-        this.setPhase(preflight.signedIn ? "ready" : "needs-auth", {
-          codexVersion: preflight.codexVersion,
-          localReleaseCommit: preflight.releaseCommit,
-          ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
-        });
+        if (preflight.signedIn) {
+          this.setReady(preflight);
+        } else {
+          this.setPhase("needs-auth", {
+            codexVersion: preflight.codexVersion,
+            localReleaseCommit: preflight.releaseCommit,
+            accountLabel: preflight.accountLabel,
+          });
+        }
       } catch (error) {
         if (this.deleteRequested) return;
+        const code = errorCode(error);
         this.setPhase("failed", {
-          errorCode: errorCode(error),
-          detail: "Preflight stopped at a protected local boundary.",
+          errorCode: code,
+          detail: code === "LOCAL_CODEX_USAGE_LIMIT"
+            ? "This Codex account has reached its current usage limit. No build was started."
+            : "Preflight stopped at a protected local boundary.",
         });
       } finally {
         this.operation = null;
@@ -274,17 +300,21 @@ export class LocalRunnerSession extends EventEmitter {
         if (this.deleteRequested) return;
         if (!preflight.signedIn) throw new Error("LOCAL_LOGIN_INCOMPLETE");
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
-        this.setPhase("ready", {
-          codexVersion: preflight.codexVersion,
-          localReleaseCommit: preflight.releaseCommit,
-          ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
-        });
+        this.setReady(preflight);
       } catch (error) {
         if (this.deleteRequested) return;
-        this.setPhase("needs-auth", {
-          errorCode: errorCode(error),
-          detail: "Sign-in did not complete. No credential detail was exposed to this page.",
-        });
+        const code = errorCode(error);
+        if (code === "LOCAL_CODEX_USAGE_LIMIT") {
+          this.setPhase("failed", {
+            errorCode: code,
+            detail: "This Codex account has reached its current usage limit. No build was started.",
+          });
+        } else {
+          this.setPhase("needs-auth", {
+            errorCode: code,
+            detail: "Sign-in did not complete. No credential detail was exposed to this page.",
+          });
+        }
       } finally {
         this.operation = null;
       }
@@ -354,15 +384,26 @@ export class LocalRunnerSession extends EventEmitter {
         }
       } catch (error) {
         if (this.deleteRequested) return;
+        const code = errorCode(error);
         const provenance = { ...this.snapshotValue.provenance };
         if (provenance.codex === "live") provenance.codex = "failed";
         if (provenance.verifier === "live") provenance.verifier = "failed";
         provenance.proof = "failed";
-        this.setPhase("failed", {
-          errorCode: errorCode(error),
-          detail: "The run stopped at a protected boundary; raw command output was not exposed.",
-          provenance,
-        });
+        if (code === "LOCAL_CODEX_REAUTH_REQUIRED") {
+          this.setPhase("needs-auth", {
+            errorCode: code,
+            detail: "Codex could not refresh this sign-in. Sign in again to continue.",
+            provenance,
+          });
+        } else {
+          this.setPhase("failed", {
+            errorCode: code,
+            detail: code === "LOCAL_CODEX_USAGE_LIMIT"
+              ? "This Codex account has reached its current usage limit. No proof was issued."
+              : "The run stopped at a protected boundary; raw command output was not exposed.",
+            provenance,
+          });
+        }
       } finally {
         if (this.runAbort === runAbort) this.runAbort = null;
         this.operation = null;

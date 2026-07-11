@@ -18,6 +18,7 @@
     "acceptance:all": "pnpm check && pnpm acceptance:local && pnpm acceptance:api && pnpm acceptance:ui && pnpm acceptance:repeat -- --runs 3",
     "release:package": "node scripts/package-release.mjs",
     "capture:showcase": "node scripts/capture-showcase.mjs",
+    "capture:local-runner-release": "node --import tsx scripts/capture-local-runner-release.mjs",
     "evidence:extract-invocations": "node scripts/extract-recorded-invocations.mjs",
     "evidence:export-run": "node scripts/export-migration-run.mjs",
     "evidence:test-redaction": "node --test scripts/export-redaction.test.mjs",

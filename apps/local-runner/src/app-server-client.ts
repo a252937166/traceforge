@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { isAbsolute, relative, sep } from "node:path";
+import { LOCAL_RUNNER_VERSION } from "./manifest.js";
 
 export const VERIFIED_CODEX_VERSION = "0.144.1" as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -78,6 +79,16 @@ export interface AccountReadResult {
   requiresOpenaiAuth: boolean;
 }
 
+export interface AccountReadOptions {
+  /** Ask Codex to validate the persisted refresh token instead of trusting cached account metadata. */
+  refreshToken?: boolean;
+}
+
+export interface AccountRateLimitsResult {
+  primaryUsedPercent: number | null;
+  rateLimitReached: boolean;
+}
+
 export interface AppServerModel {
   id: string;
   model: string;
@@ -139,6 +150,13 @@ export class AppServerRpcError extends Error {
     super(`LOCAL_APP_SERVER_RPC_ERROR:${method}:${code}:${redactAndTruncate(message, 512)}`);
     this.name = "AppServerRpcError";
   }
+}
+
+function isRevokedAccountRefresh(error: unknown): boolean {
+  if (!(error instanceof AppServerRpcError) || error.method !== "account/read") return false;
+  return /access token could not be refreshed because (?:your )?refresh token was revoked/i.test(error.message)
+    || /refresh token (?:has been|was) revoked/i.test(error.message)
+    || /please log out and sign in again/i.test(error.message);
 }
 
 export class AppServerTimeoutError extends Error {
@@ -514,8 +532,20 @@ export class AppServerClient {
     this.writeMessage(params === undefined ? { method } : { method, params });
   }
 
-  async readAccount(): Promise<AccountReadResult> {
-    const raw = await this.request<JsonObject>("account/read", { refreshToken: false });
+  async readAccount(options: AccountReadOptions = {}): Promise<AccountReadResult> {
+    const refreshToken = options.refreshToken === true;
+    let raw: JsonObject;
+    try {
+      raw = await this.request<JsonObject>("account/read", { refreshToken });
+    } catch (error) {
+      // A revoked refresh token is an authentication state, not a transport
+      // failure. Collapse Codex's raw message into the same safe result as a
+      // signed-out account so it can never reach the browser session state.
+      if (refreshToken && isRevokedAccountRefresh(error)) {
+        return { account: null, requiresOpenaiAuth: true };
+      }
+      throw error;
+    }
     const account = raw.account && typeof raw.account === "object"
       ? raw.account as JsonObject
       : null;
@@ -527,6 +557,24 @@ export class AppServerClient {
         }
         : null,
       requiresOpenaiAuth: raw.requiresOpenaiAuth !== false,
+    };
+  }
+
+  async readRateLimits(): Promise<AccountRateLimitsResult> {
+    const raw = await this.request<JsonObject>("account/rateLimits/read");
+    const rateLimits = objectOrEmpty(raw.rateLimits);
+    const primary = objectOrEmpty(rateLimits.primary);
+    const primaryUsedPercent = typeof primary.usedPercent === "number"
+      && Number.isFinite(primary.usedPercent)
+      ? primary.usedPercent
+      : null;
+    const reachedType = rateLimits.rateLimitReachedType;
+    return {
+      primaryUsedPercent,
+      // Keep the concrete limit type, reset time, and any service message out
+      // of Local Runner state. Only Codex's server-classified state is
+      // authoritative; usedPercent is informational and may be rounded.
+      rateLimitReached: reachedType !== null && reachedType !== undefined,
     };
   }
 
@@ -858,7 +906,7 @@ export async function spawnAppServer(options: SpawnAppServerOptions): Promise<Ap
       clientInfo: options.clientInfo ?? {
         name: "traceforge_local_runner",
         title: "TraceForge Local Runner",
-        version: "0.1.7",
+        version: LOCAL_RUNNER_VERSION,
       },
     }, { timeoutMs: initializeTimeoutMs });
     client.notify("initialized", {});

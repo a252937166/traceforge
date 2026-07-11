@@ -5,6 +5,7 @@ import type { ChildProcess, SpawnOptions } from "node:child_process";
 import {
   browserCommandForPlatform,
   openBrowser,
+  shouldOpenLocalRunnerPage,
   validateBrowserUrl,
 } from "../src/open-browser.js";
 
@@ -46,4 +47,11 @@ test("openBrowser always spawns with shell:false", async () => {
   assert.equal(received?.command, "open");
   assert.equal(received?.options.shell, false);
   assert.deepEqual(received?.args, ["https://auth.openai.com/codex/device"]);
+});
+
+test("automatic Local Runner browser opening is disabled only by the exact capture flag", () => {
+  assert.equal(shouldOpenLocalRunnerPage({}), true);
+  assert.equal(shouldOpenLocalRunnerPage({ TRACEFORGE_LOCAL_NO_BROWSER: "1" }), false);
+  assert.equal(shouldOpenLocalRunnerPage({ TRACEFORGE_LOCAL_NO_BROWSER: "true" }), true);
+  assert.equal(shouldOpenLocalRunnerPage({ TRACEFORGE_LOCAL_NO_BROWSER: "01" }), true);
 });

@@ -25,6 +25,10 @@ rl.on("line", line => {
   if (msg.method === "initialized") return;
   if (msg.method === "initialize") return send({ id: msg.id, result: { userAgent: "fake" } });
   if (msg.method === "account/read") return send({ id: msg.id, result: { account: { type: "chatgpt", planType: "plus", email: "private@example.com" }, requiresOpenaiAuth: true } });
+  if (msg.method === "account/rateLimits/read") {
+    if (Object.prototype.hasOwnProperty.call(msg, "params")) return send({ id: msg.id, error: { code: -32602, message: "params must be omitted" } });
+    return send({ id: msg.id, result: { rateLimits: { primary: { usedPercent: 42, resetsAt: 123456789 }, rateLimitReachedType: null } } });
+  }
   if (msg.method === "account/login/start") return send({ id: msg.id, result: msg.params.type === "chatgpt" ? { type: "chatgpt", authUrl: "https://auth.openai.com/test" } : { type: "chatgptDeviceCode", verificationUrl: "https://auth.openai.com/codex/device", userCode: "ABCD" } });
   if (msg.method === "model/list") {
     if (!msg.params.cursor) return send({ id: msg.id, result: { data: [{ id: "gpt-5.6-sol", model: "gpt-5.6-sol" }], nextCursor: "next" } });
@@ -60,6 +64,54 @@ rl.on("line", line => {
 });
 `;
 
+const REVOKED_REFRESH_SERVER = String.raw`
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+const send = value => process.stdout.write(JSON.stringify(value) + "\n");
+rl.on("line", line => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ id: msg.id, result: {} });
+  if (msg.method === "initialized") return;
+  if (msg.method === "account/read") {
+    if (msg.params && msg.params.refreshToken === true) {
+      return send({ id: msg.id, error: { code: -32000, message: 'Your access token could not be refreshed because your refresh token was revoked. Please log out and sign in again. {"refreshToken":"rt-do-not-expose"}' } });
+    }
+    return send({ id: msg.id, result: { account: { type: "chatgpt", planType: "stale-cache" }, requiresOpenaiAuth: true } });
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
+const EXHAUSTED_RATE_LIMIT_SERVER = String.raw`
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+const send = value => process.stdout.write(JSON.stringify(value) + "\n");
+rl.on("line", line => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ id: msg.id, result: {} });
+  if (msg.method === "initialized") return;
+  if (msg.method === "account/rateLimits/read") {
+    return send({ id: msg.id, result: { rateLimits: { primary: { usedPercent: 99, resetsAt: 987654321 }, rateLimitReachedType: "rate_limit_reached" } } });
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
+const FULL_BUT_NOT_REACHED_SERVER = String.raw`
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+const send = value => process.stdout.write(JSON.stringify(value) + "\n");
+rl.on("line", line => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") return send({ id: msg.id, result: {} });
+  if (msg.method === "initialized") return;
+  if (msg.method === "account/rateLimits/read") {
+    return send({ id: msg.id, result: { rateLimits: { primary: { usedPercent: 100, resetsAt: 987654321 }, rateLimitReachedType: null } } });
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
 async function createClient(t: test.TestContext, script = FAKE_SERVER, maxStderrChars = 512) {
   const root = await mkdtemp(join(tmpdir(), "traceforge-app-server-test-"));
   await Promise.all([
@@ -90,6 +142,10 @@ test("initializes JSONL and exposes safe account, model, thread, turn, and comma
     account: { type: "chatgpt", planType: "plus" },
     requiresOpenaiAuth: true,
   });
+  assert.deepEqual(await client.readRateLimits(), {
+    primaryUsedPercent: 42,
+    rateLimitReached: false,
+  });
   assert.deepEqual((await client.listModels()).map(({ id }) => id), ["gpt-5.6-sol", "gpt-5.6-luna"]);
   assert.match(String((await client.startLogin({ type: "chatgpt" })).authUrl), /^https:\/\/auth\.openai\.com/);
   assert.equal((await client.startThread({
@@ -99,6 +155,32 @@ test("initializes JSONL and exposes safe account, model, thread, turn, and comma
   })).thread.id, "thread-1");
   assert.equal((await client.startTurn({ threadId: "thread-1", prompt: "Fixed prompt" })).turn.id, "turn-1");
   assert.equal((await client.execCommand({ command: ["pnpm", "test"], cwd: root })).stdout, "pnpm test");
+});
+
+test("forced account refresh maps a revoked token to signed-out without exposing details", async (t) => {
+  const { client } = await createClient(t, REVOKED_REFRESH_SERVER);
+  assert.deepEqual(await client.readAccount(), {
+    account: { type: "chatgpt", planType: "stale-cache" },
+    requiresOpenaiAuth: true,
+  });
+  const fresh = await client.readAccount({ refreshToken: true });
+  assert.deepEqual(fresh, { account: null, requiresOpenaiAuth: true });
+  assert.doesNotMatch(JSON.stringify(fresh), /rt-do-not-expose|revoked|refresh token/i);
+});
+
+test("rate-limit reads expose only the bounded verdict", async (t) => {
+  const { client } = await createClient(t, EXHAUSTED_RATE_LIMIT_SERVER);
+  const limits = await client.readRateLimits();
+  assert.deepEqual(limits, { primaryUsedPercent: 99, rateLimitReached: true });
+  assert.doesNotMatch(JSON.stringify(limits), /primary\"|987654321|resetsAt/);
+});
+
+test("rate-limit reads trust the server classification instead of a rounded percentage", async (t) => {
+  const { client } = await createClient(t, FULL_BUT_NOT_REACHED_SERVER);
+  assert.deepEqual(await client.readRateLimits(), {
+    primaryUsedPercent: 100,
+    rateLimitReached: false,
+  });
 });
 
 test("streams notifications and rejects unexpected server requests by default", async (t) => {

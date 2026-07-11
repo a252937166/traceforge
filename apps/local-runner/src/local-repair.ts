@@ -305,6 +305,46 @@ function safeErrorCode(error: unknown): string {
   return /^[A-Z][A-Z0-9_.-]+$/.test(prefix) ? prefix : "LOCAL_REPAIR_FAILED";
 }
 
+export function createCodexTurnFailureError(
+  status: unknown,
+  rawMessage: unknown,
+  codexErrorInfo?: unknown,
+): Error {
+  const message = asString(rawMessage);
+  const structuredCode = asString(codexErrorInfo);
+  if (structuredCode === "unauthorized") {
+    return new Error("LOCAL_CODEX_REAUTH_REQUIRED");
+  }
+  if (structuredCode === "usageLimitExceeded") {
+    return new Error("LOCAL_CODEX_USAGE_LIMIT");
+  }
+  if (
+    /access token could not be refreshed because (?:your )?refresh token was revoked/i.test(message)
+    || /please log out and sign in again/i.test(message)
+  ) {
+    return new Error("LOCAL_CODEX_REAUTH_REQUIRED");
+  }
+  if (
+    /you(?:'|’)?ve hit your usage limit/i.test(message)
+    || /usage limit[\s\S]*purchase more credits/i.test(message)
+  ) {
+    return new Error("LOCAL_CODEX_USAGE_LIMIT");
+  }
+  const statusCode = asString(status).toUpperCase() || "FAILED";
+  return new Error(`LOCAL_CODEX_TURN_${statusCode}:${message}`);
+}
+
+function rethrowKnownCodexServiceFailure(error: unknown): never {
+  const mapped = createCodexTurnFailureError("failed", errorMessage(error));
+  if (
+    mapped.message === "LOCAL_CODEX_REAUTH_REQUIRED"
+    || mapped.message === "LOCAL_CODEX_USAGE_LIMIT"
+  ) {
+    throw mapped;
+  }
+  throw error;
+}
+
 function parseStructuredOutput(value: string): LocalRepairStructuredOutput {
   let parsed: JsonRecord;
   try {
@@ -793,7 +833,11 @@ async function runCodexTurn(
     }
     if (completedTurn.status !== "completed") {
       const turnError = asRecord(completedTurn.error);
-      throw new Error(`LOCAL_CODEX_TURN_${asString(completedTurn.status).toUpperCase() || "FAILED"}:${asString(turnError.message)}`);
+      throw createCodexTurnFailureError(
+        completedTurn.status,
+        turnError.message,
+        turnError.codexErrorInfo,
+      );
     }
     if (!finalResponse.trim()) throw new Error("LOCAL_CODEX_FINAL_RESPONSE_MISSING");
     const turnCompletedAt = new Date().toISOString();
@@ -804,6 +848,10 @@ async function runCodexTurn(
       usage: latestUsage,
     });
     return { threadId, turnId, turnCompletedAt, finalResponse, usage: latestUsage };
+  } catch (error) {
+    // The service can report the same account failures either in a completed
+    // turn or as an RPC rejection from thread/start or turn/start.
+    rethrowKnownCodexServiceFailure(error);
   } finally {
     unsubscribe();
   }

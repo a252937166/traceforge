@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCodexTurnFailureError } from "../src/local-repair.js";
 import { startLocalRunnerServer } from "../src/local-server.js";
 import {
   LocalRunnerSession,
@@ -186,6 +187,38 @@ test("failed runs expose only fixed diagnostics and keep failed proof inspectabl
   const proofView = await fetch(`${server.origin}/api/proof?view=html`, { headers: { Cookie: cookie } });
   assert.equal(proofView.status, 200);
   assert.match(await proofView.text(), /Failed local proof/);
+});
+
+test("the loopback UI exposes a safe usage-limit state without the service message", async (t) => {
+  const raw = "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 2:28 AM.";
+  const actions: LocalRunnerActions = {
+    async preflight() {
+      return { codexVersion: "codex-cli 0.144.1", releaseCommit: "a".repeat(40), signedIn: true, modelAvailable: true };
+    },
+    async login() {},
+    async run(_signal, onProgress) {
+      onProgress({ phase: "codex", message: "Codex is writing" });
+      throw createCodexTurnFailureError("failed", raw);
+    },
+    async cleanup() {},
+  };
+  const session = new LocalRunnerSession(actions);
+  await session.initialize();
+  await session.start();
+  const server = await startLocalRunnerServer(session, { closeOnDelete: false });
+  t.after(() => server.close());
+
+  const bootstrap = await fetch(server.url, { redirect: "manual" });
+  const cookie = bootstrap.headers.get("set-cookie")?.split(";", 1)[0];
+  assert.ok(cookie);
+  const page = await fetch(`${server.origin}/local`, { headers: { Cookie: cookie } });
+  const html = await page.text();
+  const state = await fetch(`${server.origin}/api/state`, { headers: { Cookie: cookie } });
+  const rawState = await state.text();
+  assert.match(html, /Diagnostic code/);
+  assert.equal((JSON.parse(rawState) as { phase: string }).phase, "failed");
+  assert.match(rawState, /LOCAL_CODEX_USAGE_LIMIT/);
+  assert.doesNotMatch(`${html}\n${rawState}`, /chatgpt\.com\/codex\/settings\/usage|2:28|purchase more credits/i);
 });
 
 test("delete is terminal even when a delayed run ignores abort", async () => {

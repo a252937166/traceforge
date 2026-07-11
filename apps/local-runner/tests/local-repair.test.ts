@@ -10,6 +10,7 @@ import {
 } from "../../api/src/codex-adapter.js";
 import { cleanupLocalFixture, prepareLocalFixture } from "../src/fixture.js";
 import {
+  createCodexTurnFailureError,
   diagnoseLocalCommand,
   runBoundedTrustedHostCommand,
   runLocalRepair,
@@ -23,6 +24,31 @@ import {
 } from "../src/permissions.js";
 
 const execFileAsync = promisify(execFile);
+
+test("Codex turn auth and usage failures collapse to fixed safe codes", () => {
+  const reauthRaw = "Your access token could not be refreshed because your refresh token was revoked. Please log out and sign in again.";
+  const usageRaw = "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 2:28 AM.";
+
+  const reauth = createCodexTurnFailureError("failed", reauthRaw);
+  const usage = createCodexTurnFailureError("failed", usageRaw);
+  assert.equal(reauth.message, "LOCAL_CODEX_REAUTH_REQUIRED");
+  assert.equal(usage.message, "LOCAL_CODEX_USAGE_LIMIT");
+  assert.doesNotMatch(`${reauth.message}\n${usage.message}`, /refresh token|chatgpt\.com|2:28/i);
+
+  assert.equal(
+    createCodexTurnFailureError("cancelled", "A different failure").message,
+    "LOCAL_CODEX_TURN_CANCELLED:A different failure",
+  );
+
+  assert.equal(
+    createCodexTurnFailureError("failed", "localized auth failure", "unauthorized").message,
+    "LOCAL_CODEX_REAUTH_REQUIRED",
+  );
+  assert.equal(
+    createCodexTurnFailureError("failed", "localized quota failure", "usageLimitExceeded").message,
+    "LOCAL_CODEX_USAGE_LIMIT",
+  );
+});
 
 class FakeBuildClient implements LocalRepairAppServerClient {
   private readonly listeners = new Set<(notification: AppServerNotification) => void>();

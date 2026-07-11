@@ -114,3 +114,7 @@ export function openOpenAiLogin(url: string): Promise<void> {
 export function openLocalRunnerPage(url: string): Promise<void> {
   return openBrowser(url, { purpose: "local-ui" });
 }
+
+export function shouldOpenLocalRunnerPage(environment: NodeJS.ProcessEnv = process.env): boolean {
+  return environment.TRACEFORGE_LOCAL_NO_BROWSER !== "1";
+}
