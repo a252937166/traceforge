@@ -31,6 +31,16 @@ test("candidate policy accepts the complete one-function repair", async () => {
   assert.match(evidence.sourceDigest, /^sha256:[a-f0-9]{64}$/);
 });
 
+test("candidate policy accepts an equivalent local Error code assignment", async () => {
+  const { base, candidate } = await sources();
+  const equivalent = candidate.replace(
+    `throw Object.assign(\n        new Error("replacement cannot be issued without sellable stock"),\n        { code: "INSUFFICIENT_SELLABLE_STOCK" },\n      );`,
+    `const error = new Error("replacement cannot be issued without sellable stock") as Error & { code: string };\n      error.code = "INSUFFICIENT_SELLABLE_STOCK";\n      throw error;`,
+  );
+  assert.notEqual(equivalent, candidate);
+  assert.doesNotThrow(() => validateCandidateSource(equivalent, base));
+});
+
 test("candidate policy rejects edits outside the generated function", async () => {
   const { base, candidate } = await sources();
   assert.throws(

@@ -7,7 +7,7 @@ import { readReleaseIdentity } from "../src/release.js";
 
 const packagedRelease = {
   sha: "a".repeat(40),
-  version: "local-runner-v0.1.8",
+  version: "local-runner-v0.1.9",
   builtAt: "2026-07-11T14:30:00.000Z",
 };
 

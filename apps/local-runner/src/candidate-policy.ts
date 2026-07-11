@@ -21,6 +21,7 @@ const ALLOWED_PROPERTY_ACCESS = new Set([
   "assign",
   "amountCents",
   "customerTier",
+  "code",
   "decision",
   "initialInventory",
   "inventoryAfter",
