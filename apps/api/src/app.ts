@@ -60,7 +60,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   const service = dependencies.service ?? new TraceForgeService(store);
   const codex = dependencies.codexAdapter ?? new CodexRepairAdapter({ env });
   const migrationStore = dependencies.migrationStore
-    ?? new MigrationStore(dependencies.store ? ":memory:" : env.TRACEFORGE_DB);
+    ?? new MigrationStore(env.TRACEFORGE_DB ?? (dependencies.store ? ":memory:" : undefined));
   const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env, codex);
   const allowedOrigins = buildAllowedOrigins(env);
   const app = express();

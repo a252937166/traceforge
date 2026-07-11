@@ -59,7 +59,7 @@ try {
     result.events.map(() => "migration"),
     "every SSE frame must use the single migration channel",
   );
-  assert.match(streamBody, /^data: .*"type":"hypothesis\.falsified"/m);
+  assert.match(streamBody, /^data: .*"type":"hypothesis\.accepted"/m);
   assert.match(streamBody, /^data: .*"type":"proof\.completed"/m);
 
   const tamperedProof = structuredClone(result.proof);

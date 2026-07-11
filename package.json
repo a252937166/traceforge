@@ -18,6 +18,8 @@
     "capture:showcase": "node scripts/capture-showcase.mjs",
     "evidence:extract-invocations": "node scripts/extract-recorded-invocations.mjs",
     "evidence:export-run": "node scripts/export-migration-run.mjs",
+    "evidence:test-redaction": "node --test scripts/export-redaction.test.mjs",
+    "evidence:update-recorded": "node scripts/update-recorded-champion.mjs",
     "proof:verify": "pnpm --filter @traceforge/api proof:verify"
   },
   "devDependencies": {

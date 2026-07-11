@@ -192,7 +192,7 @@ export function validateRecordedMigration({ job, events, proof, artifacts }) {
   for (const type of [
     "job.started",
     "hypothesis.proposed",
-    "hypothesis.falsified",
+    "hypothesis.accepted",
     "counterexample.updated",
     "candidate.updated",
     "proof.completed",

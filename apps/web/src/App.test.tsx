@@ -141,8 +141,8 @@ describe('TraceForge Migration Loom', () => {
       updatedAt: '2026-07-11T01:01:00.000Z',
       modelId: 'gpt-5.6-sol',
       replay: {
-        recordedAt: '2026-07-10T17:30:31.000Z',
-        sourceRunId: 'migration_57dcf6ff-c7b0-4842-8a66-a74e08565b7b',
+        recordedAt: '2026-07-11T06:25:27.754Z',
+        sourceRunId: 'migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996',
         modelId: 'gpt-5.6-sol',
         disclosure: 'Recorded execution.',
       },
@@ -155,21 +155,21 @@ describe('TraceForge Migration Loom', () => {
         status: 'accepted',
         summary: 'Counterexample-aware replacement workflow',
         modelId: 'gpt-5.6-sol',
-        codexThreadId: '019f4d12-9228-78c1-95fc-3a13d8e1919f',
+        codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
         changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
       }],
       proof: {
         id: 'proof-01',
         migrationId: replayJob.id,
         status: 'PASSED',
-        digest: `sha256:${'9c4bf00'.padEnd(64, '0')}`,
+        digest: `sha256:${'4ff6eba'.padEnd(64, '0')}`,
         generatedAt: '2026-07-11T01:01:00.000Z',
         scenariosPassed: 6,
         scenariosTotal: 6,
         assertionsPassed: 30,
         assertionsTotal: 30,
         mismatchCount: 0,
-        modelInvocations: [23_559, 23_689, 25_769, 46_005].map((totalTokens, index) => ({
+        modelInvocations: [22_936, 22_483, 24_193, 45_953].map((totalTokens, index) => ({
           role: index === 0 ? 'trace-archaeologist' : 'counterexample-hunter',
           model: 'gpt-5.6-sol',
           threadId: `thread-${index + 1}`,
@@ -178,13 +178,13 @@ describe('TraceForge Migration Loom', () => {
         })),
         candidate: {
           implementationId: 'replacement.return-workflow.generated-candidate',
-          codexThreadId: '019f4d12-9228-78c1-95fc-3a13d8e1919f',
-          baseCommit: '899ff7ac5f6151b58129559a1d760177a1243136',
+          codexThreadId: '019f4fd8-5408-7752-b8fa-f8c6b08b33ef',
+          baseCommit: '7c1dceeaee7f375beb8d2895fda502f2ad74e039',
           changedFiles: ['apps/api/src/candidates/generated-return-workflow.ts'],
-          sourceDigest: `sha256:${'33dae44'.padEnd(64, '0')}`,
-          diffDigest: `sha256:${'71a28fc'.padEnd(64, '0')}`,
+          sourceDigest: `sha256:${'b890c0d'.padEnd(64, '0')}`,
+          diffDigest: `sha256:${'99d556c'.padEnd(64, '0')}`,
         },
-        hostVerification: { testsPassed: 37, testsTotal: 37 },
+        hostVerification: { testsPassed: 42, testsTotal: 42, testsSkipped: 4, scope: 'candidate-safe' },
       },
     }
 
@@ -192,15 +192,15 @@ describe('TraceForge Migration Loom', () => {
     const strip = screen.getByRole('region', { name: 'Server-reported provenance' })
 
     expect(within(strip).getByText('4 verified')).toBeInTheDocument()
-    expect(within(strip).getByText('119,022 recorded')).toBeInTheDocument()
+    expect(within(strip).getByText('115,565 recorded')).toBeInTheDocument()
     expect(within(strip).getByText('4 reported')).toBeInTheDocument()
-    expect(within(strip).getByText('37/37')).toBeInTheDocument()
+    expect(within(strip).getByText('42/42 · 4 replay-only')).toBeInTheDocument()
     expect(within(strip).getByText('6/6')).toBeInTheDocument()
     expect(within(strip).getByText('30/30')).toBeInTheDocument()
-    expect(within(strip).getByText('sha256:33dae44…')).toHaveAttribute('title', expect.stringMatching(/^sha256:33dae44/))
-    expect(within(strip).getByText('sha256:71a28fc…')).toHaveAttribute('title', expect.stringMatching(/^sha256:71a28fc/))
-    expect(within(strip).getByText('sha256:9c4bf00…')).toHaveAttribute('title', expect.stringMatching(/^sha256:9c4bf00/))
-    expect(within(strip).getByTitle(replayJob.replay!.sourceRunId)).toHaveTextContent('migration_57dcf6ff-c7b')
+    expect(within(strip).getByText('sha256:b890c0d…')).toHaveAttribute('title', expect.stringMatching(/^sha256:b890c0d/))
+    expect(within(strip).getByText('sha256:99d556c…')).toHaveAttribute('title', expect.stringMatching(/^sha256:99d556c/))
+    expect(within(strip).getByText('sha256:4ff6eba…')).toHaveAttribute('title', expect.stringMatching(/^sha256:4ff6eba/))
+    expect(within(strip).getByTitle(replayJob.replay!.sourceRunId)).toHaveTextContent('migration_77f7a45d-a07f')
     expect(within(strip).getByTitle(replayJob.id)).toHaveTextContent('migration_replay_fresh_')
     expect(within(strip).queryByText('Not reported')).not.toBeInTheDocument()
   })

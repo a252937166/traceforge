@@ -19,25 +19,25 @@ const expectedInvocations = [
     order: 1,
     slug: "trace-archaeologist",
     role: "trace-archaeologist",
-    threadId: "019f4cf8-e79c-7af0-8a2a-9ade019a5d7b",
+    threadId: "019f4fd5-00a1-76c3-bf42-5e821800ad3c",
   },
   {
     order: 2,
     slug: "counterexample-crossed-input",
     role: "counterexample-hunter",
-    threadId: "019f4cf9-f48d-77a1-a6d4-a5c54894e138",
+    threadId: "019f4fd5-cf26-7180-89ee-360a62e3d5b8",
   },
   {
     order: 3,
     slug: "counterexample-high-value",
     role: "counterexample-hunter",
-    threadId: "019f4cfa-af8a-7592-b3d7-1a055683863d",
+    threadId: "019f4fd6-6541-7452-b9eb-217a27e54f68",
   },
   {
     order: 4,
     slug: "contract-critic",
     role: "contract-critic",
-    threadId: "019f4cfb-aab9-7e41-a8a2-aa4157748559",
+    threadId: "019f4fd7-1f71-79c2-b461-33647571d2a7",
   },
 ];
 

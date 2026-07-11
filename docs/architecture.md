@@ -24,8 +24,13 @@ TraceForge does not infer that unexecuted behavior, external services, or an arb
                                               behavior contract
                                                     │
                                                     ▼
+                                      all failed candidate proofs
+                                      visible scenario corpus only
+                                                    │
+                                                    ▼
   retained detached worktree  ◄──  Build: Codex repairs complete candidate module
-  one-file write allowlist          no network / no apply / no commit / no deploy
+  one-file write allowlist          generic prompt points to immutable JSON inputs
+                                    no hidden input / no oracle / no tests / no network
                  │
                  ▼
   legacy oracle ───────────── Verify: host differential suite ───────── candidate
@@ -58,7 +63,7 @@ The host rejects output that cites an evidence ID outside the supplied trace pac
 
 The **Counterexample Hunter** proposes one valid input at a time but cannot predict, fabricate, or execute its result. The host validates the input, runs it against the legacy oracle, and adds the fresh trace to the next model call.
 
-After a high-information example reveals manual-review behavior, the host performs deterministic adjacent probes to find the exact `49,999 / 50,000`-cent boundary. The **Contract Critic** then audits every rule and returns one of three dispositions:
+After a high-information example reveals manual-review behavior, the host performs deterministic adjacent probes to find the exact `49,999 / 50,000`-cent boundary. It also executes two visible priority checks before the writing turn: `VIP + DAMAGED + 50,000 cents` and `VIP + DAMAGED + 75,000 cents`. The first becomes the final suite's host-derived counterexample; the second bounds the disclosed high-value interval supplied to Codex. The **Contract Critic** then audits every rule and returns one of three dispositions:
 
 - `NEEDS_COUNTEREXAMPLE` — execute another host-owned check;
 - `READY_FOR_BUILD` — the evidence supports an ordered contract;
@@ -68,7 +73,15 @@ The implemented contract gives the high-value review boundary priority over cust
 
 ### 4. Build
 
-The host first runs the seeded candidate and records its rejection. It then passes an existing failed proof to `CodexRepairAdapter`.
+The host first runs the seeded candidate and preserves **every** failed proof. `CodexRepairAdapter` accepts exactly three classes of writer-visible input:
+
+1. the GPT-5.6 behavior contract;
+2. all failed candidate proofs;
+3. only scenarios already disclosed before the writing turn.
+
+For the champion run, those inputs were materialized as immutable `.traceforge/behavior-contract.json`, `.traceforge/failed-proofs.json`, and `.traceforge/visible-scenarios.json`. Their aggregate repair-input digest is `sha256:aea099f69b03e2a1905443eb4ff7044813c11d50248d8e31eadb6b8fa80c3542`. The visible corpus contained the two observations, the `VIP + DAMAGED + 50,000` counterexample, the two exact STANDARD boundary cases, and the disclosed `VIP + DAMAGED + 75,000` trace. It did not contain the final verification-only scenario.
+
+The literal Codex prompt does not embed workflow thresholds, expected decisions, inventory answers, or a final-scenario name. It points to those three JSON artifacts and states the access constraints. The host hashes the inputs before the turn and re-reads and verifies them after the turn; mutation or an extra input file fails the repair.
 
 Codex runs with:
 
@@ -77,15 +90,20 @@ Codex runs with:
 - workspace write access but no network or Web search;
 - exactly one allowed repository path: `apps/api/src/candidates/generated-return-workflow.ts`;
 - a structured response schema;
+- no authority to inspect the legacy oracle, verifier internals, repository tests, or host-only inputs;
 - no authority to install, test, apply, commit, push, merge, deploy, or publish.
 
 The writable unit is a complete replacement workflow module, not a configuration switch. The host collects tracked, staged, untracked, and relevant ignored-path changes before accepting the diff.
 
-The recorded champion build used Codex thread `019f4d12-9228-78c1-95fc-3a13d8e1919f` from base commit `899ff7ac5f6151b58129559a1d760177a1243136` and changed only the allowed module.
+The champion build used Codex thread `019f4fd8-5408-7752-b8fa-f8c6b08b33ef` from base commit `7c1dceeaee7f375beb8d2895fda502f2ad74e039` and changed only the allowed module. The host, not Codex, then performed the offline install and verification.
 
 ### 5. Verify
 
-After the model turn ends, the host performs an offline frozen install, runs the API tests, and executes the generated candidate suite. Each scenario resets the isolated `legacy` and `replacement` SQLite partitions and compares five fields:
+Only after the Codex SDK turn has returned does the host create fresh entropy and materialize the concrete final verification input. The input never exists in the prompt, immutable artifacts, or worktree during the writing turn. Public surfaces call it **verification-only**; the proof schema retains the internal partition value `held-out` for compatibility.
+
+The host then performs an offline frozen install, runs `42/42` candidate-safe API tests, and executes the generated candidate suite. Four replay-only tests are deliberately skipped inside the candidate worktree: replay source-digest enforcement, replay pacing, recorded replay provenance, and invocation-manifest consistency. They are release guards for the repository runtime, not tests the candidate is allowed to inspect or satisfy during its writing turn.
+
+Each scenario resets the isolated `legacy` and `replacement` SQLite partitions and compares five fields:
 
 1. decision;
 2. return status;
@@ -99,12 +117,12 @@ The six-scenario suite contains:
 |---|---|
 | Observed | standard damaged return at 4,500 cents |
 | Observed | VIP damaged return at 12,000 cents |
-| Counterexample | standard damaged return at 100,000 cents |
+| Counterexample | VIP damaged return at 50,000 cents |
 | Boundary | standard damaged return at 49,999 cents |
 | Boundary | standard damaged return at 50,000 cents |
-| Held out | VIP damaged return at 50,000 cents |
+| Verification-only | `host-hidden-831ee69e3cd9`, materialized after the Codex turn |
 
-Every scenario must produce a fresh run ID, proof ID, trace pair, and proof digest. A failed proof remains inspectable, but the migration reaches `passed` only if all six runs pass with zero mismatches.
+The last row names the concrete scenario from this run; it is not a claim that all future verification-only inputs have that identity or value. Every scenario must produce a fresh run ID, proof ID, trace pair, and proof digest. A failed proof remains inspectable, but the migration reaches `passed` only if all six runs pass with zero mismatches. The champion run produced `6/6` passing scenarios, `30/30` field assertions, and zero mismatches.
 
 ## Three execution modes
 
@@ -116,7 +134,7 @@ Runs fresh GPT-5.6 archaeology, host-owned counterexamples, Codex repair, and ho
 
 ### `recorded-replay`
 
-Replays the captured inference and build events from a real model run, preserving original thread IDs, model ID, source run ID, timestamp, and a visible replay disclosure. No model call occurs during playback. The current host still executes the six-scenario differential suite and issues fresh artifacts for the replay job.
+Replays the captured inference and build events from a real model run, preserving original thread IDs, model ID, source run ID, timestamp, and a visible replay disclosure. No model call occurs during playback. Before emitting the replay, the host reads the candidate source format the current runtime will actually execute (`.ts` in source mode or built `.js` in distribution mode) and compares it with the corresponding recorded executable-source digest. A mismatch stops the job with `RECORDED_CANDIDATE_SOURCE_MISMATCH`; no stale replay or fallback proof is substituted. The current host then executes the six-scenario differential suite and issues fresh artifacts for the replay job.
 
 ### `deterministic-only`
 
@@ -148,10 +166,10 @@ Downloads include an `X-Content-SHA256` header. The proof's internal digest can 
 
 ## Evidence and provenance
 
-The checked-in [champion evidence directory](evidence/live-champion-run/README.md) contains a recorded-replay export backed by four real GPT-5.6 Sol archaeology threads and one real Codex build thread. Its proof reports `6/6` scenarios passed and digest:
+The checked-in [champion evidence directory](evidence/live-champion-run/README.md) is the export of live migration `migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996`, backed by four real GPT-5.6 Sol archaeology threads and the real Codex build thread above. It includes the raw redacted model invocations, immutable Codex input artifacts, accepted source and diff, host command logs, and the proof bundle. Its proof reports `6/6` scenarios passed and digest:
 
 ```text
-sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2
+sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241
 ```
 
 The proof digest covers its canonical JSON body. Artifact metadata has a separate digest computed by the same canonical digest helper over the artifact body string; these values serve different purposes and are intentionally not conflated.

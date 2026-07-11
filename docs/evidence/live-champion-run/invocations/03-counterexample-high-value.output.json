@@ -1,11 +1,11 @@
 {
   "role": "counterexample_hunter",
   "scenario": {
-    "scenarioId": "high-value-vip-damaged-75000",
+    "scenarioId": "high-value-vip-damaged-50000",
     "input": {
-      "returnId": "RET-HUNT-002",
+      "returnId": "RET-CE-002",
       "sku": "SKU-COPPER-01",
-      "amountCents": 75000,
+      "amountCents": 50000,
       "customerTier": "VIP",
       "itemCondition": "DAMAGED",
       "initialInventory": {
@@ -17,21 +17,20 @@
   "distinguishes": [
     {
       "ruleId": "RULE-VIP-REPLACEMENT",
-      "fromRuleId": "HYP-HIGH-VALUE-PRIORITY-EXCEPTION",
-      "reason": "Changes only amount relative to the automatically processed VIP/DAMAGED 12000-cent trace. The host-observed rule, decision, inventory state, and side effects can distinguish continued automatic replacement with immediate inventory movement from an unresolved high-value priority path that may defer inventory movement."
+      "fromRuleId": "RULE-STANDARD-REFUND",
+      "reason": "This keeps the already demonstrated VIP and DAMAGED predicates while raising the amount materially above the highest automatically processed observation. The resulting trace can reveal whether VIP replacement retains priority or a high-value exception supersedes automatic processing, while unchanged nonzero inventory makes immediate versus deferred inventory movement observable without adding an inventory confound."
     }
   ],
-  "expectedInformationGain": "Maximum for the remaining uncertainty: 75000 cents is materially above every automatically processed amount while preserving VIP, DAMAGED, SKU, and initial inventory from the existing replacement trace. This isolates the high-value dimension and lets one host execution reveal both whether a priority exception supersedes automatic processing and whether sellable/quarantine movement occurs immediately or is deferred, without predicting either result.",
+  "expectedInformationGain": "High: one input simultaneously probes the unresolved precedence of a high-value exception against the demonstrated VIP replacement rule and whether inventory mutation remains immediate or is deferred when that exception is reached. The 50000-cent amount is materially above both 4500 and 12000, while all other behavior-relevant observed fields remain controlled.",
   "basedOnEvidenceIds": [
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_003",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_004",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_006",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_007",
-    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_002",
-    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_004",
-    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_006",
-    "ev_trace_a1a58f7c-b889-44db-bc71-193a8a1a67fa_007"
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_007",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_002",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_004",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_006",
+    "ev_trace_841c1b3d-138d-4510-ab0a-dd34db8f5dfe_007"
   ]
 }

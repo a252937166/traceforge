@@ -3,7 +3,7 @@
   "hypotheses": [
     {
       "ruleId": "RULE-STANDARD-REFUND",
-      "statement": "For the observed combination STANDARD, DAMAGED, and 4500 cents, the selected rule produces REFUND and adds one unit to quarantine.",
+      "statement": "For the observed input point—STANDARD tier, DAMAGED condition, and 4500 cents—the selected rule produces REFUND and adds one unit to quarantine; behavior outside this point is not established.",
       "preconditions": [
         {
           "field": "amountCents",
@@ -25,22 +25,18 @@
         "decision": "REFUND",
         "inventoryEffect": "QUARANTINE_PLUS_ONE"
       },
-      "confidence": 0.99,
+      "confidence": 1,
       "evidenceIds": [
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_002",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_003",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_004",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_005",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_006",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_007"
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006"
       ],
-      "competingRuleIds": [
-        "HYP-AMOUNT-BANDED-REFUND"
-      ]
+      "competingRuleIds": []
     },
     {
       "ruleId": "RULE-VIP-REPLACEMENT",
-      "statement": "For the observed combination VIP, DAMAGED, and 12000 cents, the selected rule produces REPLACEMENT and adds one unit to quarantine.",
+      "statement": "For the observed input point—VIP tier, DAMAGED condition, and 12000 cents—the selected rule produces REPLACEMENT and adds one unit to quarantine; the trace also shows sellable inventory decreasing by one, which the inventoryEffect vocabulary cannot represent simultaneously.",
       "preconditions": [
         {
           "field": "amountCents",
@@ -62,116 +58,34 @@
         "decision": "REPLACEMENT",
         "inventoryEffect": "QUARANTINE_PLUS_ONE"
       },
-      "confidence": 0.99,
+      "confidence": 1,
       "evidenceIds": [
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_003",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_004",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_006",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_007"
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_005",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006"
       ],
-      "competingRuleIds": [
-        "HYP-AMOUNT-BANDED-REPLACEMENT"
-      ]
-    },
-    {
-      "ruleId": "HYP-AMOUNT-BANDED-REFUND",
-      "statement": "A competing explanation is that damaged returns below 12000 cents receive REFUND regardless of customer tier; only the 4500-cent observation supports this candidate.",
-      "preconditions": [
-        {
-          "field": "amountCents",
-          "op": "lt",
-          "value": 12000
-        },
-        {
-          "field": "itemCondition",
-          "op": "eq",
-          "value": "DAMAGED"
-        }
-      ],
-      "predicted": {
-        "decision": "REFUND",
-        "inventoryEffect": "QUARANTINE_PLUS_ONE"
-      },
-      "confidence": 0.35,
-      "evidenceIds": [
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_002",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_005",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_006"
-      ],
-      "competingRuleIds": [
-        "RULE-STANDARD-REFUND"
-      ]
-    },
-    {
-      "ruleId": "HYP-AMOUNT-BANDED-REPLACEMENT",
-      "statement": "A competing explanation is that damaged returns at or above 12000 cents receive REPLACEMENT regardless of customer tier; only the 12000-cent observation supports this candidate.",
-      "preconditions": [
-        {
-          "field": "amountCents",
-          "op": "gte",
-          "value": 12000
-        },
-        {
-          "field": "itemCondition",
-          "op": "eq",
-          "value": "DAMAGED"
-        }
-      ],
-      "predicted": {
-        "decision": "REPLACEMENT",
-        "inventoryEffect": "QUARANTINE_PLUS_ONE"
-      },
-      "confidence": 0.35,
-      "evidenceIds": [
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_006"
-      ],
-      "competingRuleIds": [
-        "RULE-VIP-REPLACEMENT"
-      ]
+      "competingRuleIds": []
     }
   ],
   "invariants": [
     {
       "invariantId": "INV-OBSERVED-DAMAGED-QUARANTINE",
-      "statement": "In both supplied DAMAGED observations, quarantine increases by exactly one; the traces do not establish this for all damaged returns.",
+      "statement": "In both supplied observations, a DAMAGED return increases quarantine inventory by one; the traces do not establish this as universal for every damaged return.",
       "evidenceIds": [
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_002",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_003",
-        "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_006",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_003",
-        "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_006"
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_003",
+        "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_006",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_003",
+        "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_006"
       ]
     }
   ],
   "unknowns": [
     {
-      "unknownId": "UNK-TIER-VS-AMOUNT",
-      "question": "Is the decision controlled by customer tier, amount, their interaction, or another unobserved condition?",
-      "blocking": true,
-      "relatedRuleIds": [
-        "RULE-STANDARD-REFUND",
-        "RULE-VIP-REPLACEMENT",
-        "HYP-AMOUNT-BANDED-REFUND",
-        "HYP-AMOUNT-BANDED-REPLACEMENT"
-      ]
-    },
-    {
-      "unknownId": "UNK-AMOUNT-BOUNDARY",
-      "question": "If amount affects the decision, where is the actual threshold and how are boundary values handled?",
-      "blocking": true,
-      "relatedRuleIds": [
-        "HYP-AMOUNT-BANDED-REFUND",
-        "HYP-AMOUNT-BANDED-REPLACEMENT"
-      ]
-    },
-    {
-      "unknownId": "UNK-TIER-GENERALIZATION",
-      "question": "Do STANDARD and VIP determine these decisions at other amounts and item conditions?",
+      "unknownId": "UNK-DECISION-DRIVER",
+      "question": "Are the different decisions caused by customer tier, amount, their interaction, or another unobserved rule predicate?",
       "blocking": true,
       "relatedRuleIds": [
         "RULE-STANDARD-REFUND",
@@ -179,12 +93,38 @@
       ]
     },
     {
-      "unknownId": "UNK-REPLACEMENT-SELLABLE-EFFECT",
-      "question": "Is the observed sellable decrement for REPLACEMENT universal, conditional on stock availability, or produced by a separate shipment rule?",
+      "unknownId": "UNK-AMOUNT-BOUNDARIES",
+      "question": "Do amount thresholds exist, and if so, what are their boundary values and precedence relative to customer tier?",
       "blocking": true,
       "relatedRuleIds": [
-        "RULE-VIP-REPLACEMENT",
-        "HYP-AMOUNT-BANDED-REPLACEMENT"
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-CONDITION-GENERALITY",
+      "question": "Do these rules apply to item conditions other than DAMAGED?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-OVERLAP-PRECEDENCE",
+      "question": "Can both rules match one input, and what precedence resolves such an overlap?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-STANDARD-REFUND",
+        "RULE-VIP-REPLACEMENT"
+      ]
+    },
+    {
+      "unknownId": "UNK-INVENTORY-COMPOSITE-EFFECT",
+      "question": "How should the VIP replacement's simultaneous sellable-minus-one and quarantine-plus-one mutation be represented when predicted.inventoryEffect permits only one effect?",
+      "blocking": true,
+      "relatedRuleIds": [
+        "RULE-VIP-REPLACEMENT"
       ]
     }
   ]

@@ -50,9 +50,9 @@ The gate waits for a terminal job and checks:
 - the recording timestamp, source run ID, and replay disclosure are present;
 - event sequences are contiguous from 1, event IDs are unique, and every event has a SHA-256 digest;
 - Observe, Infer, Challenge, Build, and Verify each emit `stage.started` and `stage.passed`;
-- the ledger contains hypothesis proposals, a falsification, counterexamples, both candidate states, a completed proof, and a terminal job event;
+- the ledger contains hypothesis proposals, evidence challenges, accepted bounded rules, both candidate states, a completed proof, and a terminal job event;
 - the proof includes four `gpt-5.6-sol` invocation records and the recorded Codex thread;
-- coverage is exactly `2 observed + 1 counterexample + 2 boundary + 1 held-out`;
+- coverage is exactly `2 observed + 1 counterexample + 2 boundary + 1 verification-only` (`held-out` remains the raw schema partition name);
 - all six scenarios pass with zero mismatches;
 - `contract.json`, `evidence.jsonl`, `candidate.diff`, `commands.json`, and `proof.json` are present.
 
@@ -64,7 +64,7 @@ The same gate verifies:
 - the compiled deterministic run passes and records zero model invocations;
 - an unknown migration returns `404`;
 - `?after=<sequence>` returns exactly the later events;
-- the SSE endpoint returns `text/event-stream`, `X-Accel-Buffering: no`, every server sequence ID, and one uniform `event: migration` channel whose JSON payloads include `hypothesis.falsified` and `proof.completed`.
+- the SSE endpoint returns `text/event-stream`, `X-Accel-Buffering: no`, every server sequence ID, and one uniform `event: migration` channel whose JSON payloads include `hypothesis.accepted` and `proof.completed`.
 
 ## UI acceptance details
 

@@ -409,9 +409,10 @@ export class MigrationRunner {
       baseCommit: recordedCodexBuild.baseCommit,
       changedFiles: [...recordedCodexBuild.changedFiles],
       hostVerification: {
-        testsPassed: 37,
-        testsTotal: 37,
-        scope: "full-release",
+        testsPassed: 42,
+        testsTotal: 42,
+        testsSkipped: 4,
+        scope: "candidate-safe",
         source: "recorded-command-log",
       },
     }, recordedArchaeology.contract);

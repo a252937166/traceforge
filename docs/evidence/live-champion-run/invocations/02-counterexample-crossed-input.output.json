@@ -1,12 +1,12 @@
 {
   "role": "counterexample_hunter",
   "scenario": {
-    "scenarioId": "cross-standard-damaged-12000",
+    "scenarioId": "crossed-vip-damaged-4500",
     "input": {
-      "returnId": "RET-HUNT-001",
+      "returnId": "RET-CE-001",
       "sku": "SKU-COPPER-01",
-      "amountCents": 12000,
-      "customerTier": "STANDARD",
+      "amountCents": 4500,
+      "customerTier": "VIP",
       "itemCondition": "DAMAGED",
       "initialInventory": {
         "sellable": 10,
@@ -16,18 +16,18 @@
   },
   "distinguishes": [
     {
-      "ruleId": "RULE-STANDARD-REFUND",
-      "fromRuleId": "HYP-AMOUNT-BANDED-REPLACEMENT",
-      "reason": "Crosses STANDARD tier with the already observed 12000-cent amount while holding DAMAGED condition and inventory constant, separating a tier-driven explanation from the competing amount-at-or-above-12000 explanation."
+      "ruleId": "RULE-VIP-REPLACEMENT",
+      "fromRuleId": "RULE-STANDARD-REFUND",
+      "reason": "This crosses the observed VIP tier with the observed 4500-cent amount while holding DAMAGED condition, SKU, and inventory constant. A tier-driven explanation and an amount-driven explanation therefore imply different rule selection, without introducing an unobserved amount value."
     }
   ],
-  "expectedInformationGain": "Maximum for one minimally redundant workflow input: it reuses the observed 12000-cent boundary and changes only customer tier relative to that trace, so the host-observed decision directly discriminates tier-driven from amount-driven explanations without introducing a new amount-boundary ambiguity.",
+  "expectedInformationGain": "Maximum among single crossed inputs: it directly separates tier-driven from amount-driven explanations by combining VIP with the exact amount previously observed only for STANDARD. It also minimizes redundancy and avoids confounding from condition or inventory changes.",
   "basedOnEvidenceIds": [
-    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_002",
-    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_004",
-    "ev_trace_c96b75a9-df7e-42d2-9a2b-fedb84e37396_005",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_002",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_004",
-    "ev_trace_6642d425-3bff-4ffa-a505-ebef7e060e75_005"
+    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_002",
+    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_004",
+    "ev_trace_1193c6ca-bcf5-4e9d-8aeb-798e4cc3a0f1_005",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_002",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_004",
+    "ev_trace_f112fc1e-9be7-4881-822e-d4fd12a6866b_005"
   ]
 }

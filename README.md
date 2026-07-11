@@ -4,7 +4,7 @@
 
 **Modernize undocumented workflows without guessing.**
 
-TraceForge turns observed workflow behavior into an evidence-linked contract, challenges that contract with counterexamples, lets Codex rebuild the workflow in an isolated worktree, and gives the final decision to a deterministic host verifier.
+TraceForge is an **evidence-bounded behavior migration system**. It turns observed workflow behavior into an evidence-linked contract, challenges that contract with counterexamples, lets Codex rebuild the workflow in an isolated worktree, and gives the final decision to a deterministic host verifier.
 
 **Hosted showcase:** [traceforge.axiqo.xyz](https://traceforge.axiqo.xyz)
 
@@ -15,8 +15,8 @@ The current executable laboratory is deliberately narrow: one Web returns workfl
 1. **Observe** — capture two SQLite-backed legacy traces: a $45 standard damaged return and a $120 VIP damaged return.
 2. **Infer** — GPT-5.6 Sol proposes competing, schema-constrained hypotheses and cites trace evidence IDs.
 3. **Challenge** — GPT-5.6 Sol proposes discriminating inputs; the host executes them, searches the exact $500 review boundary, and asks a contract critic to narrow the rules.
-4. **Build** — the seeded candidate is rejected. Codex may edit the complete replacement module in a detached worktree, with a one-file allowlist and no network access.
-5. **Verify** — the host resets state and compares legacy and candidate behavior across six observed, counterexample, boundary, and held-out scenarios. The agent that writes code never decides whether it passed.
+4. **Build** — the seeded candidate is rejected. Codex receives the evidence-bounded contract, all three failed proofs, and only the disclosed scenarios. It may edit the complete replacement module in a detached worktree, with a one-file allowlist and no network access.
+5. **Verify** — after the Codex writing turn ends, the host generates one concrete verification-only input, resets state, and compares legacy and candidate behavior across six observed, counterexample, boundary, and verification-only scenarios. The agent that writes code never sees that final input and never decides whether it passed.
 
 The workbench is driven by server events from those stages. It does not advance through client-side timers or preload a successful result.
 
@@ -24,13 +24,15 @@ The workbench is driven by server events from those stages. It does not advance 
 
 The checked-in [champion run evidence](docs/evidence/live-champion-run/README.md) records:
 
-- four real `gpt-5.6-sol` archaeology invocations, each with a thread ID and content digests;
-- Codex thread `019f4d12-9228-78c1-95fc-3a13d8e1919f` editing only `apps/api/src/candidates/generated-return-workflow.ts` from base commit `899ff7ac5f6151b58129559a1d760177a1243136`;
-- a fresh host verification covering `2 observed + 1 counterexample + 2 boundary + 1 held-out` scenarios;
-- `6/6` passing scenarios, five deterministic assertions per scenario, and zero mismatches;
-- proof digest `sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2`.
+- four real `gpt-5.6-sol` archaeology invocations totaling `115,565` tokens, with raw bounded inputs, structured outputs, thread IDs, and content digests;
+- Codex thread `019f4fd8-5408-7752-b8fa-f8c6b08b33ef` editing only `apps/api/src/candidates/generated-return-workflow.ts` from base commit `7c1dceeaee7f375beb8d2895fda502f2ad74e039`;
+- the exact contract, three failed proofs, and disclosed scenarios supplied to Codex, plus its raw turn metadata and accepted diff;
+- a post-turn host verification covering `2 observed + 1 counterexample + 2 boundary + 1 verification-only` scenarios;
+- `42/42` candidate-safe tests, with four replay-only guards separated from the candidate worktree gate;
+- `6/6` passing scenarios, `30/30` deterministic assertions, and zero mismatches;
+- proof digest `sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241`.
 
-The checked-in job is an explicitly disclosed **recorded replay** of the real model work. No GPT or Codex call is implied to be running while that recording is replayed. The differential suite and proof are executed again by the host during the replay.
+The checked-in evidence directory is the successful **live-ai** source run. The product's **recorded replay** is derived from that run and remains explicitly labeled as not live: it replays the disclosed model events, then executes the differential suite again and issues fresh artifacts. No GPT or Codex call is implied to be running during replay.
 
 Verify the proof digest locally:
 
@@ -43,8 +45,8 @@ Expected result:
 ```json
 {
   "valid": true,
-  "claimedDigest": "sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2",
-  "computedDigest": "sha256:9c4bf000d0b9ae67ef311cb93dd97cf43df914412fdee51f8d6f8ebce59f5fb2"
+  "claimedDigest": "sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241",
+  "computedDigest": "sha256:4ff6eba63043e50052cab81a6adab5a7a6c49d1bcb19a93c42bee25453a13241"
 }
 ```
 
@@ -125,6 +127,6 @@ scripts    Browser/API acceptance and evidence export helpers
 
 ## Claim boundary
 
-TraceForge proves behavioral conformance only for the six executed scenarios and the five fields checked in each scenario: decision, return status, refund amount, sellable quantity, and quarantine quantity. External payments, carrier systems, arbitrary browser capture, other databases, cryptographic signatures, and universal behavioral equivalence are outside the current claim.
+TraceForge proves behavioral conformance only for the six executed scenarios and the five fields checked in each scenario: decision, return status, refund amount, sellable quantity, and quarantine quantity. The raw proof schema calls its final partition `held-out`; the judge-facing product deliberately labels it **verification-only**, which is the precise claim: its concrete input is generated by the host after the Codex turn, not evidence of statistical generalization. External payments, carrier systems, arbitrary browser capture, other databases, cryptographic signatures, and universal behavioral equivalence are outside the current claim.
 
 Read [docs/architecture.md](docs/architecture.md) for the implemented trust boundaries and [docs/threat-model.md](docs/threat-model.md) for the remaining risks.

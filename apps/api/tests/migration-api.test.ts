@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
 import type { Server } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
 import {
@@ -9,9 +12,56 @@ import {
 } from "../src/migration-runner.js";
 import { recordedCodexBuild } from "../src/recorded-codex-build.js";
 import { MigrationStore } from "../src/migration-store.js";
+import type { MigrationJob } from "../src/migration-types.js";
 import { ArtifactStore } from "../src/store.js";
 
 const recordedReplayTest = process.env.TRACEFORGE_CANDIDATE_TESTS === "1" ? test.skip : test;
+
+test("explicit TRACEFORGE_DB persists migrations when an artifact store is injected", () => {
+  const directory = mkdtempSync(join(tmpdir(), "traceforge-migration-store-"));
+  const database = join(directory, "migrations.sqlite");
+  const env = {
+    TRACEFORGE_DB: database,
+    TRACEFORGE_ENABLE_GPT56: "0",
+    TRACEFORGE_ENABLE_CODEX: "0",
+  };
+  const createdAt = "2026-07-11T00:00:00.000Z";
+  const job: MigrationJob = {
+    id: "migration_persistence_regression",
+    executionMode: "deterministic-only",
+    scenarioIds: [],
+    status: "queued",
+    currentStage: "observe",
+    streamVersion: 1,
+    createdAt,
+    updatedAt: createdAt,
+    links: {
+      self: "/api/migrations/migration_persistence_regression",
+      events: "/api/migrations/migration_persistence_regression/events",
+      proof: "/api/migrations/migration_persistence_regression/proof",
+      artifacts: "/api/migrations/migration_persistence_regression/artifacts",
+    },
+  };
+
+  const firstArtifactStore = new ArtifactStore(":memory:");
+  const firstApp = createApp({ store: firstArtifactStore, env });
+  try {
+    firstApp.migrationStore.createJob(job);
+  } finally {
+    firstApp.migrationStore.close();
+    firstArtifactStore.close();
+  }
+
+  const secondArtifactStore = new ArtifactStore(":memory:");
+  const secondApp = createApp({ store: secondArtifactStore, env });
+  try {
+    assert.deepEqual(secondApp.migrationStore.getJob(job.id), job);
+  } finally {
+    secondApp.migrationStore.close();
+    secondArtifactStore.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("candidate evidence resolves the source format actually executed by the runtime", () => {
   assert.equal(
@@ -181,7 +231,8 @@ recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex e
     const body = await created.json();
     const job = await terminalJob(baseUrl, body.data.id);
     assert.equal(job.status, "passed");
-    assert.equal(job.recordedAt, "2026-07-10T17:30:31.000Z");
+    assert.equal(job.recordedAt, "2026-07-11T06:25:27.754Z");
+    assert.equal(job.sourceRunId, "migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996");
     assert.equal(job.modelId, "gpt-5.6-sol");
 
     const proofResponse = await fetch(`${baseUrl}/api/migrations/${job.id}/proof`);
@@ -189,11 +240,20 @@ recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex e
     const proof = (await proofResponse.json()).data;
     assert.equal(proof.status, "PASSED");
     assert.equal(proof.modelInvocations.length, 4);
-    assert.equal(proof.candidate.codexThreadId, "019f4d12-9228-78c1-95fc-3a13d8e1919f");
+    assert.equal(proof.candidate.codexThreadId, "019f4fd8-5408-7752-b8fa-f8c6b08b33ef");
+    assert.equal(proof.candidate.baseCommit, "7c1dceeaee7f375beb8d2895fda502f2ad74e039");
+    assert.deepEqual(proof.hostVerification, {
+      testsPassed: 42,
+      testsTotal: 42,
+      testsSkipped: 4,
+      scope: "candidate-safe",
+      source: "recorded-command-log",
+    });
     assert.equal(proof.coverage.passed, 6);
 
     const events = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/events?format=json`)).json()).data.events;
-    assert.equal(events.some((event: { type: string }) => event.type === "hypothesis.falsified"), true);
+    assert.equal(events.some((event: { type: string }) => event.type === "hypothesis.proposed"), true);
+    assert.equal(events.some((event: { type: string }) => event.type === "hypothesis.accepted"), true);
     assert.equal(events.some((event: { type: string }) => event.type === "counterexample.updated"), true);
     assert.equal(events.some((event: { type: string }) => event.type === "candidate.updated"), true);
 

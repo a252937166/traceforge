@@ -30,7 +30,7 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
   'recorded-replay': {
     title: 'Recorded replay',
     label: 'Verified recording · not live',
-    detail: 'Replays a previously captured model run with its original timestamp and provenance.',
+    detail: 'Replays captured model events, then re-runs host verification against the recorded candidate.',
   },
   'deterministic-only': {
     title: 'Deterministic proof',
@@ -470,7 +470,7 @@ export default function App() {
         <div className="hero-copy" id="top">
           <span className="eyebrow">Behavior → contract → software → proof</span>
           <h1>Modernize undocumented workflows without guessing.</h1>
-          <p>GPT-5.6 reconstructs hidden rules from evidence. Codex rebuilds the application. An independent host verifier proves what matches—and exposes what does not.</p>
+          <p>GPT-5.6 proposes and challenges rules from evidence. Codex rebuilds the bounded workflow. An independent host verifier proves what matches—and exposes what does not.</p>
         </div>
         <div className="mode-selector" aria-label="Execution mode">
           {Object.entries(modeCopy).map(([mode, copy]) => (
