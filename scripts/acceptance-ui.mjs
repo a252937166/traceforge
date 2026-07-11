@@ -170,6 +170,46 @@ async function runIncrementalBrowserAcceptance(webBase) {
     const eventCount = Number.parseInt(eventCountLabel ?? "0", 10);
     assert.ok(eventCount >= 25, "browser must incrementally receive the complete server event ledger");
 
+    const mobile = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 3,
+    });
+    await mobile.goto(webBase, { waitUntil: "networkidle" });
+    const mobileStageRail = await mobile.locator(".stage-rail").evaluate((rail) => {
+      const railRect = rail.getBoundingClientRect();
+      const items = [...rail.querySelectorAll("li")].map((item) => {
+        const rect = item.getBoundingClientRect();
+        return {
+          label: item.querySelector("strong")?.textContent?.trim(),
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        };
+      });
+      return {
+        clientWidth: rail.clientWidth,
+        scrollWidth: rail.scrollWidth,
+        railLeft: railRect.left,
+        railRight: railRect.right,
+        items,
+      };
+    });
+    assert.equal(mobileStageRail.items.length, 5, "mobile stage rail must render all five stages");
+    assert.equal(
+      mobileStageRail.scrollWidth,
+      mobileStageRail.clientWidth,
+      "mobile stage rail must not hide stages behind an internal horizontal scroller",
+    );
+    for (const item of mobileStageRail.items) {
+      assert.ok(item.label, "every mobile stage must keep a visible label");
+      assert.ok(item.width > 0, `mobile stage ${item.label} must have positive width`);
+      assert.ok(
+        item.left >= mobileStageRail.railLeft - 0.5 && item.right <= mobileStageRail.railRight + 0.5,
+        `mobile stage ${item.label} must remain inside the visible rail`,
+      );
+    }
+    await mobile.close();
+
     return {
       engine: "playwright-chromium",
       transportStates: trace.transportStates,
@@ -179,6 +219,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
       hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
       pollingFallbackRequests: pollingRequests,
       finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
+      mobileStageRail,
     };
   } catch (error) {
     const diagnostics = await page.evaluate(() => ({

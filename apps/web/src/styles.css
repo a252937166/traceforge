@@ -1331,13 +1331,40 @@ pre,
   }
 
   .stage-rail {
-    grid-template-columns: repeat(5, minmax(112px, 1fr));
-    overflow-x: auto;
-    scrollbar-width: thin;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: hidden;
   }
 
   .stage-rail li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 2px;
     min-height: 62px;
+    min-width: 0;
+    padding: 7px 5px;
+  }
+
+  .stage-index {
+    min-width: 0;
+    font-size: 0.54rem;
+  }
+
+  .stage-rail li > span:last-child {
+    min-width: 0;
+  }
+
+  .stage-rail strong {
+    overflow: hidden;
+    font-size: 0.58rem;
+    letter-spacing: 0;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .stage-rail small {
+    font-size: 0.48rem;
+    white-space: nowrap;
   }
 
   .proof-summary {
