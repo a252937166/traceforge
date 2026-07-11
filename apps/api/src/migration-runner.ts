@@ -563,7 +563,39 @@ export class MigrationRunner {
       },
     });
 
-    const challengeTraces = [...tracesAfterFirst, secondTrace, ...boundaryTraces, priorityTrace];
+    const coveredHighScenario = {
+      ...priorityScenario,
+      id: `live-covered-high-${job.id}`,
+      title: "Host coverage probe · above the review boundary",
+      description: "A disclosed 75,000-cent VIP damaged return bounds the interval used by the post-turn verifier.",
+      input: {
+        ...priorityScenario.input,
+        returnId: `RET-LIVE-COVERED-HIGH-${job.id}`,
+        amountCents: 75_000,
+      },
+      provenance: {
+        source: "host-derived" as const,
+        detail: "Host-authored coverage evidence disclosed before the Codex writing turn.",
+      },
+    };
+    visibleScenarios.push(coveredHighScenario);
+    const coveredHighTrace = this.service.capture(
+      "legacy",
+      coveredHighScenario.input,
+      "seeded",
+      coveredHighScenario.id,
+    );
+    this.emit(job, "challenge", "evidence.recorded", "passed", "Host bounded the covered high-value interval", this.traceSummary(coveredHighTrace), {
+      evidence: this.traceEvidencePayload(coveredHighTrace),
+    });
+
+    const challengeTraces = [
+      ...tracesAfterFirst,
+      secondTrace,
+      ...boundaryTraces,
+      priorityTrace,
+      coveredHighTrace,
+    ];
     let critic = await this.archaeology.run<CriticOutput>({
       role: "contract-critic",
       prompt: this.criticPrompt(challengeTraces, archaeologist.output),
