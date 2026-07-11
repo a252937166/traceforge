@@ -39,5 +39,22 @@ test("runtime contracts and proof bundles validate against the published schemas
     );
   }
 
+  const failureRun = service.runVisibleSuite("generated").runs.find(
+    ({ proofBundle }) => proofBundle.scenarioId === "counterexample-vip-damaged-no-sellable",
+  );
+  assert.ok(failureRun);
+  const failureContract = store.getContract(failureRun.proofBundle.contractId);
+  assert.ok(failureContract);
+  assert.equal(
+    validateContract(failureContract),
+    true,
+    `failure contract schema errors: ${JSON.stringify(validateContract.errors)}`,
+  );
+  assert.equal(
+    validateProof(failureRun.proofBundle),
+    true,
+    `failure proof schema errors: ${JSON.stringify(validateProof.errors)}`,
+  );
+
   store.close();
 });

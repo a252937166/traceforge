@@ -80,7 +80,7 @@ async function runRecordedMigration(page) {
   const recorded = page.getByRole("radio", { name: /Replay a verified run/ });
   if (!(await recorded.isChecked())) await recorded.click();
   await page.getByRole("button", { name: "Run the verified migration" }).click();
-  await page.getByText("PASSED · 6/6 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByText("PASSED · 7/7 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
   await page.getByText("proof ready", { exact: true }).waitFor({ timeout: 30_000 });
   await page.evaluate(() => document.fonts.ready);
 

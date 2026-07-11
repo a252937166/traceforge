@@ -57,8 +57,8 @@ async function buildAndReadStaticContract() {
     "Build live with my Codex",
     "local-runner-v0.1.6",
     "88fd9faa613f0b7280a584a79e209fae800272d9",
-    "13 focused candidate tests + 6 differential scenarios",
-    "42 candidate-safe tests + 4 separate replay guards",
+    "15 focused candidate tests + 7 differential scenarios",
+    "55 candidate-safe tests + 4 separate replay guards",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -180,8 +180,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await runnerDialog.innerText(), /Digest-verified contract \+ failed proofs/);
     assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.6/);
     assert.match(await runnerDialog.innerText(), /Pinned tag \+ commit 88fd9fa/);
-    assert.match(await runnerDialog.innerText(), /13 focused candidate tests \+ 6 differential scenarios/);
-    assert.match(await runnerDialog.innerText(), /42 candidate-safe tests \+ 4 separate replay guards/);
+    assert.match(await runnerDialog.innerText(), /15 focused candidate tests \+ 7 differential scenarios/);
+    assert.match(await runnerDialog.innerText(), /55 candidate-safe tests \+ 4 separate replay guards/);
     await runnerDialog.getByRole("button", { name: "Close Local Runner launcher" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
 
@@ -191,7 +191,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
       undefined,
       { timeout: 10_000 },
     );
-    await page.getByText("PASSED · 6/6 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByText("PASSED · 7/7 scenarios", { exact: true }).waitFor({ timeout: 30_000 });
     await page.waitForFunction(() => window.__traceforgeAcceptance.terminalRendered);
     await page.waitForTimeout(250);
 
@@ -385,7 +385,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
       inferActiveRenderedBeforeTerminal: trace.inferActiveRenderedBeforeTerminal,
       hypothesisRenderedBeforeTerminal: trace.hypothesisRenderedBeforeTerminal,
       pollingFallbackRequests: pollingRequests,
-      finalProof: await page.getByText("PASSED · 6/6 scenarios", { exact: true }).textContent(),
+      finalProof: await page.getByText("PASSED · 7/7 scenarios", { exact: true }).textContent(),
       initialExperience: {
         selectedMode: await recordedMode.getAttribute("value"),
         publicFreshLiveAiTriggerAbsent: true,

@@ -44,10 +44,10 @@ test("health and scenarios are available", async () => {
     version: "local-runner-v0.1.6",
     builtAt: "2026-07-11T14:30:00.000Z",
   });
-  assert.equal(scenarioResponse.data.length, 5);
+  assert.equal(scenarioResponse.data.length, 6);
   assert.deepEqual(
     scenarioResponse.data.map((scenario: { stage: string }) => scenario.stage),
-    ["observed", "observed", "counterexample", "boundary", "boundary"],
+    ["observed", "observed", "counterexample", "counterexample", "boundary", "boundary"],
   );
   assert.equal(scenarioResponse.data.every(({ visibility }: { visibility: string }) => visibility === "visible"), true);
 });
@@ -125,6 +125,36 @@ test("generated full-module candidate passes without claiming this local run inv
     "replacement.return-workflow.generated-candidate",
   );
   assert.equal(run.proofBundle.limitations.some((item: string) => item.includes("No OpenAI or Codex")), true);
+});
+
+test("stock-exhaustion scenario is directly runnable and proves atomic failure", async () => {
+  const response = await fetch(`${baseUrl}/api/verifications`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      scenarioId: "counterexample-vip-damaged-no-sellable",
+      candidateVersion: "generated",
+    }),
+  });
+  const { data: run } = await response.json();
+  assert.equal(response.status, 201);
+  assert.equal(run.status, "PASSED");
+  assert.equal(run.contract.expectedFailure.code, "INSUFFICIENT_SELLABLE_STOCK");
+  assert.equal(run.proofBundle.assertions.length, 5);
+  assert.deepEqual(
+    run.proofBundle.assertions.map(({ label }: { label: string }) => label),
+    [
+      "Failure status is preserved",
+      "Failure reason is preserved",
+      "No return record is created",
+      "Inventory remains unchanged",
+      "No shipment or other side effect is emitted",
+    ],
+  );
+  assert.equal(run.traces.legacy.outcome.status, "FAILED");
+  assert.equal(run.traces.replacement.outcome.status, "FAILED");
+  assert.equal(run.traces.replacement.outcome.returnRecordCreated, false);
+  assert.equal(run.traces.replacement.outcome.sideEffects.length, 0);
 });
 
 test("replacement versions expose only seeded and generated candidates", async () => {

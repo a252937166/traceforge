@@ -11,7 +11,6 @@
     "preconditions",
     "rules",
     "invariants",
-    "expectedOutcome",
     "unknowns",
     "createdAt"
   ],
@@ -43,12 +42,23 @@
       "minItems": 1
     },
     "expectedOutcome": { "$ref": "#/$defs/workflowResult" },
+    "expectedFailure": { "$ref": "#/$defs/expectedFailure" },
     "unknowns": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
     "createdAt": { "type": "string", "format": "date-time" }
   },
+  "oneOf": [
+    {
+      "required": ["expectedOutcome"],
+      "not": { "required": ["expectedFailure"] }
+    },
+    {
+      "required": ["expectedFailure"],
+      "not": { "required": ["expectedOutcome"] }
+    }
+  ],
   "$defs": {
     "evidenceId": {
       "type": "string",
@@ -100,6 +110,24 @@
           "type": "array",
           "items": { "$ref": "#/$defs/sideEffect" }
         }
+      },
+      "additionalProperties": false
+    },
+    "expectedFailure": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "returnRecordCreated",
+        "inventoryMutation",
+        "sideEffectsCount"
+      ],
+      "properties": {
+        "code": { "const": "INSUFFICIENT_SELLABLE_STOCK" },
+        "message": { "type": "string", "minLength": 1 },
+        "returnRecordCreated": { "const": false },
+        "inventoryMutation": { "const": false },
+        "sideEffectsCount": { "const": 0 }
       },
       "additionalProperties": false
     },

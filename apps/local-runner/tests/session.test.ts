@@ -5,7 +5,7 @@ import { LocalRunnerSession, type LocalRunnerActions } from "../src/session.js";
 test("a completed verifier mismatch fails the proof without claiming verifier failure", async () => {
   const actions: LocalRunnerActions = {
     async preflight() {
-      return { codexVersion: "codex-cli 0.144.1", signedIn: true, modelAvailable: true };
+      return { codexVersion: "codex-cli 0.144.1", releaseCommit: "a".repeat(40), signedIn: true, modelAvailable: true };
     },
     async login() {},
     async run() {
@@ -18,12 +18,12 @@ test("a completed verifier mismatch fails the proof without claiming verifier fa
           diffDigest: `sha256:${"2".repeat(64)}`,
           threadId: "thread-mismatch",
           model: "gpt-5.6-sol",
-          testsPassed: 13,
-          testsTotal: 13,
+          testsPassed: 15,
+          testsTotal: 15,
           scenariosPassed: 4,
-          scenariosTotal: 6,
+          scenariosTotal: 7,
           assertionsPassed: 28,
-          assertionCount: 30,
+          assertionCount: 35,
           mismatchCount: 2,
           changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
           failedCommand: "generatedSuite",
@@ -39,8 +39,9 @@ test("a completed verifier mismatch fails the proof without claiming verifier fa
 
   const snapshot = session.snapshot();
   assert.equal(snapshot.phase, "failed");
+  assert.equal(snapshot.localReleaseCommit, "a".repeat(40));
   assert.equal(snapshot.title, "Fresh local proof issued — candidate does not conform");
-  assert.match(snapshot.message, /4\/6 scenarios passed/);
+  assert.match(snapshot.message, /4\/7 scenarios passed/);
   assert.equal(snapshot.provenance.verifier, "passed");
   assert.equal(snapshot.provenance.proof, "failed");
   assert.match(snapshot.detail ?? "", /verifier completed/);

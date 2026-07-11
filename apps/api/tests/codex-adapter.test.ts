@@ -124,6 +124,7 @@ function passingSuite(repairInputDigest = `sha256:${"f".repeat(64)}`): Generated
     "observed-standard-damaged-4500",
     "observed-vip-damaged-12000",
     "counterexample-vip-damaged-50000",
+    "counterexample-vip-damaged-no-sellable",
     "boundary-standard-damaged-49999",
     "boundary-standard-damaged-50000",
     "host-hidden-verifier-only",
@@ -133,14 +134,14 @@ function passingSuite(repairInputDigest = `sha256:${"f".repeat(64)}`): Generated
     candidateVersion: "generated",
     status: "PASSED",
     expectedScenarioIds: ids,
-    summary: { total: 6, passed: 6, failed: 0 },
+    summary: { total: 7, passed: 7, failed: 0 },
     runs: ids.map((scenarioId, index) => ({
       scenarioId,
-      partition: index === 5
+      partition: index === 6
         ? "held-out"
         : index < 2
           ? "observed"
-          : index === 2
+          : index <= 3
             ? "counterexample"
             : "boundary",
       runId: `run_fresh_${index}`,
@@ -157,14 +158,14 @@ function passingSuite(repairInputDigest = `sha256:${"f".repeat(64)}`): Generated
   };
 }
 
-test("generated verification parser returns fresh six-scenario suite evidence", () => {
+test("generated verification parser returns fresh seven-scenario suite evidence", () => {
   const suite = passingSuite();
   const parsed = parseGeneratedVerificationSuite(
     `pnpm banner\n${JSON.stringify({ suite, validation: { passed: true } })}\n`,
   );
   assert.equal(parsed.status, "PASSED");
-  assert.equal(parsed.runs.length, 6);
-  assert.equal(parsed.runs[5]?.scenarioId, "host-hidden-verifier-only");
+  assert.equal(parsed.runs.length, 7);
+  assert.equal(parsed.runs[6]?.scenarioId, "host-hidden-verifier-only");
 });
 
 test("change whitelist requires the generated candidate and rejects every other path", () => {

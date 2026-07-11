@@ -1,14 +1,24 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   assertDedicatedCodexHome,
   cleanupLocalFixture,
+  findRepoRoot,
   prepareLocalFixture,
+  verifyCheckedOutReleaseCommit,
 } from "../src/fixture.js";
 import { LOCAL_RUNNER_MANIFEST } from "../src/manifest.js";
+
+const execFileAsync = promisify(execFile);
+
+async function checkedOutCommit(start = process.cwd()): Promise<string> {
+  return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: start })).stdout.trim();
+}
 
 test("fixture pins recorded inputs and physically separates writer from verifier", async (t) => {
   const durableRoot = await mkdtemp(join(tmpdir(), "traceforge-codex-home-test-"));
@@ -20,8 +30,10 @@ test("fixture pins recorded inputs and physically separates writer from verifier
     await rm(durableRoot, { recursive: true, force: true });
   });
 
-  const fixture = await prepareLocalFixture();
+  const releaseCommit = await checkedOutCommit();
+  const fixture = await prepareLocalFixture(process.cwd(), releaseCommit);
   t.after(() => cleanupLocalFixture(fixture));
+  assert.equal(fixture.releaseCommit, releaseCommit);
   assert.equal(fixture.inputEvidence.digest, LOCAL_RUNNER_MANIFEST.repairInputDigest);
   assert.notEqual(fixture.writerRoot, fixture.verifierRoot);
   assert.notEqual(fixture.buildHome, fixture.verifyHome);
@@ -31,6 +43,27 @@ test("fixture pins recorded inputs and physically separates writer from verifier
     access(join(fixture.writerRoot, "apps", "api", "src", "legacy-return-workflow.ts")),
   );
   await access(join(fixture.verifierRoot, "apps", "api", "tests", "champion-workflow.test.ts"));
+});
+
+test("release provenance fails closed unless the declared full SHA is the checked-out commit", async () => {
+  const repoRoot = await findRepoRoot();
+  const releaseCommit = await checkedOutCommit(repoRoot);
+  assert.equal(
+    await verifyCheckedOutReleaseCommit(repoRoot, releaseCommit),
+    releaseCommit,
+  );
+  await assert.rejects(
+    verifyCheckedOutReleaseCommit(repoRoot, undefined),
+    /LOCAL_RELEASE_SHA_REQUIRED/,
+  );
+  await assert.rejects(
+    verifyCheckedOutReleaseCommit(repoRoot, "deadbeef"),
+    /LOCAL_RELEASE_SHA_INVALID/,
+  );
+  await assert.rejects(
+    verifyCheckedOutReleaseCommit(repoRoot, "0".repeat(40)),
+    /LOCAL_RELEASE_SHA_MISMATCH/,
+  );
 });
 
 test("dedicated Codex home rejects protected roots, parents, and descendants", () => {

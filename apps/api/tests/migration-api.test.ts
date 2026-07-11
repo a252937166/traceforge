@@ -180,11 +180,11 @@ test("deterministic-only migration emits real stages and a downloadable recomput
     assert.equal(proof.status, "PASSED");
     assert.deepEqual(proof.coverage, {
       observed: 2,
-      counterexample: 1,
+      counterexample: 2,
       boundary: 2,
       heldOut: 1,
-      total: 6,
-      passed: 6,
+      total: 7,
+      passed: 7,
     });
     assert.equal(proof.modelInvocations.length, 0);
     assert.equal(proof.contractId, "contract-host-deterministic-v1");
@@ -243,13 +243,13 @@ recordedReplayTest("recorded replay exposes real GPT-5.6 and full-module Codex e
     assert.equal(proof.candidate.codexThreadId, "019f4fd8-5408-7752-b8fa-f8c6b08b33ef");
     assert.equal(proof.candidate.baseCommit, "7c1dceeaee7f375beb8d2895fda502f2ad74e039");
     assert.deepEqual(proof.hostVerification, {
-      testsPassed: 42,
-      testsTotal: 42,
+      testsPassed: 55,
+      testsTotal: 55,
       testsSkipped: 4,
       scope: "candidate-safe",
       source: "recorded-command-log",
     });
-    assert.equal(proof.coverage.passed, 6);
+    assert.equal(proof.coverage.passed, 7);
 
     const events = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/events?format=json`)).json()).data.events;
     assert.equal(events.some((event: { type: string }) => event.type === "hypothesis.proposed"), true);

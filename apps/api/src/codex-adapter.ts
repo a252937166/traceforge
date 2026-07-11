@@ -5,6 +5,7 @@ import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Usage } from "@openai/codex-sdk";
 import { sha256Digest } from "./digest.js";
+import { scenarios } from "./scenarios.js";
 import type { ProofBundle, Scenario, VerificationStatus } from "./types.js";
 
 export const GENERATED_CANDIDATE_PATH =
@@ -13,6 +14,7 @@ export const CODEX_REPAIR_MODEL = "gpt-5.6-sol" as const;
 export const BEHAVIOR_CONTRACT_PATH = ".traceforge/behavior-contract.json";
 export const FAILED_PROOFS_PATH = ".traceforge/failed-proofs.json";
 export const VISIBLE_SCENARIOS_PATH = ".traceforge/visible-scenarios.json";
+const CHAMPION_SCENARIO_COUNT = scenarios.length + 1;
 const CODEX_INPUT_PATHS = [
   BEHAVIOR_CONTRACT_PATH,
   FAILED_PROOFS_PATH,
@@ -200,7 +202,7 @@ export function buildCodexStatus(
         : `Codex execution is enabled with ${CODEX_REPAIR_MODEL}. Each repair runs in a retained detached worktree, may edit only generated-return-workflow.ts, and never auto-applies, commits, pushes, or deploys.`,
     integrationContract: {
       input: "The GPT-5.6 behavior contract, every FAILED visible proof, and the disclosed scenario corpus as immutable JSON artifacts.",
-      output: "Codex thread/usage, whitelisted full-module diff, offline install, API tests, and a fresh six-scenario suite including a post-turn host-generated input.",
+      output: `Codex thread/usage, whitelisted full-module diff, offline install, API tests, and a fresh ${CHAMPION_SCENARIO_COUNT}-scenario suite including a post-turn host-generated input.`,
       sideEffects: "Creates a detached .traceforge/worktrees/* directory that is deliberately retained for review.",
     },
     turnTimeoutMs,
@@ -225,7 +227,7 @@ export function parseGeneratedVerificationSuite(
       // pnpm may print non-JSON status lines; keep scanning toward the start.
     }
   }
-  throw new Error("verify-generated did not emit complete six-scenario suite evidence");
+  throw new Error(`verify-generated did not emit complete ${CHAMPION_SCENARIO_COUNT}-scenario suite evidence`);
 }
 
 export function validateGeneratedSuite(
@@ -242,8 +244,11 @@ export function validateGeneratedSuite(
   } else if (suite.repairInputDigest !== expectedRepairInputDigest) {
     problems.push("suite repairInputDigest does not match the contract, failed proofs, and visible scenarios");
   }
-  if (suite.expectedScenarioIds.length !== 6 || suite.runs.length !== 6) {
-    problems.push("verification suite must contain all six champion scenarios");
+  if (
+    suite.expectedScenarioIds.length !== CHAMPION_SCENARIO_COUNT
+    || suite.runs.length !== CHAMPION_SCENARIO_COUNT
+  ) {
+    problems.push(`verification suite must contain all ${CHAMPION_SCENARIO_COUNT} champion scenarios`);
   }
   const expectedIds = new Set(suite.expectedScenarioIds);
   const actualIds = new Set(suite.runs.map((run) => run.scenarioId));
@@ -254,15 +259,29 @@ export function validateGeneratedSuite(
   ) {
     problems.push("verification suite scenario identities are missing or duplicated");
   }
+  const canonicalVisibleIds = new Set(scenarios.map(({ id }) => id));
+  const missingVisibleIds = [...canonicalVisibleIds].filter((id) => !actualIds.has(id));
+  const nonCanonicalVisibleRuns = suite.runs.filter(
+    ({ scenarioId, partition }) => partition !== "held-out" && !canonicalVisibleIds.has(scenarioId),
+  );
+  const heldOutRuns = suite.runs.filter(({ partition }) => partition === "held-out");
+  if (
+    missingVisibleIds.length > 0
+    || nonCanonicalVisibleRuns.length > 0
+    || heldOutRuns.length !== 1
+    || !heldOutRuns[0]?.scenarioId.startsWith("host-hidden-")
+  ) {
+    problems.push("verification suite must contain every canonical visible scenario and exactly one host-hidden post-turn scenario");
+  }
   if (
     suite.status !== "PASSED" ||
-    suite.summary.total !== 6 ||
-    suite.summary.passed !== 6 ||
+    suite.summary.total !== CHAMPION_SCENARIO_COUNT ||
+    suite.summary.passed !== CHAMPION_SCENARIO_COUNT ||
     suite.summary.failed !== 0
   ) {
-    problems.push("verification suite summary is not 6/6 passed");
+    problems.push(`verification suite summary is not ${CHAMPION_SCENARIO_COUNT}/${CHAMPION_SCENARIO_COUNT} passed`);
   }
-  if (suite.runs.filter(({ partition }) => partition === "held-out").length !== 1) {
+  if (heldOutRuns.length !== 1) {
     problems.push("verification suite must contain exactly one post-turn host-held-out scenario");
   }
   if (

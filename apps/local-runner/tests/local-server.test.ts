@@ -11,6 +11,7 @@ function fakeActions(): LocalRunnerActions {
     async preflight() {
       return {
         codexVersion: "codex-cli 0.144.1",
+        releaseCommit: "a".repeat(40),
         signedIn: true,
         accountLabel: "Codex signed in",
         modelAvailable: true,
@@ -29,12 +30,12 @@ function fakeActions(): LocalRunnerActions {
           diffDigest: `sha256:${"2".repeat(64)}`,
           threadId: "thread_local_1",
           model: "gpt-5.6-sol",
-          testsPassed: 13,
-          testsTotal: 13,
+          testsPassed: 15,
+          testsTotal: 15,
           scenariosPassed: 6,
-          scenariosTotal: 6,
-          assertionsPassed: 30,
-          assertionCount: 30,
+          scenariosTotal: 7,
+          assertionsPassed: 35,
+          assertionCount: 35,
           mismatchCount: 0,
           changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
         },
@@ -115,7 +116,7 @@ test("failed runs expose only fixed diagnostics and keep failed proof inspectabl
   const secret = "sk-do-not-expose-12345678";
   const actions: LocalRunnerActions = {
     async preflight() {
-      return { codexVersion: "codex-cli 0.144.1", signedIn: true, modelAvailable: true };
+      return { codexVersion: "codex-cli 0.144.1", releaseCommit: "a".repeat(40), signedIn: true, modelAvailable: true };
     },
     async login() {},
     async run(_signal, onProgress) {
@@ -146,7 +147,7 @@ test("failed runs expose only fixed diagnostics and keep failed proof inspectabl
           threadId: "thread_failed_local",
           model: "gpt-5.6-sol",
           testsPassed: 0,
-          testsTotal: 13,
+          testsTotal: 15,
           scenariosPassed: 0,
           scenariosTotal: 0,
           assertionsPassed: 0,
@@ -195,7 +196,7 @@ test("delete is terminal even when a delayed run ignores abort", async () => {
   let cleaned = false;
   const actions: LocalRunnerActions = {
     async preflight() {
-      return { codexVersion: "codex-cli 0.144.1", signedIn: true, modelAvailable: true };
+      return { codexVersion: "codex-cli 0.144.1", releaseCommit: "a".repeat(40), signedIn: true, modelAvailable: true };
     },
     async login() {},
     async run() {
@@ -209,12 +210,12 @@ test("delete is terminal even when a delayed run ignores abort", async () => {
           diffDigest: `sha256:${"2".repeat(64)}`,
           threadId: "late-thread",
           model: "gpt-5.6-sol",
-          testsPassed: 13,
-          testsTotal: 13,
+          testsPassed: 15,
+          testsTotal: 15,
           scenariosPassed: 6,
-          scenariosTotal: 6,
-          assertionsPassed: 30,
-          assertionCount: 30,
+          scenariosTotal: 7,
+          assertionsPassed: 35,
+          assertionCount: 35,
           mismatchCount: 0,
           changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
         },
@@ -252,7 +253,7 @@ test("delete closes a pending login instead of waiting for its ten-minute notifi
   let cleanupCount = 0;
   const actions: LocalRunnerActions = {
     async preflight() {
-      return { codexVersion: "codex-cli 0.144.1", signedIn: false, modelAvailable: true };
+      return { codexVersion: "codex-cli 0.144.1", releaseCommit: "a".repeat(40), signedIn: false, modelAvailable: true };
     },
     async login() {
       markLoginStarted();

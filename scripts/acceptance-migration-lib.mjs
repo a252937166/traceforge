@@ -230,13 +230,13 @@ export function validateRecordedMigration({ job, events, proof, artifacts }) {
   assert.match(proof.candidate.codexThreadId, /^[0-9a-f-]{36}$/);
   assert.deepEqual(proof.coverage, {
     observed: 2,
-    counterexample: 1,
+    counterexample: 2,
     boundary: 2,
     heldOut: 1,
-    total: 6,
-    passed: 6,
+    total: 7,
+    passed: 7,
   });
-  assert.equal(proof.scenarios.length, 6);
+  assert.equal(proof.scenarios.length, 7);
   assert.equal(proof.scenarios.every((scenario) => scenario.status === "PASSED" && scenario.mismatchCount === 0), true);
   assert.equal(proof.modelInvocations.length, 4);
   assert.equal(proof.modelInvocations.every((invocation) => invocation.model === "gpt-5.6-sol"), true);

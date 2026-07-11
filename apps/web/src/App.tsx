@@ -47,7 +47,7 @@ const localRunnerCommit = '88fd9faa613f0b7280a584a79e209fae800272d9'
 const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
 
-const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
+const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -128,8 +128,8 @@ function scenarioPartitionLabel(scenario: NonNullable<ProofBundle['scenarios']>[
 function modeDisclosure(mode: ExecutionMode, state: MigrationState): string {
   if (mode === 'recorded-replay') {
     return state.job?.replay
-      ? `The authenticated model work was recorded ${formatTime(state.job.replay.recordedAt)}. This replay streams those provenance-bound events, then the host executes all six scenarios and issues a fresh proof. No model call is made during replay.`
-      : 'Run the complete migration now. GPT-5.6 and Codex events replay with their original provenance; the host then executes all six scenarios and issues a fresh proof. No model call is claimed during replay.'
+      ? `The authenticated model work was recorded ${formatTime(state.job.replay.recordedAt)}. This replay streams those provenance-bound events, then the host executes all seven scenarios and issues a fresh proof. No model call is made during replay.`
+      : 'Run the complete migration now. GPT-5.6 and Codex events replay with their original provenance; the host then executes all seven scenarios and issues a fresh proof. No model call is claimed during replay.'
   }
   return modeCopy[mode].detail
 }
@@ -730,9 +730,19 @@ export default function App() {
                 <p className="runner-prerequisites">
                   Requires Git, Node.js 22+, Corepack, Codex CLI 0.144.1, and access to gpt-5.6-sol.
                 </p>
+                <div className="runner-gate-compare" aria-label="Release identity comparison">
+                  <div>
+                    <span>Hosted demo release</span>
+                    <strong>{releaseIdentity ? `${releaseIdentity.sha.slice(0, 12)} · API + web` : 'Unavailable · inspect /api/health'}</strong>
+                  </div>
+                  <div>
+                    <span>Local executable release</span>
+                    <strong>{localRunnerCommit.slice(0, 12)} · {localRunnerTag}</strong>
+                  </div>
+                </div>
                 <div className="runner-gate-compare" aria-label="Verification gate comparison">
-                  <div><span>Local gate</span><strong>13 focused candidate tests + 6 differential scenarios</strong></div>
-                  <div><span>Source champion gate</span><strong>42 candidate-safe tests + 4 separate replay guards</strong></div>
+                  <div><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
+                  <div><span>Source champion gate</span><strong>55 candidate-safe tests + 4 separate replay guards</strong></div>
                 </div>
                 <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">
                   {copyStatus === 'copied'
@@ -754,7 +764,7 @@ export default function App() {
                   <div><dt>Kept hidden</dt><dd>Legacy source, verifier, tests, and the post-turn verification input.</dd></div>
                   <div><dt>Disabled</dt><dd>Agent command network, commit, push, merge, and deploy. The Codex service connection remains required.</dd></div>
                 </dl>
-                <p><strong>Launch preflight is explicit.</strong> The terminal command clones and installs the pinned release, prepares the fixture and private configuration, starts the loopback server, and checks Codex access. No Codex writing turn or verifier command runs before <em>Start local build</em>.</p>
+                <p><strong>Launch preflight is explicit.</strong> The terminal command clones and installs the pinned Local Runner release, verifies its full executable SHA, prepares the fixture and private configuration, starts the loopback server, and checks Codex access. The hosted demo SHA in the footer identifies a separate API/web deployment. No Codex writing turn or verifier command runs before <em>Start local build</em>.</p>
                 <p><strong>Authentication stays local.</strong> Codex handles sign-in on this machine. This public page cannot read tokens, local files, Codex history, generated source, or proof contents.</p>
               </section>
 
@@ -788,7 +798,7 @@ export default function App() {
                 <div><dt>Digest</dt><dd><code>{inspectedEvent.digest ?? 'not provided'}</code></dd></div>
               </dl>
               <details className="evidence-raw">
-                <summary><span>Raw event JSON</span><small>Signed payload · JSON</small></summary>
+                <summary><span>Raw event JSON</span><small>Digest-bound payload · JSON</small></summary>
                 <pre>{JSON.stringify(inspectedEvent, null, 2)}</pre>
               </details>
             </div>

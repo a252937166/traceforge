@@ -103,7 +103,12 @@ if (!worktree) {
 }
 
 const modelCounterexamples = events
-  .filter(({ type, payload }) => type === "counterexample.updated" && ["LIVE-CX-01", "LIVE-CX-02"].includes(payload?.counterexample?.id))
+  .filter(({ type, payload }) => type === "counterexample.updated" && [
+    "LIVE-CX-01",
+    "LIVE-CX-02",
+    "LIVE-CX-PRIORITY",
+    "LIVE-CX-STOCK-EXHAUSTED",
+  ].includes(payload?.counterexample?.id))
   .map(({ payload }) => payload.counterexample);
 const archaeology = {
   sourceRunId: job.id,
@@ -164,6 +169,7 @@ const codexBuild = {
     typescript: proof.candidate.sourceDigest,
     javascript: digest(javascriptSource),
   },
+  hostVerification: proof.hostVerification,
   freshProofIds: generatedSuite.runs.map(({ proofId }) => proofId),
   diff,
   commands,

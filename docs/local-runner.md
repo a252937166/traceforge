@@ -20,10 +20,12 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+EXPECTED_SHA="88fd9faa613f0b7280a584a79e209fae800272d9" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.6 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command clones the pinned `local-runner-v0.1.6` tag into a new temporary directory and refuses to continue unless it resolves to commit `88fd9faa613f0b7280a584a79e209fae800272d9`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The command clones the pinned `local-runner-v0.1.6` tag into a new temporary directory and refuses to continue unless it resolves to commit `88fd9faa613f0b7280a584a79e209fae800272d9`. After that comparison succeeds, it exports the checked-out SHA as `TRACEFORGE_LOCAL_RELEASE_SHA`. The Runner independently compares that full value with `git rev-parse HEAD` before preparing a session, then binds the same SHA into `proof.runner.releaseCommit`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.4` tag if the pinned historical fixture commit is absent, then verifies that the tag peels to the manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+
+The two release identities have separate meanings. The **hosted demo release SHA** shown in the public footer and `/api/health` identifies the deployed API/web package. The **local executable release SHA** shown by the launcher, localhost preflight, and local proof identifies the exact checked-out Runner code that executed on the reviewer's machine. They may differ because the hosted deployment can move without changing an immutable Local Runner tag.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
 
@@ -50,7 +52,7 @@ The Runner fails closed on a different Codex version. For example, an unsupporte
 | Observe / Infer / Challenge | `recorded-gpt-5.6` | The checked, digest-bound source evidence from the successful GPT-5.6 archaeology run. These model calls are not rerun locally. |
 | Build | `live-local-codex` | A new `gpt-5.6-sol` Codex thread on the reviewer's machine edits the incomplete replacement. |
 | Verify | `live-local-host` | After the Codex turn closes, the Runner creates a fresh verification-only nonce and executes the deterministic test and differential suites locally. |
-| Proof | fresh local artifact | A new `traceforge.local-proof.v1` bundle binds the input, Codex thread/turn, candidate, diff, commands, suite, and limitations by SHA-256 digest. |
+| Proof | fresh local artifact | A new `traceforge.local-proof.v1` bundle binds the exact Local Runner executable commit, input, Codex thread/turn, candidate, diff, commands, suite, and limitations by SHA-256 digest. |
 
 This proves that the local build and verification happened during this run. It does not claim that the recorded GPT-5.6 archaeology happened again.
 
@@ -115,7 +117,7 @@ While the localhost session is active, the result page exposes:
 - `/api/proof?view=html` as a readable proof view, with `/api/proof?download=1` for `traceforge-local-proof.json`;
 - `/api/diff?view=html` as a readable diff view, with `/api/diff?download=1` for `traceforge-local-codex.diff`.
 
-The proof includes provenance, source-run ID, Runner release and permission profiles, Codex model/thread/turn and usage, input digests, candidate/source/diff digests, changed files, command exit codes and output digests, the generated verification nonce digest, test totals, the six-scenario suite, and explicit limitations.
+The proof includes provenance, source-run ID, Runner tag and exact executable commit (`runner.releaseCommit`), permission profiles, Codex model/thread/turn and usage, input digests, candidate/source/diff digests, changed files, command exit codes and output digests, the generated verification nonce digest, test totals, the six-scenario suite, and explicit limitations.
 
 Save either browser response before deleting the session if a durable copy is needed. The endpoints are local and become unavailable after deletion. SHA-256 makes the proof recomputable for integrity; it is not a digital signature, trusted timestamp, identity attestation, or proof of universal behavioral equivalence. The claim remains limited to the six executed scenarios and five asserted business fields per scenario.
 
@@ -150,6 +152,7 @@ An ungraceful process kill or power loss can leave a temporary session directory
 | `LOCAL_LOGIN_FAILED` or `LOCAL_LOGIN_INCOMPLETE` | Retry preflight/sign-in, finish the OpenAI/ChatGPT browser flow, and check that the Codex service is reachable. |
 | Browser did not open | Open the one-time `http://127.0.0.1:...` URL printed by the terminal. The Runner is not exposed on the LAN. |
 | `LOCAL_CODEX_HOME_MUST_BE_DEDICATED` | Remove an unsafe override. Use the default directory or a dedicated path outside `~/.codex`, the repository, and the session. |
+| `LOCAL_RELEASE_SHA_REQUIRED`, `LOCAL_RELEASE_SHA_INVALID`, or `LOCAL_RELEASE_SHA_MISMATCH` | The executable checkout was not bound to the verified full release SHA. Stop and launch with the pinned public command; do not set this variable manually to bypass the tag check. |
 | `LOCAL_FIXTURE_DIGEST_MISMATCH`, `LOCAL_REPAIR_INPUT_DIGEST_MISMATCH`, or `LOCAL_BASE_CANDIDATE_DIGEST_MISMATCH` | The pinned fixture no longer matches its manifest. Stop; do not bypass the check. Re-clone the pinned tag. |
 | `LOCAL_APP_SERVER_PERMISSION_PROFILE_MISMATCH` or another permission-policy error | The hardened App Server profile was not applied exactly. Stop and use a clean pinned checkout with the verified Codex version. |
 | Build or verification ends in **Failed** | Inspect the displayed error, proof (when available), and diff. A failure is an honest result, not a request to weaken the gate. |

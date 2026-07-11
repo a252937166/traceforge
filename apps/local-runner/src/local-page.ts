@@ -191,8 +191,8 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
           </dl>
           <p class="scope-note">Codex sends the bounded build context to OpenAI. Credentials, generated source, diff, and proof are not uploaded to the TraceForge website.</p>
           <div class="gate-compare" aria-label="Verification gate comparison">
-            <div class="gate-row"><span>Local gate</span><strong>13 focused candidate tests + 6 differential scenarios</strong></div>
-            <div class="gate-row"><span>Source champion gate</span><strong>42 candidate-safe tests + 4 separate replay guards</strong></div>
+            <div class="gate-row"><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
+            <div class="gate-row"><span>Source champion gate</span><strong>55 candidate-safe tests + 4 separate replay guards</strong></div>
           </div>
         </section>
 
@@ -250,7 +250,12 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
       byId("phase").textContent = snapshot.phase.replaceAll("-", " ");
       byId("state-title").textContent = snapshot.title;
       byId("state-message").textContent = snapshot.message;
-      const details = [snapshot.detail, snapshot.threadId ? "Thread " + snapshot.threadId : "", snapshot.codexVersion].filter(Boolean);
+      const details = [
+        snapshot.detail,
+        snapshot.localReleaseCommit ? "Local executable " + snapshot.localReleaseCommit : "",
+        snapshot.threadId ? "Thread " + snapshot.threadId : "",
+        snapshot.codexVersion,
+      ].filter(Boolean);
       byId("state-detail").textContent = details.join(" · ");
       byId("model").textContent = snapshot.model + (snapshot.accountLabel ? " · " + snapshot.accountLabel : "");
       setStep("evidence", snapshot.provenance.evidence);

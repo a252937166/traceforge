@@ -72,6 +72,32 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    id: "counterexample-vip-damaged-no-sellable",
+    title: "Host-derived counterexample · replacement stock exhausted",
+    description: "A VIP replacement with no sellable unit must fail before a shipment, return record, or inventory mutation is created.",
+    stage: "counterexample",
+    visibility: "visible",
+    provenance: {
+      source: "host-derived",
+      detail: "Derived from the stock-sufficiency unknown and executed before the Codex writing turn.",
+    },
+    expectedFailure: {
+      code: "INSUFFICIENT_SELLABLE_STOCK",
+      message: "replacement cannot be issued without sellable stock",
+      returnRecordCreated: false,
+      inventoryMutation: false,
+      sideEffectsCount: 0,
+    },
+    input: {
+      returnId: "RET-CHALLENGE-STOCK-001",
+      sku: "SKU-COPPER-01",
+      amountCents: 12_000,
+      customerTier: "VIP",
+      itemCondition: "DAMAGED",
+      initialInventory: { sellable: 0, quarantine: 0 },
+    },
+  },
+  {
     id: "boundary-standard-damaged-49999",
     title: "Boundary · one cent below review",
     description: "$499.99 remains eligible for automatic refund and quarantine.",

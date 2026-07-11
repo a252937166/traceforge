@@ -348,6 +348,7 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
       }
       return {
         codexVersion: `codex-cli ${VERIFIED_CODEX_VERSION}`,
+        releaseCommit: this.fixture.releaseCommit,
         signedIn,
         modelAvailable,
         ...(accountLabel(account) ? { accountLabel: accountLabel(account) } : {}),

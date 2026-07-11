@@ -143,7 +143,7 @@ export function createApp(dependencies: AppDependencies = {}) {
       if (body.candidateVersion && !isCandidateVersion(body.candidateVersion)) {
         throw new Error("candidateVersion must be seeded or generated");
       }
-      response.status(201).json({ data: service.runDemo(body) });
+      response.status(201).json({ data: service.runVerification(body) });
     } catch (error) {
       next(error);
     }

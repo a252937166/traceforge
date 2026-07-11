@@ -7,8 +7,8 @@ import type {
   ProofBundle,
   ReturnWorkflowInput,
   SystemName,
+  StoredWorkflowTrace,
   WorkflowResult,
-  WorkflowTrace,
 } from "./types.js";
 
 type ArtifactKind = "trace" | "contract" | "proof";
@@ -152,7 +152,7 @@ export class ArtifactStore {
     };
   }
 
-  putTrace(trace: WorkflowTrace): void {
+  putTrace(trace: StoredWorkflowTrace): void {
     this.put("trace", trace.traceId, trace, trace.capturedAt);
   }
 
@@ -164,8 +164,8 @@ export class ArtifactStore {
     this.put("proof", proof.proofId, proof, proof.generatedAt);
   }
 
-  getTrace(id: string): WorkflowTrace | undefined {
-    return this.get<WorkflowTrace>("trace", id);
+  getTrace(id: string): StoredWorkflowTrace | undefined {
+    return this.get<StoredWorkflowTrace>("trace", id);
   }
 
   getContract(id: string): BehaviorContract | undefined {

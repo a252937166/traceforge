@@ -37,6 +37,13 @@
     "typescript": "sha256:b890c0d27c0857e2bc47be608a1ade5619eb10d784a0428f1ae861c7eb1bf708",
     "javascript": "sha256:7bf094e086a858b868adeb80319502d1186cf0fe387edf47741c5c9ccc0f4c08"
   },
+  "hostVerification": {
+    "testsPassed": 42,
+    "testsTotal": 42,
+    "testsSkipped": 4,
+    "scope": "candidate-safe",
+    "source": "recorded-command-log"
+  },
   "freshProofIds": [
     "proof_e59cf6fd-9d4f-478f-b9bb-ab7929bd3371",
     "proof_455e2ae2-a60d-431b-b5a0-a6335c7c14bf",

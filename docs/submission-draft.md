@@ -66,7 +66,7 @@ Codex thread `019f4fd8-5408-7752-b8fa-f8c6b08b33ef` started from commit `7c1dcee
 
 Its repair input is inspectable: contract digest `sha256:d4dfc557658fc4e2839a4db5809705586e130c6bd9ef3b9e27f14c700eccaa4f`, three failed-proof digests, and the exact disclosed scenario IDs. The accepted source digest is `sha256:b890c0d27c0857e2bc47be608a1ade5619eb10d784a0428f1ae861c7eb1bf708`; the diff digest is `sha256:99d556cd803383557773258d55cdddac12d0aad3c631d31171ceaf27c7e9f49c`.
 
-After the turn, the host ran `42/42` candidate-safe tests. Four replay-source guards were deliberately kept outside the modified candidate worktree gate; the full repository release gate runs them separately. Only then did the host execute six scenarios and seal the proof.
+After the turn, the host ran `42/42` candidate-safe tests. Four replay-source guards were deliberately kept outside the modified candidate worktree gate; the full repository release gate runs them separately. Only then did the host execute six scenarios and issue the final evidence-bounded proof.
 
 ## Truthful live, replay, and deterministic modes
 

@@ -207,12 +207,45 @@ export const archaeologySchemas = {
           additionalProperties: false,
         },
       },
+      resolvedUnknowns: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            unknownId: { type: "string", minLength: 1 },
+            resolution: { type: "string", minLength: 1 },
+            evidenceIds: { type: "array", minItems: 1, items: { type: "string" } },
+          },
+          required: ["unknownId", "resolution", "evidenceIds"],
+          additionalProperties: false,
+        },
+      },
+      remainingUnknowns: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            unknownId: { type: "string", minLength: 1 },
+            inScope: { type: "boolean" },
+            reason: { type: "string", minLength: 1 },
+          },
+          required: ["unknownId", "inScope", "reason"],
+          additionalProperties: false,
+        },
+      },
       disposition: {
         type: "string",
         enum: ["NEEDS_COUNTEREXAMPLE", "READY_FOR_BUILD", "STOP_UNSUPPORTED"],
       },
     },
-    required: ["role", "findings", "revisedRules", "disposition"],
+    required: [
+      "role",
+      "findings",
+      "revisedRules",
+      "resolvedUnknowns",
+      "remainingUnknowns",
+      "disposition",
+    ],
     additionalProperties: false,
   },
 } as const;

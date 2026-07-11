@@ -125,6 +125,9 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
       ruleId: "RULE-VIP-REPLACEMENT",
       statement: "Eligible VIP returns receive a replacement instead of a refund.",
     };
+    if (after.sellable < 1) {
+      throw new Error("replacement cannot be issued without sellable stock");
+    }
     status = "REPLACEMENT_ISSUED";
     after.sellable -= 1;
     sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });

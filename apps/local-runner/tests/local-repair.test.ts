@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   GENERATED_CANDIDATE_PATH,
   runCommand,
@@ -19,6 +21,8 @@ import {
   TRACEFORGE_BUILD_PROFILE_ID,
   TRACEFORGE_VERIFY_PROFILE_ID,
 } from "../src/permissions.js";
+
+const execFileAsync = promisify(execFile);
 
 class FakeBuildClient implements LocalRepairAppServerClient {
   private readonly listeners = new Set<(notification: AppServerNotification) => void>();
@@ -150,7 +154,8 @@ test("trusted-host command timeouts are bounded and return a fixed diagnostic", 
 });
 
 test("local repair turns recorded evidence into a fresh recomputable proof", async (t) => {
-  const fixture = await prepareLocalFixture();
+  const releaseCommit = (await execFileAsync("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const fixture = await prepareLocalFixture(process.cwd(), releaseCommit);
   t.after(() => cleanupLocalFixture(fixture));
   const repairedSource = await readFile(
     join(fixture.repoRoot, GENERATED_CANDIDATE_PATH),
@@ -181,8 +186,9 @@ test("local repair turns recorded evidence into a fresh recomputable proof", asy
   assert.equal(result.proof.provenance.archaeology, "recorded-gpt-5.6");
   assert.equal(result.proof.provenance.build, "live-local-codex");
   assert.equal(result.proof.provenance.verification, "live-local-host");
+  assert.equal(result.proof.runner.releaseCommit, releaseCommit);
   assert.equal(result.proof.verification.suite?.summary.passed, 6);
-  assert.equal(result.proof.verification.tests?.candidateSafeTotal, 13);
+  assert.equal(result.proof.verification.tests?.candidateSafeTotal, 15);
   assert.equal(result.proof.verification.commands[0]?.executor, "trusted-host");
   assert.deepEqual(
     result.proof.verification.commands.slice(1).map(({ executor }) => executor),
@@ -192,7 +198,8 @@ test("local repair turns recorded evidence into a fresh recomputable proof", asy
     result.proof.verification.commands.map(({ diagnosticCode }) => diagnosticCode),
     ["OK", "OK", "OK"],
   );
-  assert.equal(verifyLocalProofDigest(result.proof), true);
+  assert.equal(verifyLocalProofDigest(result.proof, releaseCommit), true);
+  assert.equal(verifyLocalProofDigest(result.proof, "0".repeat(40)), false);
   assert.ok(events.includes("build:codex.turn-completed:passed"));
   assert.ok(events.includes("verify:verification-input.created:passed"));
   assert.ok(events.includes("complete:proof.completed:passed"));

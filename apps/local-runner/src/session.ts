@@ -41,6 +41,7 @@ export interface LocalRunnerResult {
 
 export interface LocalRunnerPreflight {
   codexVersion: string;
+  releaseCommit: string;
   signedIn: boolean;
   accountLabel?: string;
   modelAvailable: boolean;
@@ -70,6 +71,7 @@ export interface LocalRunnerSnapshot {
   message: string;
   detail?: string;
   codexVersion?: string;
+  localReleaseCommit?: string;
   accountLabel?: string;
   model: "gpt-5.6-sol";
   threadId?: string;
@@ -141,8 +143,8 @@ function errorCode(error: unknown): string {
 }
 
 function safeFailureDetail(result: LocalRunnerProofSummary): string {
-  if (result.scenariosTotal === 6 && result.mismatchCount > 0) {
-    return `${result.scenariosPassed}/6 scenarios passed · ${result.mismatchCount} mismatch${result.mismatchCount === 1 ? "" : "es"}. The verifier completed and the proof remains FAILED.`;
+  if (result.scenariosTotal === 7 && result.mismatchCount > 0) {
+    return `${result.scenariosPassed}/7 scenarios passed · ${result.mismatchCount} mismatch${result.mismatchCount === 1 ? "" : "es"}. The verifier completed and the proof remains FAILED.`;
   }
   if (result.failedCommand && result.failureCode) {
     return `${result.failedCommand} stopped at ${result.failureCode}. The proof remains FAILED.`;
@@ -245,6 +247,7 @@ export class LocalRunnerSession extends EventEmitter {
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
         this.setPhase(preflight.signedIn ? "ready" : "needs-auth", {
           codexVersion: preflight.codexVersion,
+          localReleaseCommit: preflight.releaseCommit,
           ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
         });
       } catch (error) {
@@ -273,6 +276,7 @@ export class LocalRunnerSession extends EventEmitter {
         if (!preflight.modelAvailable) throw new Error("LOCAL_MODEL_UNAVAILABLE");
         this.setPhase("ready", {
           codexVersion: preflight.codexVersion,
+          localReleaseCommit: preflight.releaseCommit,
           ...(preflight.accountLabel ? { accountLabel: preflight.accountLabel } : {}),
         });
       } catch (error) {
@@ -329,12 +333,12 @@ export class LocalRunnerSession extends EventEmitter {
             },
           });
         } else {
-          const verifierCompleted = result.summary.scenariosTotal === 6
+          const verifierCompleted = result.summary.scenariosTotal === 7
             && result.summary.mismatchCount > 0;
           this.setPhase("failed", {
             ...(verifierCompleted ? {
               title: "Fresh local proof issued — candidate does not conform",
-              message: `${result.summary.scenariosPassed}/6 scenarios passed. The verifier completed and found ${result.summary.mismatchCount} mismatch${result.summary.mismatchCount === 1 ? "" : "es"}.`,
+              message: `${result.summary.scenariosPassed}/7 scenarios passed. The verifier completed and found ${result.summary.mismatchCount} mismatch${result.summary.mismatchCount === 1 ? "" : "es"}.`,
             } : {}),
             result: result.summary,
             threadId: result.summary.threadId,

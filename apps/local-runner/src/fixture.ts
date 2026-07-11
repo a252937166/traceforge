@@ -46,6 +46,8 @@ export function assertDedicatedCodexHome(options: {
 
 export interface LocalFixture {
   repoRoot: string;
+  /** Full Git SHA of the Local Runner executable checkout. */
+  releaseCommit: string;
   sessionRoot: string;
   buildHome: string;
   buildTmp: string;
@@ -112,9 +114,31 @@ export async function findRepoRoot(start = process.cwd()): Promise<string> {
   return realpath((await git(start, ["rev-parse", "--show-toplevel"])).trim());
 }
 
-export async function prepareLocalFixture(start = process.cwd()): Promise<LocalFixture> {
+export async function verifyCheckedOutReleaseCommit(
+  repoRoot: string,
+  declaredReleaseCommit: string | undefined,
+): Promise<string> {
+  if (!declaredReleaseCommit) throw new Error("LOCAL_RELEASE_SHA_REQUIRED");
+  if (!/^[0-9a-f]{40}$/.test(declaredReleaseCommit)) {
+    throw new Error("LOCAL_RELEASE_SHA_INVALID");
+  }
+  const checkedOutCommit = (await git(repoRoot, ["rev-parse", "HEAD"])).trim();
+  if (!/^[0-9a-f]{40}$/.test(checkedOutCommit)) {
+    throw new Error("LOCAL_CHECKOUT_SHA_INVALID");
+  }
+  if (checkedOutCommit !== declaredReleaseCommit) {
+    throw new Error("LOCAL_RELEASE_SHA_MISMATCH");
+  }
+  return checkedOutCommit;
+}
+
+export async function prepareLocalFixture(
+  start = process.cwd(),
+  declaredReleaseCommit = process.env.TRACEFORGE_LOCAL_RELEASE_SHA,
+): Promise<LocalFixture> {
   validateLocalRunnerManifest(LOCAL_RUNNER_MANIFEST);
   const repoRoot = await findRepoRoot(start);
+  const releaseCommit = await verifyCheckedOutReleaseCommit(repoRoot, declaredReleaseCommit);
   await ensureFixtureCommit(repoRoot);
   const evidenceRoot = join(repoRoot, "docs", "evidence", "live-champion-run", "codex");
   const [contractRaw, failedProofsRaw, visibleScenariosRaw] = await Promise.all([
@@ -213,6 +237,7 @@ export async function prepareLocalFixture(start = process.cwd()): Promise<LocalF
 
     return {
       repoRoot,
+      releaseCommit,
       sessionRoot: await realpath(sessionRoot),
       buildHome: await realpath(buildHome),
       buildTmp: await realpath(buildTmp),

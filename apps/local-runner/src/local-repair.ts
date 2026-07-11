@@ -169,6 +169,7 @@ export interface LocalProofBundle {
   runner: {
     version: typeof LOCAL_RUNNER_VERSION;
     releaseTag: typeof LOCAL_RUNNER_RELEASE_TAG;
+    releaseCommit: string;
     manifestDigest: string;
     buildPermissionProfile: string;
     verifyPermissionProfile: string;
@@ -245,7 +246,16 @@ export type LocalRepairEventHandler = (
   event: LocalRepairEvent,
 ) => void | Promise<void>;
 
-export function verifyLocalProofDigest(proof: LocalProofBundle): boolean {
+export function verifyLocalProofDigest(
+  proof: LocalProofBundle,
+  expectedReleaseCommit?: string,
+): boolean {
+  const releaseCommit = proof.runner.releaseCommit;
+  if (!/^[0-9a-f]{40}$/.test(releaseCommit)) return false;
+  if (expectedReleaseCommit !== undefined) {
+    if (!/^[0-9a-f]{40}$/.test(expectedReleaseCommit)) return false;
+    if (releaseCommit !== expectedReleaseCommit) return false;
+  }
   const { digest, ...body } = proof;
   return digest === sha256Digest(body);
 }
@@ -965,7 +975,7 @@ export async function runLocalRepair(
           context.signal,
         );
         commands.push(command);
-        queueEvent("verify", "command.completed", command.exitCode === 0 ? "passed" : "failed", name === "apiTests" ? "Candidate-safe tests completed" : "Six-scenario verification completed", `Exit ${command.exitCode}`, {
+        queueEvent("verify", "command.completed", command.exitCode === 0 ? "passed" : "failed", name === "apiTests" ? "Candidate-safe tests completed" : "Seven-scenario verification completed", `Exit ${command.exitCode}`, {
           command: command.argv,
           executor: command.executor,
           stdoutDigest: command.stdoutDigest,
@@ -1024,6 +1034,7 @@ export async function runLocalRepair(
       runner: {
         version: LOCAL_RUNNER_VERSION,
         releaseTag: LOCAL_RUNNER_RELEASE_TAG,
+        releaseCommit: context.fixture.releaseCommit,
         manifestDigest: sha256Digest(LOCAL_RUNNER_MANIFEST),
         buildPermissionProfile: buildPermissionProfileId,
         verifyPermissionProfile: verifyPermissionProfileId,
@@ -1068,7 +1079,7 @@ export async function runLocalRepair(
       },
       limitations: [
         "Recorded GPT-5.6 archaeology is source evidence; only the Codex build and host verification ran live on this machine.",
-        "The proof covers the six executed returns scenarios and five asserted business fields per scenario.",
+        "The proof covers the seven executed returns scenarios and five asserted behavior fields per scenario, including atomic failure semantics for exhausted replacement stock.",
         "SHA-256 provides recomputable integrity, not identity, timestamping, or non-repudiation.",
       ],
       generatedAt,
@@ -1077,7 +1088,7 @@ export async function runLocalRepair(
       ...proofBody,
       digest: sha256Digest(proofBody),
     };
-    queueEvent("complete", "proof.completed", verificationPassed ? "passed" : "failed", verificationPassed ? "Fresh local proof passed" : "Local verification found a mismatch", suite ? `${suite.summary.passed}/${suite.summary.total} scenarios passed.` : "No valid six-scenario suite was produced.", {
+    queueEvent("complete", "proof.completed", verificationPassed ? "passed" : "failed", verificationPassed ? "Fresh local proof passed" : "Local verification found a mismatch", suite ? `${suite.summary.passed}/${suite.summary.total} scenarios passed.` : "No valid seven-scenario suite was produced.", {
       proof,
     });
     await flushEvents();

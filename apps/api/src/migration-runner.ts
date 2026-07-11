@@ -32,9 +32,22 @@ import type {
 import { recordedArchaeology, recordedModelInvocations } from "./recorded-archaeology.js";
 import { recordedCodexBuild } from "./recorded-codex-build.js";
 import { TraceForgeService } from "./service.js";
-import type { CandidateVersion, ReturnWorkflowInput, WorkflowTrace } from "./types.js";
+import type {
+  CandidateVersion,
+  ReturnWorkflowInput,
+  StoredWorkflowTrace,
+  WorkflowAttemptTrace,
+  WorkflowTrace,
+} from "./types.js";
 
 type EventPayload = Record<string, unknown>;
+
+export type ContractUnknown = {
+  unknownId: string;
+  question: string;
+  blocking: boolean;
+  relatedRuleIds: string[];
+};
 
 type ArchaeologistOutput = {
   role: "trace_archaeologist";
@@ -46,7 +59,7 @@ type ArchaeologistOutput = {
     competingRuleIds: string[];
   }>;
   invariants: Array<{ invariantId: string; statement: string; evidenceIds: string[] }>;
-  unknowns: Array<{ unknownId: string; question: string; blocking: boolean; relatedRuleIds: string[] }>;
+  unknowns: ContractUnknown[];
 };
 
 type HunterOutput = {
@@ -57,7 +70,21 @@ type HunterOutput = {
   basedOnEvidenceIds: string[];
 };
 
-type CriticOutput = {
+export type ResolvedContractUnknown = {
+  unknownId: string;
+  resolution: string;
+  evidenceIds: string[];
+};
+
+export type CriticRemainingUnknown = {
+  unknownId: string;
+  inScope: boolean;
+  reason: string;
+};
+
+export type RemainingContractUnknown = ContractUnknown & Omit<CriticRemainingUnknown, "unknownId">;
+
+export type CriticOutput = {
   role: "contract_critic";
   findings: Array<{
     findingId: string;
@@ -75,8 +102,70 @@ type CriticOutput = {
     evidenceIds: string[];
     confidence: number;
   }>;
+  resolvedUnknowns: ResolvedContractUnknown[];
+  remainingUnknowns: CriticRemainingUnknown[];
   disposition: "NEEDS_COUNTEREXAMPLE" | "READY_FOR_BUILD" | "STOP_UNSUPPORTED";
 };
+
+export function reconcileCriticUnknownLifecycle(
+  initialUnknowns: ContractUnknown[],
+  critic: Pick<CriticOutput, "resolvedUnknowns" | "remainingUnknowns" | "disposition">,
+): { resolvedUnknowns: ResolvedContractUnknown[]; remainingUnknowns: RemainingContractUnknown[] } {
+  const initialById = new Map<string, ContractUnknown>();
+  for (const unknown of initialUnknowns) {
+    if (initialById.has(unknown.unknownId)) {
+      throw new Error(`GPT56_CONTRACT_DUPLICATE_INITIAL_UNKNOWN:${unknown.unknownId}`);
+    }
+    initialById.set(unknown.unknownId, unknown);
+  }
+
+  const classified = new Set<string>();
+  const classify = (unknownId: string) => {
+    if (!initialById.has(unknownId)) {
+      throw new Error(`GPT56_CONTRACT_UNKNOWN_LIFECYCLE_REFERENCE:${unknownId}`);
+    }
+    if (classified.has(unknownId)) {
+      throw new Error(`GPT56_CONTRACT_UNKNOWN_LIFECYCLE_DUPLICATE:${unknownId}`);
+    }
+    classified.add(unknownId);
+  };
+  for (const unknown of critic.resolvedUnknowns) classify(unknown.unknownId);
+  for (const unknown of critic.remainingUnknowns) classify(unknown.unknownId);
+
+  const missing = [...initialById.keys()].filter((unknownId) => !classified.has(unknownId));
+  if (missing.length > 0) {
+    throw new Error(`GPT56_CONTRACT_UNKNOWN_LIFECYCLE_MISSING:${missing.join(",")}`);
+  }
+
+  const remainingUnknowns = critic.remainingUnknowns.map((remaining) => ({
+    ...initialById.get(remaining.unknownId)!,
+    inScope: remaining.inScope,
+    reason: remaining.reason,
+  }));
+  const blocking = remainingUnknowns.filter(({ blocking: isBlocking, inScope }) => isBlocking && inScope);
+  if (critic.disposition === "READY_FOR_BUILD" && blocking.length > 0) {
+    throw new Error(`GPT56_CONTRACT_BLOCKING_UNKNOWNS:${blocking.map(({ unknownId }) => unknownId).join(",")}`);
+  }
+
+  return {
+    resolvedUnknowns: critic.resolvedUnknowns,
+    remainingUnknowns,
+  };
+}
+
+export function hasEvidenceBoundStockSufficiencyRule(
+  rules: CriticOutput["revisedRules"],
+  stockEvidenceIds: Iterable<string>,
+): boolean {
+  const evidence = new Set(stockEvidenceIds);
+  return rules.some((rule) => {
+    const statement = rule.statement.toLowerCase();
+    return rule.evidenceIds.some((evidenceId) => evidence.has(evidenceId))
+      && /replacement/.test(statement)
+      && /(sellable|stock|inventory)/.test(statement)
+      && /(fail|reject|requir|availab|sufficien|at least|deny|denied|prohibit|zero|exhaust)/.test(statement);
+  });
+}
 
 type CandidateEvidence = {
   threadId?: string;
@@ -108,7 +197,7 @@ function redactHostCommandText(value: string): string {
 const hostDeterministicContract = {
   id: "contract-host-deterministic-v1",
   source: "host-authored",
-  scope: "The six deterministic Web returns scenarios executed by the local verifier only.",
+  scope: "The seven deterministic Web returns scenarios executed by the local verifier only.",
   rules: [
     {
       id: "HOST-R-HIGH-VALUE-HOLD",
@@ -124,6 +213,11 @@ const hostDeterministicContract = {
       id: "HOST-R-VIP-REPLACEMENT",
       priority: 30,
       statement: "Below the review boundary, a VIP damaged return is replaced and quarantined.",
+    },
+    {
+      id: "HOST-R-REPLACEMENT-STOCK-REQUIRED",
+      priority: 25,
+      statement: "A VIP replacement with no sellable stock is rejected atomically without a return record, inventory mutation, shipment, or other side effect.",
     },
   ],
   unknowns: [
@@ -368,12 +462,12 @@ export class MigrationRunner {
       }, origin);
       await this.paceRecordedReplay();
     }
-    this.stagePassed(job, "challenge", "Counterexamples resolved the hidden priority rule", origin);
+    this.stagePassed(job, "challenge", "Counterexamples resolved priority and atomic stock-failure rules", origin);
     await this.paceRecordedReplay();
 
     this.stageStarted(job, "build", "Replay isolated Codex candidate build", origin);
     await this.paceRecordedReplay();
-    this.emit(job, "build", "candidate.updated", "failed", "Candidate 01 rejected", "The seeded implementation failed VIP priority and damaged inventory disposition.", {
+    this.emit(job, "build", "candidate.updated", "failed", "Candidate 01 rejected", "The seeded implementation failed VIP priority, damaged inventory disposition, and exhausted-stock failure semantics.", {
       candidate: {
         id: "candidate-seeded-01",
         revision: 1,
@@ -381,11 +475,15 @@ export class MigrationRunner {
         summary: "Observed-only implementation",
         modelId: "none",
         changedFiles: ["apps/api/src/candidates/generated-return-workflow.ts"],
-        rejectedByScenarioIds: ["observed-standard-damaged-4500", "observed-vip-damaged-12000"],
+        rejectedByScenarioIds: [
+          "observed-standard-damaged-4500",
+          "observed-vip-damaged-12000",
+          "counterexample-vip-damaged-no-sellable",
+        ],
       },
     }, origin);
     await this.paceRecordedReplay();
-    this.emit(job, "build", "candidate.updated", "passed", "Candidate 02 built by Codex", "Codex repaired the complete decision and side-effect module in an isolated worktree.", {
+    this.emit(job, "build", "candidate.updated", "passed", "Candidate 02 built by Codex", "Codex repaired the complete decision, atomic failure, and side-effect module in an isolated worktree.", {
       candidate: {
         id: "candidate-generated-02",
         revision: 2,
@@ -408,13 +506,7 @@ export class MigrationRunner {
       sourceDigest: executedSourceDigest,
       baseCommit: recordedCodexBuild.baseCommit,
       changedFiles: [...recordedCodexBuild.changedFiles],
-      hostVerification: {
-        testsPassed: 42,
-        testsTotal: 42,
-        testsSkipped: 4,
-        scope: "candidate-safe",
-        source: "recorded-command-log",
-      },
+      hostVerification: recordedCodexBuild.hostVerification,
     }, recordedArchaeology.contract);
     const artifacts = await this.issueArtifacts(
       job,
@@ -569,6 +661,45 @@ export class MigrationRunner {
       },
     });
 
+    const stockScenario = scenarios.find(({ id }) => id === "counterexample-vip-damaged-no-sellable");
+    if (!stockScenario?.expectedFailure) throw new Error("STOCK_COUNTEREXAMPLE_MISSING");
+    const stockTrace = this.service.captureAttempt(
+      "legacy",
+      stockScenario.input,
+      "seeded",
+      stockScenario.id,
+    );
+    if (
+      stockTrace.outcome.status !== "FAILED"
+      || stockTrace.outcome.failureCode !== stockScenario.expectedFailure.code
+      || stockTrace.outcome.returnRecordCreated
+      || stockTrace.outcome.sideEffects.length !== 0
+      || stockTrace.outcome.inventoryBefore.sellable !== stockTrace.outcome.inventoryAfter.sellable
+      || stockTrace.outcome.inventoryBefore.quarantine !== stockTrace.outcome.inventoryAfter.quarantine
+    ) {
+      throw new Error("STOCK_COUNTEREXAMPLE_DID_NOT_FAIL_ATOMICALLY");
+    }
+    this.emit(
+      job,
+      "challenge",
+      "counterexample.updated",
+      "passed",
+      "Host stock-exhaustion counterexample executed",
+      this.attemptSummary(stockTrace),
+      {
+        counterexample: {
+          id: "LIVE-CX-STOCK-EXHAUSTED",
+          title: stockScenario.title,
+          rationale: stockScenario.description,
+          status: "confirmed",
+          scenario: stockTrace.input,
+          observedOutcome: stockTrace.outcome,
+          evidenceIds: stockTrace.evidence.map(({ evidenceId }) => evidenceId),
+          targetHypothesisIds: archaeologist.output.hypotheses.map(({ ruleId }) => ruleId),
+        },
+      },
+    );
+
     const coveredHighScenario = {
       ...priorityScenario,
       id: `live-covered-high-${job.id}`,
@@ -595,11 +726,12 @@ export class MigrationRunner {
       evidence: this.traceEvidencePayload(coveredHighTrace),
     });
 
-    const challengeTraces = [
+    const challengeTraces: StoredWorkflowTrace[] = [
       ...tracesAfterFirst,
       secondTrace,
       ...boundaryTraces,
       priorityTrace,
+      stockTrace,
       coveredHighTrace,
     ];
     let critic = await this.archaeology.run<CriticOutput>({
@@ -611,6 +743,10 @@ export class MigrationRunner {
       signal: AbortSignal.timeout(this.modelTimeoutMs),
     });
     invocations.push(critic.invocation);
+    let unknownLifecycle = reconcileCriticUnknownLifecycle(
+      archaeologist.output.unknowns,
+      critic.output,
+    );
     if (critic.output.disposition === "NEEDS_COUNTEREXAMPLE") {
       const generated = createHostHiddenScenario(`contract-clarification:${job.id}`);
       const priorityCheck = {
@@ -654,16 +790,28 @@ export class MigrationRunner {
         signal: AbortSignal.timeout(this.modelTimeoutMs),
       });
       invocations.push(critic.invocation);
+      unknownLifecycle = reconcileCriticUnknownLifecycle(
+        archaeologist.output.unknowns,
+        critic.output,
+      );
     }
     if (critic.output.disposition !== "READY_FOR_BUILD") {
       throw new Error(`GPT56_CONTRACT_${critic.output.disposition}`);
+    }
+    if (!hasEvidenceBoundStockSufficiencyRule(
+      critic.output.revisedRules,
+      stockTrace.evidence.map(({ evidenceId }) => evidenceId),
+    )) {
+      throw new Error("GPT56_CONTRACT_MISSING_STOCK_SUFFICIENCY_RULE");
     }
     const liveContract = {
       id: `contract-live-${job.id}`,
       scope: "Evidence-bounded Web returns workflow",
       rules: critic.output.revisedRules,
       findings: critic.output.findings,
-      unknowns: archaeologist.output.unknowns,
+      initialUnknowns: archaeologist.output.unknowns,
+      resolvedUnknowns: unknownLifecycle.resolvedUnknowns,
+      remainingUnknowns: unknownLifecycle.remainingUnknowns,
       disposition: critic.output.disposition,
       criticThreadId: critic.invocation.threadId,
     };
@@ -723,7 +871,7 @@ export class MigrationRunner {
       worktree: repair.worktree,
       repairInput: repair.repairInput,
     });
-    this.stagePassed(job, "build", "One-file allowlist and six-scenario host suite passed");
+    this.stagePassed(job, "build", "One-file allowlist and seven-scenario host suite passed");
 
     this.stageStarted(job, "verify", "Issue a fresh host-owned proof bundle");
     const repairedSource = await readFile(join(repair.worktree.path, GENERATED_CANDIDATE_PATH), "utf8");
@@ -776,14 +924,14 @@ ${JSON.stringify(this.tracePack(traces))}`;
   }
 
   private criticPrompt(
-    traces: WorkflowTrace[],
+    traces: StoredWorkflowTrace[],
     archaeology: ArchaeologistOutput,
     previous?: CriticOutput,
   ): string {
     return `${this.readOnlyModelBoundary()}
 
 Role: Contract Critic.
-Audit the initial hypotheses against every fresh host trace, including adjacent boundary probes. Reject unsupported universal statements and produce the smallest ordered contract. A lower numeric priority runs first. Mark READY_FOR_BUILD only when the evidence supports the observed priority and exact threshold. Preserve explicit unknowns outside the observed domain.
+Audit the initial hypotheses against every fresh host trace, including adjacent boundary probes and the exhausted-stock failure attempt. Reject unsupported universal statements and produce the smallest ordered contract. A lower numeric priority runs first. The contract must preserve the observed replacement-stock precondition and atomic failure behavior: with zero sellable stock the replacement is rejected, no return record is created, inventory is unchanged, and no shipment or other side effect is returned. Cite the failure attempt evidence in that rule. Classify every initial unknown exactly once: put evidence-resolved items in resolvedUnknowns and unresolved items in remainingUnknowns. Do not invent, omit, duplicate, or silently downgrade an unknown. For each remaining item, mark whether it is inside the stated Web returns scope. Mark READY_FOR_BUILD only when the evidence supports the observed priority, exact threshold, and stock-sufficiency failure semantics and no remaining in-scope unknown was initially marked blocking. Preserve unresolved questions outside the observed domain as out-of-scope remaining unknowns.
 
 Initial archaeology:
 ${JSON.stringify(archaeology)}
@@ -798,27 +946,32 @@ ${JSON.stringify(this.tracePack(traces))}`;
     return "You are a read-only behavior analyst. Use only the supplied trace pack. Never invent evidence IDs, write code, run commands, execute a scenario, or claim verification passed. Return only JSON matching the supplied schema.";
   }
 
-  private tracePack(traces: WorkflowTrace[]): unknown {
+  private tracePack(traces: StoredWorkflowTrace[]): unknown {
     return traces.map((trace) => ({
       traceId: trace.traceId,
       scenarioId: trace.scenarioId,
       input: trace.input,
-      result: trace.result,
+      ...( "result" in trace ? { result: trace.result } : { outcome: trace.outcome }),
       evidence: trace.evidence.map(({ evidenceId, type, digest }) => ({ evidenceId, type, digest })),
     }));
   }
 
-  private evidenceIds(traces: WorkflowTrace[]): string[] {
+  private evidenceIds(traces: StoredWorkflowTrace[]): string[] {
     return traces.flatMap((trace) => trace.evidence.map(({ evidenceId }) => evidenceId));
   }
 
-  private evidenceDigests(traces: WorkflowTrace[]): string[] {
+  private evidenceDigests(traces: StoredWorkflowTrace[]): string[] {
     return traces.flatMap((trace) => trace.evidence.map(({ digest }) => digest));
   }
 
   private traceSummary(trace: WorkflowTrace): string {
     const { input, result } = trace;
     return `${input.customerTier} · ${input.itemCondition} · ${input.amountCents} cents → ${result.decision}; inventory ${result.inventoryBefore.sellable}/${result.inventoryBefore.quarantine} → ${result.inventoryAfter.sellable}/${result.inventoryAfter.quarantine}`;
+  }
+
+  private attemptSummary(trace: WorkflowAttemptTrace): string {
+    const { input, outcome } = trace;
+    return `${input.customerTier} · ${input.itemCondition} · ${input.amountCents} cents → ${outcome.status}${outcome.failureCode ? ` (${outcome.failureCode})` : ""}; inventory ${outcome.inventoryBefore.sellable}/${outcome.inventoryBefore.quarantine} → ${outcome.inventoryAfter.sellable}/${outcome.inventoryAfter.quarantine}; ${outcome.sideEffects.length} side effects`;
   }
 
   private traceEvidencePayload(trace: WorkflowTrace): Record<string, unknown> {
@@ -1000,7 +1153,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
       },
       scenarios: scenarioProofs,
       limitations: [
-        "The claim covers only the six executed Web workflow scenarios listed in this bundle.",
+        "The claim covers only the seven executed Web workflow scenarios listed in this bundle.",
         "External payment settlement, carrier systems, and workflows outside REST + SQLite are not claimed equivalent.",
         ...(job.executionMode === "deterministic-only"
           ? [

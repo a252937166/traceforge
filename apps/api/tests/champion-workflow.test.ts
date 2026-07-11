@@ -46,6 +46,13 @@ test("writer-visible corpus exposes observations, counterexample, and exact boun
         customerTier: "VIP",
       },
       {
+        id: "counterexample-vip-damaged-no-sellable",
+        stage: "counterexample",
+        visibility: "visible",
+        amountCents: 12_000,
+        customerTier: "VIP",
+      },
+      {
         id: "boundary-standard-damaged-49999",
         stage: "boundary",
         visibility: "visible",
@@ -107,6 +114,17 @@ test("seeded candidate is rejected for both VIP priority and damaged disposition
 
 test("generated module independently matches the legacy oracle across the complete suite", () => {
   for (const entry of scenarios) {
+    if (entry.expectedFailure) {
+      assert.throws(
+        () => executeLegacyWorkflow(entry.input),
+        new RegExp(entry.expectedFailure.message),
+      );
+      assert.throws(
+        () => executeReplacementWorkflow(entry.input, "generated"),
+        new RegExp(entry.expectedFailure.message),
+      );
+      continue;
+    }
     const legacy = executeLegacyWorkflow(entry.input);
     const generated = executeReplacementWorkflow(entry.input, "generated");
     assert.notEqual(generated.implementationId, legacy.implementationId);

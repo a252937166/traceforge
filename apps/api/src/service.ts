@@ -14,11 +14,14 @@ import type {
   DemoRunResponse,
   DeterministicAssertion,
   EvidenceRecord,
+  ImplementationId,
   ProofBundle,
   ReturnWorkflowInput,
   Scenario,
   SystemName,
   VerificationMismatch,
+  WorkflowAttemptTrace,
+  WorkflowFailureCode,
   WorkflowTrace,
 } from "./types.js";
 
@@ -36,6 +39,10 @@ function digestForEvidence(trace: WorkflowTrace, evidenceId: string): string {
   return trace.evidence.find((item) => item.evidenceId === evidenceId)?.digest ?? "sha256:missing";
 }
 
+function evidenceForAttempt(trace: WorkflowAttemptTrace, type: string): string {
+  return trace.evidence.find((item) => item.type === type)?.evidenceId ?? trace.evidence[0]?.evidenceId ?? "missing";
+}
+
 function valueAt(trace: WorkflowTrace, path: string): unknown {
   const values: Record<string, unknown> = {
     decision: trace.result.decision,
@@ -43,6 +50,40 @@ function valueAt(trace: WorkflowTrace, path: string): unknown {
     "returnRecord.refundCents": trace.result.returnRecord.refundCents,
     "inventoryAfter.sellable": trace.result.inventoryAfter.sellable,
     "inventoryAfter.quarantine": trace.result.inventoryAfter.quarantine,
+  };
+  return values[path];
+}
+
+function implementationIdFor(
+  system: SystemName,
+  candidateVersion: CandidateVersion,
+): ImplementationId {
+  if (system === "legacy") return "legacy.return-workflow.v1";
+  return candidateVersion === "generated"
+    ? "replacement.return-workflow.generated-candidate"
+    : "replacement.return-workflow.seeded-candidate";
+}
+
+function failureCodeFor(error: unknown): WorkflowFailureCode {
+  const message = error instanceof Error ? error.message : String(error);
+  return /without sellable stock/i.test(message)
+    ? "INSUFFICIENT_SELLABLE_STOCK"
+    : "UNEXPECTED_WORKFLOW_ERROR";
+}
+
+function attemptValueAt(trace: WorkflowAttemptTrace, path: string): unknown {
+  const values: Record<string, unknown> = {
+    "execution.status": trace.outcome.status,
+    failure: {
+      code: trace.outcome.failureCode,
+      message: trace.outcome.failureMessage,
+    },
+    "returnRecord.created": trace.outcome.returnRecordCreated,
+    inventoryAfter: {
+      sellable: trace.outcome.inventoryAfter.sellable,
+      quarantine: trace.outcome.inventoryAfter.quarantine,
+    },
+    "sideEffects.count": trace.outcome.sideEffects.length,
   };
   return values[path];
 }
@@ -133,6 +174,153 @@ export class TraceForgeService {
       ...(scenarioId ? { scenarioId } : {}),
       input,
       result: persistedResult,
+      stateSource: "node:sqlite",
+      evidence,
+      capturedAt,
+    };
+    this.store.putTrace(trace);
+    return trace;
+  }
+
+  /**
+   * Captures both successful and rejected attempts without inventing a
+   * WorkflowResult for the latter. The workflow implementation runs before
+   * any write; if it throws, SQLite is read back to prove that no partial
+   * state was committed. A returned but invalid result is recorded as a
+   * successful workflow execution with rejected persistence, rather than
+   * being blurred into the legacy business rejection.
+   */
+  captureAttempt(
+    system: SystemName,
+    rawInput: unknown,
+    candidateVersion: CandidateVersion = "seeded",
+    scenarioId?: string,
+  ): WorkflowAttemptTrace {
+    const input = validateWorkflowInput(rawInput);
+    const persistedBefore = this.store.resetBusinessState(system, input);
+    let status: WorkflowAttemptTrace["outcome"]["status"] = "FAILED";
+    let failureCode: WorkflowFailureCode | null = null;
+    let failureMessage: string | null = null;
+    let persistenceStatus: WorkflowAttemptTrace["outcome"]["persistenceStatus"] = "NOT_ATTEMPTED";
+    let sideEffects: WorkflowAttemptTrace["outcome"]["sideEffects"] = [];
+    let returnedResult: ReturnType<typeof executeWorkflow>["result"] | undefined;
+    let persistenceError: string | null = null;
+    let implementationId = implementationIdFor(system, candidateVersion);
+
+    try {
+      const executed = executeWorkflow(input, system, candidateVersion);
+      implementationId = executed.implementationId;
+      returnedResult = executed.result;
+      sideEffects = executed.result.sideEffects;
+      status = "SUCCEEDED";
+      try {
+        this.store.applyBusinessResult(system, executed.result);
+        persistenceStatus = "COMMITTED";
+      } catch (error) {
+        persistenceStatus = "REJECTED";
+        persistenceError = error instanceof Error ? error.message : String(error);
+      }
+    } catch (error) {
+      failureCode = failureCodeFor(error);
+      failureMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    const persistedAfter = this.store.snapshotBusinessState(system, input.sku, input.returnId);
+    const traceId = `trace_${randomUUID()}`;
+    const capturedAt = new Date().toISOString();
+    const events = [
+      {
+        type: "implementation.selected",
+        title: "Independent workflow implementation selected",
+        detail: implementationId,
+        payload: { system, implementationId, candidateVersion },
+      },
+      {
+        type: "input.captured",
+        title: `${system === "legacy" ? "Legacy" : "Candidate"} workflow input captured`,
+        detail: `${input.returnId} · ${input.customerTier} · ${input.itemCondition} · ${input.amountCents} cents`,
+        payload: input,
+      },
+      {
+        type: "state.before",
+        title: "Inventory snapshot before attempt",
+        detail: `${persistedBefore.inventory.sellable} sellable, ${persistedBefore.inventory.quarantine} quarantined · read from SQLite`,
+        payload: persistedBefore,
+      },
+      {
+        type: "execution.outcome",
+        title: status === "FAILED" ? "Workflow rejected the operation" : "Workflow returned a result",
+        detail: status === "FAILED"
+          ? `${failureCode}: ${failureMessage}`
+          : `Execution returned before persistence ${persistenceStatus.toLowerCase()}`,
+        payload: {
+          status,
+          failureCode,
+          failureMessage,
+          persistenceStatus,
+          persistenceError,
+          returnedResult,
+        },
+      },
+      {
+        type: "failure.recorded",
+        title: failureCode ?? "No business rejection recorded",
+        detail: failureMessage ?? "The workflow returned a result instead of rejecting the operation.",
+        payload: { failureCode, failureMessage },
+      },
+      {
+        type: "state.after",
+        title: "Inventory snapshot after attempt",
+        detail: `${persistedAfter.inventory.sellable} sellable, ${persistedAfter.inventory.quarantine} quarantined · read from SQLite`,
+        payload: persistedAfter,
+      },
+      {
+        type: "return-state.observed",
+        title: persistedAfter.returnRecord ? "Return record exists" : "No return record was created",
+        detail: persistedAfter.returnRecord?.status ?? "SQLite return_state remained empty for this return ID.",
+        payload: persistedAfter.returnRecord ?? null,
+      },
+      {
+        type: "side-effects.recorded",
+        title: sideEffects.length === 0 ? "No workflow side effects returned" : "Workflow side effects returned",
+        detail: sideEffects.length === 0 ? "0 side effects" : sideEffects.map(({ type }) => type).join(", "),
+        payload: sideEffects,
+      },
+      {
+        type: "database.roundtrip",
+        title: "Business state read back after attempt",
+        detail: `${system} inventory_state and return_state verified in SQLite`,
+        payload: { before: persistedBefore, after: persistedAfter, persistenceStatus },
+      },
+    ];
+    const evidence: EvidenceRecord[] = events.map((event, index) => {
+      const sequence = index + 1;
+      const digestBody = { ...event, sequence, capturedAt };
+      return {
+        ...event,
+        evidenceId: `ev_${traceId}_${String(sequence).padStart(3, "0")}`,
+        digest: sha256Digest(digestBody),
+        sequence,
+        capturedAt,
+      };
+    });
+    const trace: WorkflowAttemptTrace = {
+      traceId,
+      system,
+      implementationId,
+      ...(system === "replacement" ? { candidateVersion } : {}),
+      ...(scenarioId ? { scenarioId } : {}),
+      input,
+      outcome: {
+        status,
+        failureCode,
+        failureMessage,
+        persistenceStatus,
+        inventoryBefore: persistedBefore.inventory,
+        inventoryAfter: persistedAfter.inventory,
+        returnRecordCreated: Boolean(persistedAfter.returnRecord),
+        sideEffects,
+      },
       stateSource: "node:sqlite",
       evidence,
       capturedAt,
@@ -341,12 +529,186 @@ export class TraceForgeService {
     };
   }
 
+  runVerification(options: {
+    scenarioId?: string;
+    input?: ReturnWorkflowInput;
+    candidateVersion?: CandidateVersion;
+    scenario?: Scenario;
+  }) {
+    const scenario = options.scenario
+      ?? (options.scenarioId ? findScenario(options.scenarioId) : undefined);
+    return scenario?.expectedFailure
+      ? this.runExpectedFailureScenario(scenario, options.candidateVersion ?? "seeded")
+      : this.runDemo(options);
+  }
+
+  private runExpectedFailureScenario(
+    scenario: Scenario,
+    candidateVersion: CandidateVersion,
+  ) {
+    const expectedFailure = scenario.expectedFailure;
+    if (!expectedFailure) throw new Error(`scenario ${scenario.id} has no expected failure contract`);
+    const legacy = this.captureAttempt("legacy", scenario.input, candidateVersion, scenario.id);
+    const legacyMutated =
+      legacy.outcome.inventoryBefore.sellable !== legacy.outcome.inventoryAfter.sellable
+      || legacy.outcome.inventoryBefore.quarantine !== legacy.outcome.inventoryAfter.quarantine;
+    if (
+      legacy.outcome.status !== "FAILED"
+      || legacy.outcome.failureCode !== expectedFailure.code
+      || legacy.outcome.failureMessage !== expectedFailure.message
+      || legacy.outcome.returnRecordCreated !== expectedFailure.returnRecordCreated
+      || legacy.outcome.sideEffects.length !== expectedFailure.sideEffectsCount
+      || legacyMutated !== expectedFailure.inventoryMutation
+    ) {
+      throw new Error(`LEGACY_FAILURE_EXPECTATION_MISMATCH:${scenario.id}`);
+    }
+    const replacement = this.captureAttempt(
+      "replacement",
+      scenario.input,
+      candidateVersion,
+      scenario.id,
+    );
+    const contract: BehaviorContract = {
+      contractId: `contract_${randomUUID()}`,
+      sourceTraceId: legacy.traceId,
+      scope: "Observed replacement rejection when sellable stock is exhausted",
+      generation: { method: "deterministic-demo-extractor", openaiUsed: false },
+      preconditions: [
+        "customerTier is VIP",
+        "amountCents is below the high-value review threshold",
+        "sellable inventory is zero",
+      ],
+      rules: [{
+        ruleId: "RULE-REPLACEMENT-STOCK-REQUIRED",
+        statement: "A replacement requires at least one sellable unit; otherwise the workflow rejects before creating side effects.",
+        confidence: 1,
+        evidenceIds: [evidenceForAttempt(legacy, "execution.outcome"), evidenceForAttempt(legacy, "database.roundtrip")],
+      }],
+      invariants: [
+        {
+          invariantId: "INV-FAILED-ATTEMPT-IS-ATOMIC",
+          statement: "A rejected replacement creates no return record, shipment, or inventory mutation.",
+          evidenceIds: [
+            evidenceForAttempt(legacy, "state.before"),
+            evidenceForAttempt(legacy, "state.after"),
+            evidenceForAttempt(legacy, "return-state.observed"),
+            evidenceForAttempt(legacy, "side-effects.recorded"),
+          ],
+        },
+      ],
+      expectedFailure,
+      unknowns: [
+        "The failure contract is bounded to the observed VIP damaged-return replacement branch.",
+        "Concurrent stock reservations and external shipment systems are outside this demo boundary.",
+      ],
+      createdAt: new Date().toISOString(),
+    };
+    this.store.putContract(contract);
+
+    const paths = [
+      { path: "execution.status", label: "Failure status is preserved", severity: "critical" as const, evidenceType: "execution.outcome" },
+      { path: "failure", label: "Failure reason is preserved", severity: "critical" as const, evidenceType: "failure.recorded" },
+      { path: "returnRecord.created", label: "No return record is created", severity: "critical" as const, evidenceType: "return-state.observed" },
+      { path: "inventoryAfter", label: "Inventory remains unchanged", severity: "critical" as const, evidenceType: "state.after" },
+      { path: "sideEffects.count", label: "No shipment or other side effect is emitted", severity: "critical" as const, evidenceType: "side-effects.recorded" },
+    ];
+    const assertions: DeterministicAssertion[] = paths.map((entry, index) => {
+      const expected = attemptValueAt(legacy, entry.path);
+      const actual = attemptValueAt(replacement, entry.path);
+      return {
+        assertionId: `assert_${String(index + 1).padStart(3, "0")}`,
+        label: entry.label,
+        status: JSON.stringify(expected) === JSON.stringify(actual) ? "PASSED" : "FAILED",
+        expected,
+        actual,
+        legacyEvidenceId: evidenceForAttempt(legacy, entry.evidenceType),
+        candidateEvidenceId: evidenceForAttempt(replacement, entry.evidenceType),
+      };
+    });
+    const mismatches: VerificationMismatch[] = assertions
+      .filter(({ status }) => status === "FAILED")
+      .map((assertion) => {
+        const metadata = paths.find(({ label }) => label === assertion.label);
+        return {
+          path: metadata?.path ?? assertion.label,
+          expected: assertion.expected,
+          actual: assertion.actual,
+          severity: metadata?.severity ?? "critical",
+          legacyEvidenceId: assertion.legacyEvidenceId,
+          candidateEvidenceId: assertion.candidateEvidenceId,
+          explanation: `${assertion.label}: legacy produced ${JSON.stringify(assertion.expected)}, candidate produced ${JSON.stringify(assertion.actual)}.`,
+        };
+      });
+    const runId = `run_${randomUUID()}`;
+    const status = mismatches.length === 0 ? "PASSED" : "FAILED";
+    const proofBody: Omit<ProofBundle, "digest"> = {
+      proofId: `proof_${randomUUID()}`,
+      runId,
+      status,
+      claim: "Failure behavior and atomicity conformance for the exhausted-stock replacement counterexample.",
+      scenarioId: scenario.id,
+      candidateVersion,
+      implementations: {
+        legacy: legacy.implementationId,
+        candidate: replacement.implementationId,
+      },
+      legacyTraceId: legacy.traceId,
+      candidateTraceId: replacement.traceId,
+      contractId: contract.contractId,
+      assertions,
+      mismatches,
+      mutationDetected: mismatches.length > 0,
+      limitations: [
+        "The proof covers only this concrete exhausted-stock input and the five deterministic failure assertions listed here.",
+        "No OpenAI or Codex call is represented by this local run.",
+      ],
+      generatedAt: new Date().toISOString(),
+    };
+    const proofBundle: ProofBundle = { ...proofBody, digest: sha256Digest(proofBody) };
+    this.store.putProof(proofBundle);
+    const events = [
+      ...legacy.evidence.map((item) => ({
+        type: `legacy.${item.type}`,
+        title: item.title,
+        detail: item.detail,
+        evidenceId: item.evidenceId,
+        digest: item.digest,
+      })),
+      ...replacement.evidence.map((item) => ({
+        type: `replacement.${item.type}`,
+        title: item.title,
+        detail: item.detail,
+        evidenceId: item.evidenceId,
+        digest: item.digest,
+      })),
+    ];
+    return {
+      runId,
+      status,
+      source: "deterministic-local-demo" as const,
+      events,
+      rules: contract.rules,
+      proofs: assertions.map((assertion) => ({
+        proofId: assertion.assertionId,
+        label: assertion.label,
+        status: assertion.status,
+        expected: assertion.expected,
+        actual: assertion.actual,
+      })),
+      contract,
+      proofBundle,
+      traces: { legacy, replacement },
+    };
+  }
+
   private runScenarioCorpus(
     candidateVersion: CandidateVersion,
     corpus: Scenario[],
   ) {
     const runs = corpus.map((scenario) =>
-      this.runDemo({ scenario, candidateVersion }),
+      scenario.expectedFailure
+        ? this.runExpectedFailureScenario(scenario, candidateVersion)
+        : this.runDemo({ scenario, candidateVersion }),
     );
     return {
       candidateVersion,

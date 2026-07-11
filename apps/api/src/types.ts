@@ -86,6 +86,42 @@ export interface WorkflowTrace {
   capturedAt: string;
 }
 
+export type WorkflowFailureCode =
+  | "INSUFFICIENT_SELLABLE_STOCK"
+  | "UNEXPECTED_WORKFLOW_ERROR";
+
+/**
+ * A failure-aware execution trace used for counterexamples whose observable
+ * legacy behavior is to reject the operation before committing any state.
+ *
+ * This is intentionally separate from `WorkflowTrace`: a rejected execution
+ * must never be represented as a successful `WorkflowResult` with invented
+ * decision or return-record fields.
+ */
+export interface WorkflowAttemptTrace {
+  traceId: string;
+  system: SystemName;
+  implementationId: ImplementationId;
+  candidateVersion?: CandidateVersion;
+  scenarioId?: string;
+  input: ReturnWorkflowInput;
+  outcome: {
+    status: "SUCCEEDED" | "FAILED";
+    failureCode: WorkflowFailureCode | null;
+    failureMessage: string | null;
+    persistenceStatus: "COMMITTED" | "NOT_ATTEMPTED" | "REJECTED";
+    inventoryBefore: InventoryState;
+    inventoryAfter: InventoryState;
+    returnRecordCreated: boolean;
+    sideEffects: WorkflowResult["sideEffects"];
+  };
+  stateSource: "node:sqlite";
+  evidence: EvidenceRecord[];
+  capturedAt: string;
+}
+
+export type StoredWorkflowTrace = WorkflowTrace | WorkflowAttemptTrace;
+
 export interface BusinessStateSnapshot {
   system: SystemName;
   inventory: InventoryState;
@@ -115,7 +151,14 @@ export interface BehaviorContract {
     statement: string;
     evidenceIds: string[];
   }>;
-  expectedOutcome: WorkflowResult;
+  expectedOutcome?: WorkflowResult;
+  expectedFailure?: {
+    code: WorkflowFailureCode;
+    message: string;
+    returnRecordCreated: false;
+    inventoryMutation: false;
+    sideEffectsCount: 0;
+  };
   unknowns: string[];
   createdAt: string;
 }
@@ -171,6 +214,13 @@ export interface Scenario {
   provenance: {
     source: "model-proposed" | "host-derived" | "host-authored";
     detail: string;
+  };
+  expectedFailure?: {
+    code: WorkflowFailureCode;
+    message: string;
+    returnRecordCreated: false;
+    inventoryMutation: false;
+    sideEffectsCount: 0;
   };
   input: ReturnWorkflowInput;
 }
