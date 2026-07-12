@@ -128,20 +128,53 @@ describe('TraceForge Migration Loom', () => {
     vi.unstubAllGlobals()
   })
 
-  it('starts with one primary local-run CTA and no empty run panels', () => {
+  it('starts with one primary zero-credential proof CTA and no empty run panels', () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: 'Prove what changed. Keep Codex local.' })).toBeInTheDocument()
-    const primaryActions = screen.getAllByRole('button', { name: 'Start a local proof run' })
-    expect(primaryActions).toHaveLength(1)
-    expect(primaryActions[0]).toHaveClass('action-primary')
-    expect(screen.getByRole('button', { name: 'Inspect a completed proof' })).toHaveClass('action-link')
+    const primaryAction = screen.getByRole('button', { name: 'Inspect a completed proof' })
+    expect(primaryAction).toHaveClass('action-primary')
+    expect(screen.getByText('Try instantly · no credentials')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Codex locally' })).toHaveClass('action-link')
+    expect(screen.getByText('Advanced · real local build · setup required')).toBeInTheDocument()
     expect(screen.getByText('No local files, Codex credentials, generated source, or session history are sent to this website.')).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Migration stages' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Server-reported provenance' })).not.toBeInTheDocument()
     expect(screen.queryByText('No proof issued')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Download the evidence' })).not.toBeInTheDocument()
     expect(screen.queryByText(/sample success/i)).not.toBeInTheDocument()
+  })
+
+  it('turns a failed health check into an explicit retryable state', async () => {
+    let healthCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) !== '/api/health') throw new Error(`Unexpected request: ${String(input)}`)
+      healthCalls += 1
+      if (healthCalls === 1) {
+        return jsonResponse({ error: { message: 'Health manifest unavailable.' } }, 503)
+      }
+      return jsonResponse({
+        codexConfigured: true,
+        codexStatus: { configured: true },
+        gpt56Status: { configured: true },
+        release: {
+          sha: 'de748868292639c57abea7b8d53e933987bea03e',
+          version: 'local-runner-v0.1.9',
+          builtAt: '2026-07-11T14:30:00.000Z',
+        },
+      })
+    }))
+    render(<App />)
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('Health check failed')).toBeInTheDocument()
+    expect(screen.getByText('Health manifest unavailable.')).toBeInTheDocument()
+    expect(screen.queryByText('Checking health…')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry health check' }))
+    const release = screen.getByRole('region', { name: 'Release evidence' })
+    expect(await within(release).findByRole('link', { name: /Production de74886/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry health check' })).not.toBeInTheDocument()
   })
 
   it('explains and closes the public, loopback, and Codex trust boundaries', async () => {
@@ -246,7 +279,7 @@ describe('TraceForge Migration Loom', () => {
       'deterministic-only',
     ])
     expect(screen.queryByRole('radio', { name: /New live AI run/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start a local proof run' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Run Codex locally' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Inspect a completed proof' })).toBeEnabled()
     expect(screen.getByText('No sign-in · server-paced SSE · fresh proof bundle')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run the verified migration' })).toBeEnabled()
@@ -280,17 +313,18 @@ describe('TraceForge Migration Loom', () => {
     const user = userEvent.setup()
     const clipboard = vi.spyOn(navigator.clipboard, 'writeText')
 
-    await user.click(screen.getByRole('button', { name: 'Start a local proof run' }))
+    await user.click(screen.getByRole('button', { name: 'Run Codex locally' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Start a bounded proof run.' })
     expect(document.documentElement).toHaveClass('runner-modal-open')
     expect(dialog).toHaveTextContent('Current release: fixed damaged-returns demo. It does not browse or modify your own project.')
     const steps = within(dialog).getByRole('list', { name: 'Local Runner guide steps' })
     expect(within(steps).getAllByRole('button')).toHaveLength(3)
-    expect(within(steps).getByRole('button', { name: /Start Runner/ })).toHaveAttribute('aria-current', 'step')
-    expect(within(steps).getByRole('button', { name: /Review locally/ })).not.toHaveAttribute('aria-current')
-    expect(within(steps).getByRole('button', { name: /Collect proof/ })).not.toHaveAttribute('aria-current')
+    expect(within(steps).getByRole('button', { name: 'Step 1 of 3: Start Runner' })).toHaveAttribute('aria-current', 'step')
+    expect(within(steps).getByRole('button', { name: 'Step 2 of 3: Review locally' })).not.toHaveAttribute('aria-current')
+    expect(within(steps).getByRole('button', { name: 'Step 3 of 3: Collect proof' })).not.toHaveAttribute('aria-current')
     expect(dialog).toHaveTextContent('Launch the pinned source release')
+    expect(dialog).toHaveTextContent('Node.js 22.5+')
     expect(dialog).toHaveTextContent('Pinned commit a2ce8b2394caf5d1491c2b142f99a8421f3cec2d · source install · no binary checksum claim')
     expect(within(dialog).getAllByRole('button', { name: 'Copy command' })).toHaveLength(1)
     expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.9/)).toBeInTheDocument()
@@ -302,7 +336,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Next: review local scope' }))
-    expect(within(steps).getByRole('button', { name: /Review locally/ })).toHaveAttribute('aria-current', 'step')
+    expect(within(steps).getByRole('button', { name: 'Step 2 of 3: Review locally' })).toHaveAttribute('aria-current', 'step')
     expect(dialog).toHaveTextContent('Approve one fixed Codex build on localhost')
     expect(dialog).toHaveTextContent('Damaged returns v1')
     expect(dialog).toHaveTextContent('One candidate file')
@@ -311,7 +345,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(dialog).queryByRole('button', { name: 'Copy command' })).not.toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Next: see proof output' }))
-    expect(within(steps).getByRole('button', { name: /Collect proof/ })).toHaveAttribute('aria-current', 'step')
+    expect(within(steps).getByRole('button', { name: 'Step 3 of 3: Collect proof' })).toHaveAttribute('aria-current', 'step')
     expect(dialog).toHaveTextContent('Follow the local run to a recomputable result')
     const localStages = dialog.querySelector('.local-run-stages')
     expect(localStages).not.toBeNull()
@@ -434,6 +468,211 @@ describe('TraceForge Migration Loom', () => {
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).includes('/events?') && String(input).includes('format=json')),
     ).toBe(false)
+  })
+
+  it('retries terminal job, artifact, and proof reads before declaring the preserved run unavailable', async () => {
+    let proofCalls = 0
+    const passedJob = {
+      ...job('recorded-replay'),
+      status: 'passed',
+      currentStage: 'verify',
+      completedAt: '2026-07-11T01:00:08.000Z',
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/health') {
+        return jsonResponse({
+          codexConfigured: true,
+          codexStatus: { configured: true },
+          gpt56Status: { configured: true },
+          release: {
+            sha: 'de748868292639c57abea7b8d53e933987bea03e',
+            version: 'local-runner-v0.1.9',
+            builtAt: '2026-07-11T14:30:00.000Z',
+          },
+        })
+      }
+      if (url === '/api/migrations' && init?.method === 'POST') {
+        return jsonResponse({ data: job('recorded-replay') }, 202)
+      }
+      if (url === '/api/migrations/migration-01') return jsonResponse({ data: passedJob })
+      if (url.endsWith('/artifacts')) return jsonResponse({ data: { artifacts: [] } })
+      if (url.endsWith('/proof')) {
+        proofCalls += 1
+        if (proofCalls === 1) return jsonResponse({ error: { message: 'Proof storage is catching up.' } }, 503)
+        return jsonResponse({
+          data: {
+            proofId: 'proof-terminal-recovery',
+            migrationId: 'migration-01',
+            status: 'PASSED',
+            digest: `sha256:${'a'.repeat(64)}`,
+            generatedAt: '2026-07-11T01:00:08.000Z',
+            coverage: { total: 7, passed: 7 },
+            assertionsPassed: 35,
+            assertionsTotal: 35,
+            mismatchCount: 0,
+          },
+        })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await startMigration()
+
+    const source = FakeEventSource.instances[0]
+    source?.open()
+    source?.emit({
+      id: 'evt-completed-retry',
+      migrationId: 'migration-01',
+      sequence: 8,
+      type: 'job.completed',
+      stage: 'verify',
+      occurredAt: '2026-07-11T01:00:08.000Z',
+      payload: { jobStatus: 'passed' },
+    })
+
+    expect(await screen.findByText('Finalizing proof bundle')).toBeInTheDocument()
+    expect(screen.getByText(/Proof storage is catching up/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'PASSED · 7/7 scenarios' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Finalizing proof bundle')).not.toBeInTheDocument())
+    expect(screen.queryByText('Proof bundle unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry proof bundle' })).not.toBeInTheDocument()
+    expect(proofCalls).toBe(2)
+    expect(source?.closed).toBe(true)
+  })
+
+  it('does not let a delayed running response overwrite a terminal passed job', async () => {
+    let jobCalls = 0
+    let resolveDelayedRunning!: (response: Response) => void
+    const delayedRunning = new Promise<Response>((resolve) => {
+      resolveDelayedRunning = resolve
+    })
+    const passedJob = {
+      ...job('recorded-replay'),
+      status: 'passed',
+      currentStage: 'verify',
+      completedAt: '2026-07-11T01:00:09.000Z',
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/health') {
+        return jsonResponse({
+          codexConfigured: true,
+          codexStatus: { configured: true },
+          gpt56Status: { configured: true },
+          release: {
+            sha: 'de748868292639c57abea7b8d53e933987bea03e',
+            version: 'local-runner-v0.1.9',
+            builtAt: '2026-07-11T14:30:00.000Z',
+          },
+        })
+      }
+      if (url === '/api/migrations' && init?.method === 'POST') {
+        return jsonResponse({ data: job('recorded-replay') }, 202)
+      }
+      if (url === '/api/migrations/migration-01') {
+        jobCalls += 1
+        return jobCalls === 1 ? delayedRunning : jsonResponse({ data: passedJob })
+      }
+      if (url.endsWith('/artifacts')) return jsonResponse({ data: { artifacts: [] } })
+      if (url.endsWith('/proof')) {
+        return jsonResponse({
+          data: {
+            proofId: 'proof-monotonic-terminal',
+            migrationId: 'migration-01',
+            status: 'PASSED',
+            digest: `sha256:${'b'.repeat(64)}`,
+            generatedAt: '2026-07-11T01:00:09.000Z',
+            coverage: { total: 7, passed: 7 },
+            assertionsPassed: 35,
+            assertionsTotal: 35,
+            mismatchCount: 0,
+          },
+        })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    }))
+    render(<App />)
+    await startMigration()
+    const source = FakeEventSource.instances[0]
+
+    source?.emit({
+      id: 'evt-running-refresh',
+      migrationId: 'migration-01',
+      sequence: 6,
+      type: 'stage.started',
+      stage: 'verify',
+      occurredAt: '2026-07-11T01:00:06.000Z',
+      payload: { message: 'Verify started.' },
+    })
+    await waitFor(() => expect(jobCalls).toBe(1))
+
+    source?.emit({
+      id: 'evt-completed-monotonic',
+      migrationId: 'migration-01',
+      sequence: 9,
+      type: 'job.completed',
+      stage: 'verify',
+      occurredAt: '2026-07-11T01:00:09.000Z',
+      payload: { jobStatus: 'passed' },
+    })
+    expect(await screen.findByRole('heading', { name: 'PASSED · 7/7 scenarios' })).toBeInTheDocument()
+    expect(screen.getByText('proof ready')).toBeInTheDocument()
+
+    resolveDelayedRunning(jsonResponse({ data: job('recorded-replay') }))
+    await waitFor(() => expect(jobCalls).toBe(2))
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    expect(screen.getByText('proof ready')).toBeInTheDocument()
+    expect(screen.queryByText('SSE live')).not.toBeInTheDocument()
+  })
+
+  it('clears a transient polling error after connectivity recovers', async () => {
+    let pollCalls = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/health') {
+        return jsonResponse({
+          codexConfigured: true,
+          codexStatus: { configured: true },
+          gpt56Status: { configured: true },
+          release: {
+            sha: 'de748868292639c57abea7b8d53e933987bea03e',
+            version: 'local-runner-v0.1.9',
+            builtAt: '2026-07-11T14:30:00.000Z',
+          },
+        })
+      }
+      if (url === '/api/migrations' && init?.method === 'POST') {
+        return jsonResponse({ data: job('recorded-replay') }, 202)
+      }
+      if (url.includes('/events?') && url.includes('format=json')) {
+        pollCalls += 1
+        if (pollCalls === 1) {
+          return jsonResponse({ error: { message: 'Transient poll failure.' } }, 503)
+        }
+        return jsonResponse({ data: { events: [] } })
+      }
+      if (url.endsWith('/artifacts')) return jsonResponse({ data: { artifacts: [] } })
+      if (url.endsWith('/proof')) return jsonResponse({ error: { message: 'Proof pending.' } }, 404)
+      if (url === '/api/migrations/migration-01') return jsonResponse({ data: job('recorded-replay') })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await startMigration()
+
+    FakeEventSource.instances[0]?.fail()
+    expect(await screen.findByText('Connection interrupted')).toBeInTheDocument()
+    expect(screen.getByText(/TraceForge is retrying without discarding run evidence/)).toBeInTheDocument()
+    expect(screen.queryByText('Run stopped')).not.toBeInTheDocument()
+
+    await waitFor(
+      () => expect(screen.queryByText('Connection interrupted')).not.toBeInTheDocument(),
+      { timeout: 3_500 },
+    )
+    expect(pollCalls).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('recovering')).toBeInTheDocument()
   })
 
   it('renders hypotheses, falsification, suite results, and artifacts only from server events', async () => {

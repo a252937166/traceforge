@@ -427,6 +427,7 @@ export function subscribeToMigration(
     after?: number
     onEvent: (event: MigrationEvent) => void
     onTransport: (transport: MigrationTransport) => void
+    onRecovery?: () => void
     onError: (error: Error) => void
   },
 ): () => void {
@@ -448,6 +449,7 @@ export function subscribeToMigration(
     try {
       const events = await getMigrationEvents(id, latestSequence)
       events.forEach(emit)
+      options.onRecovery?.()
     } catch (error) {
       options.onError(error instanceof Error ? error : new Error('Migration event polling failed.'))
     } finally {
@@ -468,7 +470,10 @@ export function subscribeToMigration(
     startPolling()
   } else {
     source = new EventSource(`/api/migrations/${encodeURIComponent(id)}/events?after=${latestSequence}`)
-    source.onopen = () => options.onTransport('sse')
+    source.onopen = () => {
+      options.onTransport('sse')
+      options.onRecovery?.()
+    }
     const receive = (message: MessageEvent<string>) => {
       try {
         const event = emit(JSON.parse(message.data) as unknown)

@@ -13,8 +13,15 @@ Restart=always
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=full
 ProtectHome=true
+ReadOnlyDirectories=/opt/traceforge
+ReadWriteDirectories=/var/lib/traceforge
+MemoryLimit=1536M
+TasksMax=256
+CPUQuota=200%
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target

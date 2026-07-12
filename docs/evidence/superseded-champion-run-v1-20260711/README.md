@@ -1,8 +1,14 @@
-# Champion live-run evidence guide
+# SUPERSEDED — historical six-scenario run — DO NOT SUBMIT
+
+> **This directory is preserved only as immutable execution history. It is not the current recorded-replay source, not the current champion evidence, and must not be uploaded or linked as the submission proof.** Use [`../live-champion-run/`](../live-champion-run/) for the current `56/56`, `7/7`, `35/35` evidence and four-failed-proof repair input.
+
+The metrics and identifiers below intentionally describe the earlier run and have not been rewritten. Keeping those historical facts intact is part of the audit trail.
+
+## Historical evidence guide
 
 This directory is a reproducible export of the successful `live-ai` migration `migration_77f7a45d-a07f-43c6-a0bd-cf4555ed7996`, completed at `2026-07-11T06:25:27.754Z`.
 
-This is the source run for TraceForge's recorded replay. The source run made four real GPT-5.6 Sol calls and one real Codex writing turn. During a recorded replay, those events are replayed with an explicit “not live” disclosure; no model call is made, but the host differential suite runs again and issues fresh artifacts.
+This was the source run for an earlier TraceForge recorded replay. The source run made four real GPT-5.6 Sol calls and one real Codex writing turn. It was superseded by the current seven-scenario source after the stock-exhaustion counterexample and closed contract-unknown lifecycle were added.
 
 ## Verdict
 

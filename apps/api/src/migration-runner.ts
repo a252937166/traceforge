@@ -268,10 +268,37 @@ export async function verifyRecordedCandidateSourceDigest(
   return assertCandidateSourceDigest(source, expectedDigest);
 }
 
+function boundedInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? Math.min(Math.max(Math.trunc(parsed), minimum), maximum)
+    : fallback;
+}
+
+export class MigrationCapacityError extends Error {
+  readonly code = "MIGRATION_CAPACITY_EXCEEDED";
+
+  constructor(readonly retryAfterSeconds = 5) {
+    super("The migration queue is full. Retry after an active job completes.");
+    this.name = "MigrationCapacityError";
+  }
+}
+
 export class MigrationRunner {
   readonly archaeology: BehaviorArchaeologyAdapter;
   private readonly modelTimeoutMs: number;
   private readonly replayEventDelayMs: number;
+  private readonly maxConcurrent: number;
+  private readonly maxQueued: number;
+  private readonly retentionMaxCompletedJobs: number;
+  private readonly retentionMaxAgeMs: number;
+  private readonly queue: string[] = [];
+  private activeCount = 0;
 
   constructor(
     readonly service: TraceForgeService,
@@ -288,15 +315,31 @@ export class MigrationRunner {
     this.replayEventDelayMs = Number.isFinite(requestedReplayDelay)
       ? Math.min(Math.max(Math.trunc(requestedReplayDelay), 0), 2_000)
       : 160;
+    this.maxConcurrent = boundedInteger(env.TRACEFORGE_MIGRATION_MAX_CONCURRENT, 2, 1, 16);
+    this.maxQueued = boundedInteger(env.TRACEFORGE_MIGRATION_MAX_QUEUED, 4, 0, 100);
+    this.retentionMaxCompletedJobs = boundedInteger(
+      env.TRACEFORGE_RETENTION_MAX_COMPLETED_JOBS,
+      100,
+      1,
+      10_000,
+    );
+    const retentionHours = boundedInteger(env.TRACEFORGE_RETENTION_MAX_AGE_HOURS, 72, 1, 24 * 365);
+    this.retentionMaxAgeMs = retentionHours * 60 * 60 * 1_000;
+    this.failInterruptedJobs();
+    this.pruneCompletedJobs();
   }
 
   start(request: StartMigrationRequest): MigrationJob {
+    this.pruneCompletedJobs();
+    if (this.activeCount + this.queue.length >= this.maxConcurrent + this.maxQueued) {
+      throw new MigrationCapacityError();
+    }
     const now = new Date().toISOString();
     const id = `migration_${randomUUID()}`;
     const job: MigrationJob = {
       id,
       executionMode: request.executionMode,
-      scenarioIds: request.scenarioIds?.length ? request.scenarioIds : scenarios.map(({ id: scenarioId }) => scenarioId),
+      scenarioIds: scenarios.map(({ id: scenarioId }) => scenarioId),
       status: "queued",
       currentStage: "observe",
       streamVersion: 0,
@@ -319,10 +362,63 @@ export class MigrationRunner {
     };
     this.store.createJob(job);
     this.emit(job, "observe", "job.queued", "queued", "Migration queued", "The server accepted the migration job.");
-    queueMicrotask(() => {
-      void this.run(job.id);
-    });
+    this.queue.push(job.id);
+    queueMicrotask(() => this.drain());
     return this.store.getJob(job.id) ?? job;
+  }
+
+  capacity(): { active: number; queued: number; maxConcurrent: number; maxQueued: number } {
+    return {
+      active: this.activeCount,
+      queued: this.queue.length,
+      maxConcurrent: this.maxConcurrent,
+      maxQueued: this.maxQueued,
+    };
+  }
+
+  private drain(): void {
+    while (this.activeCount < this.maxConcurrent && this.queue.length > 0) {
+      const id = this.queue.shift();
+      if (!id) return;
+      this.activeCount += 1;
+      void this.run(id).finally(() => {
+        this.activeCount -= 1;
+        this.pruneCompletedJobs();
+        this.drain();
+      });
+    }
+  }
+
+  private pruneCompletedJobs(): void {
+    this.store.pruneCompletedJobs({
+      maxCompletedJobs: this.retentionMaxCompletedJobs,
+      maxAgeMs: this.retentionMaxAgeMs,
+    });
+  }
+
+  private failInterruptedJobs(): void {
+    for (const job of this.store.listNonTerminalJobs()) {
+      const completedAt = new Date().toISOString();
+      job.status = "failed";
+      job.error = {
+        code: "PROCESS_RESTARTED",
+        message: "The API process restarted before this migration reached a terminal state.",
+        stage: job.currentStage,
+      };
+      job.completedAt = completedAt;
+      job.updatedAt = completedAt;
+      this.store.updateJob(job);
+      this.emit(
+        job,
+        job.currentStage,
+        "job.failed",
+        "failed",
+        "Migration interrupted",
+        "The API process restarted; no fallback proof was issued.",
+        { message: job.error.message, jobStatus: "failed" },
+        "live",
+      );
+    }
   }
 
   private async run(id: string): Promise<void> {
@@ -368,13 +464,17 @@ export class MigrationRunner {
 
   private async runDeterministic(job: MigrationJob): Promise<void> {
     this.stageStarted(job, "observe", "Capture workflow scope");
-    this.emit(job, "observe", "evidence.recorded", "passed", "Scenario corpus loaded", `${job.scenarioIds.length} controlled scenarios are ready.`, {
+    this.emit(job, "observe", "evidence.recorded", "passed", "Scenario corpus loaded", `${job.scenarioIds.length} disclosed scenarios are ready; one verification-only probe will be materialized by the host.`, {
       evidence: {
         id: "ev_deterministic_scope",
         kind: "trace",
         label: "Controlled workflow corpus",
         detail: job.scenarioIds.join(", "),
         digest: sha256Digest(job.scenarioIds),
+      },
+      verificationOnly: {
+        count: 1,
+        materialized: "during host verification",
       },
     });
     this.stagePassed(job, "observe", "Controlled inputs loaded");
@@ -1088,6 +1188,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
           return {
             scenarioId: run.scenarioId,
             partition: run.partition ?? scenario?.stage ?? "observed",
+            proofDigest: run.proofDigest,
             status: run.status,
             legacyTraceId: run.legacyTraceId,
             candidateTraceId: run.candidateTraceId,
@@ -1107,6 +1208,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
         partition: proofBundle.scenarioId?.startsWith("host-hidden-")
           ? "held-out"
           : scenario?.stage ?? "observed",
+        proofDigest: proofBundle.digest,
         status: proofBundle.status,
         legacyTraceId: proofBundle.legacyTraceId,
         candidateTraceId: proofBundle.candidateTraceId,
@@ -1119,6 +1221,39 @@ ${JSON.stringify(this.tracePack(traces))}`;
         },
       };
     });
+    const verifiedScenarioSet = scenarioProofs.map(({ scenarioId, partition, proofDigest }) => ({
+      scenarioId,
+      partition,
+      proofDigest,
+    }));
+    if (verifiedScenarioSet.some(({ proofDigest }) => !/^sha256:[a-f0-9]{64}$/.test(proofDigest))) {
+      throw new Error("PROOF_SCENARIO_DIGEST_INVALID");
+    }
+    const verifiedScenarioIds = verifiedScenarioSet.map(({ scenarioId }) => scenarioId);
+    const disclosedScenarioIds = scenarioProofs
+      .filter(({ partition }) => partition !== "held-out")
+      .map(({ scenarioId }) => scenarioId);
+    if (JSON.stringify(disclosedScenarioIds) !== JSON.stringify(job.scenarioIds)) {
+      throw new Error("PROOF_SCENARIO_SET_MISMATCH");
+    }
+    if (scenarioProofs.filter(({ partition }) => partition === "held-out").length !== 1) {
+      throw new Error("PROOF_VERIFICATION_ONLY_SCENARIO_MISMATCH");
+    }
+    const scenarioSetDigest = sha256Digest(verifiedScenarioSet);
+    job.verifiedScenarioIds = verifiedScenarioIds;
+    job.verifiedScenarioSet = verifiedScenarioSet;
+    job.scenarioSetDigest = scenarioSetDigest;
+    job.updatedAt = new Date().toISOString();
+    this.store.updateJob(job);
+    this.emit(
+      job,
+      "verify",
+      "verification.scope.bound",
+      "passed",
+      "Verification corpus bound",
+      `${verifiedScenarioIds.length} executed scenarios are bound to ${scenarioSetDigest}.`,
+      { scenarioIds: verifiedScenarioIds, scenarioSet: verifiedScenarioSet, scenarioSetDigest },
+    );
     let sourceDigest = candidateEvidence.sourceDigest;
     if (!sourceDigest) {
       const source = await readFile(fileURLToPath(candidateModuleSourceUrl()), "utf8");
@@ -1133,6 +1268,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
       claim: "Behavioral conformance for the executed observed, counterexample, boundary, and held-out scenarios only.",
       contractId,
       contractDigest,
+      scenarioSetDigest,
       modelInvocations,
       candidate: {
         implementationId: "replacement.return-workflow.generated-candidate",

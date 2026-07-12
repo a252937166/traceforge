@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
+import { sha256Digest } from "../src/digest.js";
+import { MigrationRequestLimiter } from "../src/migration-guard.js";
 import {
   assertCandidateSourceDigest,
   candidateModuleSourceUrl,
@@ -55,11 +57,79 @@ test("explicit TRACEFORGE_DB persists migrations when an artifact store is injec
   const secondArtifactStore = new ArtifactStore(":memory:");
   const secondApp = createApp({ store: secondArtifactStore, env });
   try {
-    assert.deepEqual(secondApp.migrationStore.getJob(job.id), job);
+    const recovered = secondApp.migrationStore.getJob(job.id);
+    assert.equal(recovered?.status, "failed");
+    assert.equal(recovered?.error?.code, "PROCESS_RESTARTED");
+    assert.equal(
+      secondApp.migrationStore.listEvents(job.id).at(-1)?.type,
+      "job.failed",
+    );
   } finally {
     secondApp.migrationStore.close();
     secondArtifactStore.close();
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("retention pruning removes only expired terminal jobs and their dependent rows", () => {
+  const migrationStore = new MigrationStore(":memory:");
+  const makeJob = (id: string, status: MigrationJob["status"], updatedAt: string): MigrationJob => ({
+    id,
+    executionMode: "deterministic-only",
+    scenarioIds: [],
+    status,
+    currentStage: "verify",
+    streamVersion: 0,
+    createdAt: updatedAt,
+    updatedAt,
+    links: {
+      self: `/api/migrations/${id}`,
+      events: `/api/migrations/${id}/events`,
+      proof: `/api/migrations/${id}/proof`,
+      artifacts: `/api/migrations/${id}/artifacts`,
+    },
+  });
+  const oldTerminal = makeJob("migration_old_terminal", "passed", "2026-07-01T00:00:00.000Z");
+  const recentTerminal = makeJob("migration_recent_terminal", "failed", "2026-07-11T23:00:00.000Z");
+  const oldRunning = makeJob("migration_old_running", "running", "2026-07-01T00:00:00.000Z");
+  for (const job of [oldTerminal, recentTerminal, oldRunning]) migrationStore.createJob(job);
+  migrationStore.putArtifact({
+    migrationId: oldTerminal.id,
+    kind: "proof",
+    label: "proof.json",
+    filename: "proof.json",
+    mimeType: "application/json",
+    body: "{}\n",
+    createdAt: oldTerminal.createdAt,
+  });
+  migrationStore.appendEvent({
+    migrationId: oldTerminal.id,
+    occurredAt: oldTerminal.createdAt,
+    stage: "verify",
+    type: "job.completed",
+    origin: "live",
+    actor: "host-verifier",
+    status: "passed",
+    title: "done",
+    detail: "done",
+    evidenceIds: [],
+    artifactIds: [],
+    payload: {},
+  });
+
+  try {
+    assert.equal(migrationStore.pruneCompletedJobs({
+      maxCompletedJobs: 10,
+      maxAgeMs: 24 * 60 * 60 * 1_000,
+      now: Date.parse("2026-07-12T00:00:00.000Z"),
+    }), 1);
+    assert.equal(migrationStore.getJob(oldTerminal.id), undefined);
+    assert.deepEqual(migrationStore.listEvents(oldTerminal.id), []);
+    assert.deepEqual(migrationStore.listArtifacts(oldTerminal.id), []);
+    assert.ok(migrationStore.getJob(recentTerminal.id));
+    assert.ok(migrationStore.getJob(oldRunning.id));
+  } finally {
+    migrationStore.close();
   }
 });
 
@@ -158,6 +228,111 @@ async function terminalJob(baseUrl: string, id: string) {
   }
   throw new Error("migration did not reach a terminal state");
 }
+
+test("migration API rejects partial or unknown scenario selection and binds the canonical set to the proof", async () => {
+  await withApi(async (baseUrl) => {
+    const scenariosResponse = await fetch(`${baseUrl}/api/scenarios`);
+    const canonicalScenarioIds = (await scenariosResponse.json()).data.map(({ id }: { id: string }) => id);
+    for (const invalidScenarioIds of [
+      ["bogus-only"],
+      canonicalScenarioIds.slice(0, -1),
+      [...canonicalScenarioIds.slice(0, -1), canonicalScenarioIds[0]],
+      [...canonicalScenarioIds.slice(0, -1), 42],
+    ]) {
+      const rejected = await fetch(`${baseUrl}/api/migrations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ executionMode: "deterministic-only", scenarioIds: invalidScenarioIds }),
+      });
+      assert.equal(rejected.status, 400);
+      const rejectedBody = await rejected.json();
+      assert.equal(rejectedBody.error.code, "INVALID_SCENARIO_SET");
+    }
+
+    const created = await fetch(`${baseUrl}/api/migrations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ executionMode: "deterministic-only", scenarioIds: [...canonicalScenarioIds].reverse() }),
+    });
+    assert.equal(created.status, 202);
+    const createdBody = await created.json();
+    assert.deepEqual(createdBody.data.scenarioIds, canonicalScenarioIds);
+
+    const job = await terminalJob(baseUrl, createdBody.data.id);
+    const proof = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/proof`)).json()).data;
+    const scenarioSet = proof.scenarios.map(({
+      scenarioId,
+      partition,
+      proofDigest,
+    }: {
+      scenarioId: string;
+      partition: string;
+      proofDigest: string;
+    }) => ({ scenarioId, partition, proofDigest }));
+    assert.deepEqual(job.verifiedScenarioIds, scenarioSet.map(({ scenarioId }: { scenarioId: string }) => scenarioId));
+    assert.deepEqual(job.verifiedScenarioSet, scenarioSet);
+    assert.equal(job.scenarioSetDigest, proof.scenarioSetDigest);
+    assert.equal(sha256Digest(scenarioSet), proof.scenarioSetDigest);
+    assert.equal(job.verifiedScenarioIds.length, 7);
+    const events = (await (await fetch(`${baseUrl}/api/migrations/${job.id}/events?format=json`)).json()).data.events;
+    const scope = events.find(({ type }: { type: string }) => type === "verification.scope.bound");
+    assert.deepEqual(scope.payload.scenarioIds, job.verifiedScenarioIds);
+    assert.deepEqual(scope.payload.scenarioSet, scenarioSet);
+    assert.equal(scope.payload.scenarioSetDigest, proof.scenarioSetDigest);
+
+    const changedScenarioSet = structuredClone(scenarioSet);
+    const originalProofDigest = changedScenarioSet[0].proofDigest;
+    changedScenarioSet[0].proofDigest = `${originalProofDigest.slice(0, -1)}${originalProofDigest.endsWith("0") ? "1" : "0"}`;
+    assert.notEqual(
+      sha256Digest(changedScenarioSet),
+      proof.scenarioSetDigest,
+      "changing a per-scenario proof under the same scenario ID must change the set digest",
+    );
+  });
+});
+
+test("migration request limiter rejects a burst with a retry deadline", () => {
+  const limiter = new MigrationRequestLimiter({
+    TRACEFORGE_MIGRATION_RATE_MAX: "1",
+    TRACEFORGE_MIGRATION_RATE_WINDOW_MS: "1000",
+  });
+  assert.equal(limiter.take("client-a", 10_000).allowed, true);
+  const rejected = limiter.take("client-a", 10_100);
+  assert.equal(rejected.allowed, false);
+  assert.equal(rejected.retryAfterMs, 900);
+  assert.equal(limiter.take("client-a", 11_001).allowed, true);
+});
+
+test("migration API enforces its application-layer rate limit", async () => {
+  await withApi(async (baseUrl) => {
+    const first = await start(baseUrl, "unsupported");
+    assert.equal(first.status, 400);
+    const second = await start(baseUrl, "deterministic-only");
+    assert.equal(second.status, 429);
+    assert.equal((await second.json()).error.code, "MIGRATION_RATE_LIMITED");
+    assert.equal(Number(second.headers.get("retry-after")) >= 1, true);
+  }, {
+    TRACEFORGE_MIGRATION_RATE_MAX: "1",
+    TRACEFORGE_MIGRATION_RATE_WINDOW_MS: "60000",
+  });
+});
+
+recordedReplayTest("migration queue rejects excess work instead of starting unbounded jobs", async () => {
+  await withApi(async (baseUrl) => {
+    const first = await start(baseUrl, "recorded-replay");
+    assert.equal(first.status, 202);
+    const firstJob = (await first.json()).data;
+    const rejected = await start(baseUrl, "deterministic-only");
+    assert.equal(rejected.status, 503);
+    assert.equal((await rejected.json()).error.code, "MIGRATION_CAPACITY_EXCEEDED");
+    assert.equal((await terminalJob(baseUrl, firstJob.id)).status, "passed");
+  }, {
+    TRACEFORGE_MIGRATION_MAX_CONCURRENT: "1",
+    TRACEFORGE_MIGRATION_MAX_QUEUED: "0",
+    TRACEFORGE_MIGRATION_RATE_MAX: "10",
+    TRACEFORGE_REPLAY_EVENT_DELAY_MS: "10",
+  });
+});
 
 test("deterministic-only migration emits real stages and a downloadable recomputable proof", async () => {
   await withApi(async (baseUrl) => {

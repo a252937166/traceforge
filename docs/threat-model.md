@@ -78,7 +78,7 @@ The checked-in champion export is the real source run used by recorded replay. A
 
 ## False equivalence claims
 
-The proof names all seven executed scenarios and partitions them as observed, counterexample, boundary, or held out. Six successful rows compare decision, return status, refund amount, sellable quantity, and quarantine quantity. The exhausted-stock counterexample instead compares five failure-and-atomicity facts: failure status, code plus message, no return record, unchanged inventory, and zero side effects.
+The proof names all seven executed scenarios and partitions them as observed, counterexample, boundary, or held out. Each row also retains its underlying deterministic proof digest. The migration-level `scenarioSetDigest` covers the ordered scenario ID, partition, and proof digest tuple, preventing a same-ID proof replacement from preserving the set commitment. Six successful rows compare decision, return status, refund amount, sellable quantity, and quarantine quantity. The exhausted-stock counterexample instead compares five failure-and-atomicity facts: failure status, code plus message, no return record, unchanged inventory, and zero side effects.
 
 The claim does not cover unexecuted inputs, UI rendering, latency, concurrency, external payment settlement, carrier behavior, other databases, or arbitrary applications. The UI and submission use “behavioral conformance for the executed scenarios,” never “the systems are identical.”
 
@@ -92,11 +92,13 @@ Planned hardening includes signed manifests, externally anchored roots, stricter
 
 ## Denial of service and resource use
 
-Live archaeology and Codex runs are expensive and can run for minutes. The adapters enforce bounded turn timeouts, and the archaeology sandbox has no network access. The current API does not yet implement authentication, quotas, concurrency limits, cancellation, or a durable production queue. Live mode should therefore remain disabled on an unauthenticated public deployment.
+Live archaeology and Codex runs are expensive and can run for minutes. The adapters enforce bounded turn timeouts, and the archaeology sandbox has no network access. The public API also enforces a rolling per-client start-attempt limit (ten per minute by default), a two-job concurrency limit, a four-job waiting cap, and terminal-job retention (72 hours or the newest 100 completed jobs). Overflow is rejected before a job row is created. The production Nginx configuration independently limits `POST /api/migrations`, blocks the lower-level trace and ad hoc verification mutation routes that the public workbench does not use, and systemd caps memory, tasks, and CPU.
+
+These are showcase availability controls, not an authenticated quota system. There is still no account identity, cancellation endpoint, durable cross-process queue, distributed rate store, or cost budget. Live mode must therefore remain disabled on an unauthenticated public deployment.
 
 ## Sensitive business data
 
-The current corpus is synthetic and contains no production customer data. Redaction, data classification, retention controls, tenant isolation, deletion workflows, and regional processing policy are not implemented. They are release blockers before using real business traces.
+The current corpus is synthetic and contains no production customer data. Basic terminal-job expiry is implemented for showcase capacity, but policy-grade redaction, data classification, tenant isolation, subject-driven deletion, backup expiry, and regional processing policy are not. They are release blockers before using real business traces.
 
 ## Unsafe publication or deployment
 

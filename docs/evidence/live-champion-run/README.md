@@ -93,7 +93,7 @@ The expected proof result is `valid: true` with matching claimed and computed di
 
 ## Preserved evidence history
 
-- [`../live-champion-run-v1-20260711/`](../live-champion-run-v1-20260711/) preserves the original six-scenario champion run.
+- [`../superseded-champion-run-v1-20260711/`](../superseded-champion-run-v1-20260711/) preserves the original six-scenario champion run. It is historical evidence and must not be used as the current submission source.
 - [`../superseded-champion-run-missing-host-gate-20260712/`](../superseded-champion-run-missing-host-gate-20260712/) preserves the otherwise-passing seven-scenario run whose proof omitted the host test totals because the parser did not recognize modern TAP markers.
 - The earlier failed-run directories remain unchanged; TraceForge does not rewrite failed attempts as successes.
 

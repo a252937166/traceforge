@@ -40,6 +40,7 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 }
 
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
+const terminalOutputRetryDelays = [0, 250, 750, 1_500] as const
 const repositoryUrl = 'https://github.com/a252937166/traceforge'
 const publishedEvidenceCommit = 'f0ede87cb763e3c9f0776f263cbd61ce63d8c770'
 const liveRunEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/live-champion-run`
@@ -273,18 +274,58 @@ function acceptedCandidate(candidates: MigrationCandidate[]): MigrationCandidate
   return [...candidates].reverse().find(({ status }) => status === 'accepted')
 }
 
-function ReleaseEvidenceStrip({ release }: { release?: ReleaseIdentity }) {
+type HealthState = {
+  status: 'loading' | 'ready' | 'error'
+  message?: string
+}
+
+type RunIssue = {
+  kind: 'transient' | 'fatal'
+  title: string
+  message: string
+}
+
+type OutputRefreshResult = {
+  complete: boolean
+  detail?: string
+}
+
+function waitForOutputRetry(delayMs: number): Promise<void> {
+  if (delayMs === 0) return Promise.resolve()
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs))
+}
+
+function ReleaseEvidenceStrip({ release, health, onRetry }: {
+  release?: ReleaseIdentity
+  health: HealthState
+  onRetry: () => void
+}) {
   const productionCommitUrl = release?.sha
     ? `${repositoryUrl}/commit/${release.sha}`
     : '/api/health'
 
   return (
-    <section className="release-evidence-strip" aria-label="Release evidence">
-      <a className="release-evidence-item" href={productionCommitUrl} target="_blank" rel="noreferrer">
-        <small>Production</small>
-        <strong>{release ? release.sha.slice(0, 7) : 'Checking…'}</strong>
-        <span>{release ? `API-attested · ${release.version}` : 'Health manifest pending'}</span>
-      </a>
+    <section className="release-evidence-strip" aria-label="Release evidence" aria-live="polite">
+      {health.status === 'error' ? (
+        <div className="release-evidence-item release-health-error">
+          <small>Production</small>
+          <strong>Health check failed</strong>
+          <span>{health.message ?? 'The deployment identity could not be read.'}</span>
+          <button type="button" onClick={onRetry}>Retry health check</button>
+        </div>
+      ) : (
+        <a
+          className="release-evidence-item"
+          href={productionCommitUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-busy={health.status === 'loading'}
+        >
+          <small>Production</small>
+          <strong>{release ? release.sha.slice(0, 7) : 'Checking health…'}</strong>
+          <span>{release ? `API-attested · ${release.version}` : 'Reading deployment identity'}</span>
+        </a>
+      )}
       <a className="release-evidence-item" href={`${repositoryUrl}/commit/${localRunnerCommit}`} target="_blank" rel="noreferrer">
         <small>Pinned runner</small>
         <strong>v0.1.9 · {localRunnerCommitShort}</strong>
@@ -612,7 +653,8 @@ export default function App() {
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('recorded-replay')
   const [state, setState] = useState<MigrationState>(() => createMigrationState())
   const [transport, setTransport] = useState<MigrationTransport>('closed')
-  const [error, setError] = useState<string>()
+  const [runIssue, setRunIssue] = useState<RunIssue>()
+  const [outputRetryJobId, setOutputRetryJobId] = useState<string>()
   const [starting, setStarting] = useState(false)
   const [inspectedEvent, setInspectedEvent] = useState<MigrationEvent>()
   const [localRunnerOpen, setLocalRunnerOpen] = useState(false)
@@ -620,7 +662,10 @@ export default function App() {
   const [boundaryOpen, setBoundaryOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [releaseIdentity, setReleaseIdentity] = useState<ReleaseIdentity>()
+  const [health, setHealth] = useState<HealthState>({ status: 'loading' })
+  const [healthAttempt, setHealthAttempt] = useState(0)
   const subscription = useRef<(() => void) | undefined>(undefined)
+  const outputRecoveryGeneration = useRef(0)
   const evidenceDialogRef = useRef<HTMLDialogElement>(null)
   const localRunnerDialogRef = useRef<HTMLDialogElement>(null)
   const localRunnerShellRef = useRef<HTMLDivElement>(null)
@@ -631,19 +676,37 @@ export default function App() {
 
   const latestEvents = useMemo(() => [...state.events].reverse(), [state.events])
 
-  useEffect(() => () => subscription.current?.(), [])
+  useEffect(() => () => {
+    outputRecoveryGeneration.current += 1
+    subscription.current?.()
+  }, [])
 
   useEffect(() => {
     let active = true
+    setHealth({ status: 'loading' })
     void getRuntimeCapabilities()
       .then((capabilities) => {
-        if (active) setReleaseIdentity(capabilities.release)
+        if (!active) return
+        if (capabilities.release) {
+          setReleaseIdentity(capabilities.release)
+          setHealth({ status: 'ready' })
+        } else {
+          setReleaseIdentity(undefined)
+          setHealth({ status: 'error', message: 'The health endpoint did not report a release identity.' })
+        }
       })
-      .catch(() => {
-        if (active) setReleaseIdentity(undefined)
+      .catch((healthError) => {
+        if (!active) return
+        setReleaseIdentity(undefined)
+        setHealth({
+          status: 'error',
+          message: healthError instanceof Error
+            ? healthError.message
+            : 'The deployment health endpoint could not be reached.',
+        })
       })
     return () => { active = false }
-  }, [])
+  }, [healthAttempt])
 
   useEffect(() => {
     const dialog = evidenceDialogRef.current
@@ -738,13 +801,21 @@ export default function App() {
     }
   }
 
-  const refreshOutputs = async (jobId: string) => {
+  const refreshOutputs = async (jobId: string, generation: number): Promise<OutputRefreshResult> => {
     const [jobResult, artifactResult] = await Promise.allSettled([
       getMigration(jobId),
       getMigrationArtifacts(jobId),
     ])
+    if (outputRecoveryGeneration.current !== generation) return { complete: false }
+    const problems: string[] = []
     if (jobResult.status === 'fulfilled') {
-      setState((current) => ({ ...current, job: jobResult.value }))
+      setState((current) => {
+        const currentTerminal = current.job?.status === 'passed' || current.job?.status === 'failed'
+        const incomingTerminal = jobResult.value.status === 'passed' || jobResult.value.status === 'failed'
+        return currentTerminal && !incomingTerminal ? current : { ...current, job: jobResult.value }
+      })
+    } else {
+      problems.push(jobResult.reason instanceof Error ? jobResult.reason.message : 'The final job state could not be read.')
     }
     if (artifactResult.status === 'fulfilled') {
       setState((current) => {
@@ -756,21 +827,70 @@ export default function App() {
         }
         return { ...current, artifacts }
       })
+    } else {
+      problems.push(artifactResult.reason instanceof Error ? artifactResult.reason.message : 'The artifact manifest could not be read.')
     }
+    let proofReady = jobResult.status === 'fulfilled' && jobResult.value.status !== 'passed'
     if (jobResult.status === 'fulfilled' && jobResult.value.status === 'passed') {
       try {
         const proof = await getMigrationProof(jobId)
+        if (outputRecoveryGeneration.current !== generation) return { complete: false }
         setState((current) => ({ ...current, proof }))
+        proofReady = true
       } catch (proofError) {
-        setError(proofError instanceof Error ? proofError.message : 'The proof bundle could not be read.')
+        problems.push(proofError instanceof Error ? proofError.message : 'The proof bundle could not be read.')
       }
     }
+    const complete = jobResult.status === 'fulfilled' && artifactResult.status === 'fulfilled' && proofReady
+    return { complete, detail: problems[0] }
+  }
+
+  const recoverTerminalOutputs = async (jobId: string, generation: number) => {
+    let latestDetail = 'The final proof outputs are not ready yet.'
+    for (const delayMs of terminalOutputRetryDelays) {
+      await waitForOutputRetry(delayMs)
+      if (outputRecoveryGeneration.current !== generation) return
+      const result = await refreshOutputs(jobId, generation)
+      if (outputRecoveryGeneration.current !== generation) return
+      if (result.complete) {
+        setOutputRetryJobId(undefined)
+        setRunIssue((current) => current?.kind === 'transient' || current?.title === 'Proof bundle unavailable' ? undefined : current)
+        return
+      }
+      latestDetail = result.detail ?? latestDetail
+      setRunIssue({
+        kind: 'transient',
+        title: 'Finalizing proof bundle',
+        message: `${latestDetail} TraceForge is retrying the server-owned outputs.`,
+      })
+    }
+    if (outputRecoveryGeneration.current !== generation) return
+    setOutputRetryJobId(jobId)
+    setRunIssue({
+      kind: 'fatal',
+      title: 'Proof bundle unavailable',
+      message: `${latestDetail} The completed run is preserved; retry reading its proof without starting a new migration.`,
+    })
+  }
+
+  const retryTerminalOutputs = () => {
+    if (!outputRetryJobId) return
+    const generation = outputRecoveryGeneration.current
+    setRunIssue({
+      kind: 'transient',
+      title: 'Retrying proof bundle',
+      message: 'TraceForge is reading the preserved job, artifact manifest, and proof again.',
+    })
+    void recoverTerminalOutputs(outputRetryJobId, generation)
   }
 
   const begin = async (mode: ExecutionMode = executionMode) => {
     subscription.current?.()
+    outputRecoveryGeneration.current += 1
+    const recoveryGeneration = outputRecoveryGeneration.current
     setStarting(true)
-    setError(undefined)
+    setRunIssue(undefined)
+    setOutputRetryJobId(undefined)
     setInspectedEvent(undefined)
     setExecutionMode(mode)
     try {
@@ -782,23 +902,40 @@ export default function App() {
       })
       subscription.current = subscribeToMigration(job.id, {
         onEvent: (event) => {
+          setRunIssue((current) => current?.kind === 'transient' ? undefined : current)
           setState((current) => reduceMigrationEvent(current, event))
           const terminal = event.type === 'job.completed' || event.type === 'job.failed'
-          void refreshOutputs(job.id).finally(() => {
-            if (terminal) {
-              subscription.current?.()
-              subscription.current = undefined
-            }
-          })
+          if (terminal) {
+            subscription.current?.()
+            subscription.current = undefined
+            setTransport('closed')
+            void recoverTerminalOutputs(job.id, recoveryGeneration)
+          } else {
+            void refreshOutputs(job.id, recoveryGeneration)
+          }
         },
-        onTransport: setTransport,
-        onError: (streamError) => setError(streamError.message),
+        onTransport: (nextTransport) => {
+          setTransport(nextTransport)
+          if (nextTransport === 'sse') {
+            setRunIssue((current) => current?.kind === 'transient' ? undefined : current)
+          }
+        },
+        onRecovery: () => setRunIssue((current) => current?.kind === 'transient' ? undefined : current),
+        onError: (streamError) => setRunIssue({
+          kind: 'transient',
+          title: 'Connection interrupted',
+          message: `${streamError.message} TraceForge is retrying without discarding run evidence.`,
+        }),
       })
     } catch (startError) {
       const detail = startError instanceof ApiError ? startError.message : 'The migration could not be started.'
-      setError(mode === 'live-ai'
-        ? `${detail} Live AI stopped; no recording or deterministic result was substituted.`
-        : detail)
+      setRunIssue({
+        kind: 'fatal',
+        title: 'Run could not start',
+        message: mode === 'live-ai'
+          ? `${detail} Live AI stopped; no recording or deterministic result was substituted.`
+          : detail,
+      })
       setTransport('closed')
     } finally {
       setStarting(false)
@@ -823,10 +960,16 @@ export default function App() {
           <h1>Prove what changed.<br />Keep Codex local.</h1>
           <p>Rebuild one bounded legacy workflow, preserve the failed attempts, and issue a proof that says exactly what the verifier checked.</p>
           <div className="hero-actions">
-            <button className="action-primary" type="button" onClick={openLocalRunner} disabled={active || starting}>Start a local proof run <span aria-hidden="true">↗</span></button>
-            <button className="action-link" type="button" onClick={() => void begin('recorded-replay')} disabled={active || starting}>
-              {starting ? 'Starting judge replay…' : 'Inspect a completed proof'}
-            </button>
+            <div className="hero-action-choice">
+              <button className="action-primary" type="button" onClick={() => void begin('recorded-replay')} disabled={active || starting}>
+                {starting ? 'Starting proof replay…' : 'Inspect a completed proof'} <span aria-hidden="true">→</span>
+              </button>
+              <small>Try instantly · no credentials</small>
+            </div>
+            <div className="hero-action-choice hero-action-advanced">
+              <button className="action-link" type="button" onClick={openLocalRunner} disabled={active || starting}>Run Codex locally</button>
+              <small>Advanced · real local build · setup required</small>
+            </div>
           </div>
           <p className="hero-assurance">No local files, Codex credentials, generated source, or session history are sent to this website.</p>
         </div>
@@ -847,9 +990,23 @@ export default function App() {
         <li>Recomputable proof digest</li>
       </ul>
 
-      <ReleaseEvidenceStrip release={releaseIdentity} />
+      <ReleaseEvidenceStrip
+        release={releaseIdentity}
+        health={health}
+        onRetry={() => setHealthAttempt((attempt) => attempt + 1)}
+      />
 
-      {error && <div className="run-error" role="alert"><strong>Run stopped</strong><span>{error}</span></div>}
+      {runIssue && (
+        <div
+          className={`run-error run-error-${runIssue.kind}`}
+          role={runIssue.kind === 'fatal' ? 'alert' : 'status'}
+        >
+          <strong>{runIssue.title}</strong><span>{runIssue.message}</span>
+          {outputRetryJobId && (
+            <button type="button" onClick={retryTerminalOutputs}>Retry proof bundle</button>
+          )}
+        </div>
+      )}
 
       {!state.job ? (
         <section className="judge-mode" aria-labelledby="judge-mode-title">
@@ -858,17 +1015,17 @@ export default function App() {
             <div><h2 id="judge-mode-title">One product. Two honest paths.</h2><p>Use the fixed local demo for a real Codex writing turn, or inspect the recorded run without credentials.</p></div>
           </header>
           <div className="judge-path-grid">
-            <article>
-              <span>Recommended · real local build</span>
-              <h3>Rebuild the fixed demo locally</h3>
-              <p>The pinned Runner opens its own <code>127.0.0.1</code> page. Review the one-file scope, then approve this Codex run.</p>
-              <button type="button" className="action-secondary" onClick={openLocalRunner}>Open local Runner guide</button>
-            </article>
-            <article>
-              <span>No credentials · public replay</span>
+            <article className="judge-path-recommended">
+              <span>Recommended · instant · no credentials</span>
               <h3>Inspect a completed proof</h3>
               <p>Replay the provenance-bound GPT-5.6 and Codex events, execute all disclosed scenarios, and issue a fresh host proof.</p>
               <button type="button" className="action-secondary" onClick={() => void begin('recorded-replay')} disabled={starting}>Start judge replay</button>
+            </article>
+            <article>
+              <span>Advanced · real local build</span>
+              <h3>Rebuild the fixed demo locally</h3>
+              <p>The pinned Runner opens its own <code>127.0.0.1</code> page. Review the one-file scope, then approve this Codex run.</p>
+              <button type="button" className="action-secondary" onClick={openLocalRunner}>Open local Runner guide</button>
             </article>
           </div>
           <details className="advanced-modes">
@@ -933,12 +1090,12 @@ export default function App() {
               <button type="button" onClick={() => setLocalRunnerOpen(false)} aria-label="Close Local Runner guide">×</button>
             </header>
             <ol className="wizard-steps" aria-label="Local Runner guide steps">
-              {(['Start Runner', 'Review locally', 'Collect proof'] as const).map((label, index) => <li key={label} className={runnerStep === index ? 'is-current' : runnerStep > index ? 'is-complete' : ''}><button type="button" onClick={() => setRunnerStep(index as 0 | 1 | 2)} aria-current={runnerStep === index ? 'step' : undefined}><i>{String(index + 1).padStart(2, '0')}</i><span>{label}</span></button></li>)}
+              {(['Start Runner', 'Review locally', 'Collect proof'] as const).map((label, index) => <li key={label} className={runnerStep === index ? 'is-current' : runnerStep > index ? 'is-complete' : ''}><button type="button" onClick={() => setRunnerStep(index as 0 | 1 | 2)} aria-label={`Step ${index + 1} of 3: ${label}`} aria-current={runnerStep === index ? 'step' : undefined}><i>{String(index + 1).padStart(2, '0')}</i><span>{label}</span></button></li>)}
             </ol>
 
             <div className="wizard-step-panel">
               {runnerStep === 0 && <section className="runner-install" aria-labelledby="runner-install-title">
-                <div className="wizard-section-heading"><span>01 · Install</span><div><h3 id="runner-install-title" tabIndex={-1}>Launch the pinned source release</h3><p>macOS / Linux · Git, Node.js 22+, Corepack, Codex CLI 0.144.1</p></div></div>
+                <div className="wizard-section-heading"><span>01 · Install</span><div><h3 id="runner-install-title" tabIndex={-1}>Launch the pinned source release</h3><p>macOS / Linux · Git, Node.js 22.5+, Corepack, Codex CLI 0.144.1</p></div></div>
                 <div className="runner-command"><code>{localRunnerCommand}</code><button type="button" onClick={() => void copyRunnerCommand()}>{copyStatus === 'copied' ? 'Copied' : 'Copy command'}</button></div>
                 <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">{copyStatus === 'copied' ? 'Command copied. This public page cannot detect the Runner; continue in the localhost tab it opens.' : copyStatus === 'failed' ? 'Clipboard access is blocked. Select the command and copy it manually.' : `Pinned commit ${localRunnerCommit} · source install · no binary checksum claim`}</p>
                 <dl className="runner-release-facts"><div><dt>Tag</dt><dd>{localRunnerTag}</dd></div><div><dt>Commit</dt><dd><code>{localRunnerCommit}</code></dd></div><div><dt>Platform</dt><dd>macOS / Linux</dd></div><div><dt>Artifact</dt><dd>Not published · source install</dd></div></dl>

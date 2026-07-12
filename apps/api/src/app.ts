@@ -2,7 +2,8 @@ import cors, { type CorsOptions } from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { CodexRepairAdapter, CodexRepairFailure } from "./codex-adapter.js";
 import { sha256Digest } from "./digest.js";
-import { MigrationRunner } from "./migration-runner.js";
+import { MigrationRequestLimiter } from "./migration-guard.js";
+import { MigrationCapacityError, MigrationRunner } from "./migration-runner.js";
 import { MigrationStore } from "./migration-store.js";
 import { readReleaseIdentity, type ReleaseIdentity } from "./release.js";
 import { ArtifactStore } from "./store.js";
@@ -64,11 +65,15 @@ export function createApp(dependencies: AppDependencies = {}) {
   const migrationStore = dependencies.migrationStore
     ?? new MigrationStore(env.TRACEFORGE_DB ?? (dependencies.store ? ":memory:" : undefined));
   const migrationRunner = dependencies.migrationRunner ?? new MigrationRunner(service, migrationStore, env, codex);
+  const migrationLimiter = new MigrationRequestLimiter(env);
   const allowedOrigins = buildAllowedOrigins(env);
   const release = dependencies.release ?? readReleaseIdentity(env);
   const app = express();
 
   app.disable("x-powered-by");
+  // Production binds the API to loopback. Only that trusted proxy may supply
+  // X-Forwarded-For, preventing direct clients from choosing their rate key.
+  app.set("trust proxy", "loopback");
   const corsOptions: CorsOptions = {
     origin(origin, callback) {
       if (!origin || allowedOrigins.has(origin)) {
@@ -93,6 +98,7 @@ export function createApp(dependencies: AppDependencies = {}) {
       codexConfigured: codexStatus.configured,
       codexStatus,
       gpt56Status: migrationRunner.archaeology.status(),
+      migrationCapacity: migrationRunner.capacity(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -184,6 +190,21 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.post("/api/migrations", (request, response, next) => {
     try {
       const body = (request.body ?? {}) as { executionMode?: unknown; scenarioIds?: unknown };
+      const rate = migrationLimiter.take(request.ip || request.socket.remoteAddress || "unknown");
+      response.set({
+        "X-RateLimit-Limit": String(rate.limit),
+        "X-RateLimit-Remaining": String(rate.remaining),
+        "X-RateLimit-Reset": String(Math.ceil(rate.resetAt / 1_000)),
+      });
+      if (!rate.allowed) {
+        response.set("Retry-After", String(Math.max(1, Math.ceil(rate.retryAfterMs / 1_000))));
+        return response.status(429).json({
+          error: {
+            code: "MIGRATION_RATE_LIMITED",
+            message: "Too many migration requests from this client. Retry after the rate window resets.",
+          },
+        });
+      }
       if (!isMigrationMode(body.executionMode)) {
         return response.status(400).json({
           error: {
@@ -192,12 +213,35 @@ export function createApp(dependencies: AppDependencies = {}) {
           },
         });
       }
-      const scenarioIds = Array.isArray(body.scenarioIds)
-        ? body.scenarioIds.filter((value): value is string => typeof value === "string")
-        : undefined;
-      const job = migrationRunner.start({ executionMode: body.executionMode, ...(scenarioIds ? { scenarioIds } : {}) });
+      if (body.scenarioIds !== undefined) {
+        const canonicalScenarioIds = service.listScenarios().map(({ id }) => id);
+        const supplied = Array.isArray(body.scenarioIds) && body.scenarioIds.every((value) => typeof value === "string")
+          ? body.scenarioIds
+          : undefined;
+        const unique = supplied ? new Set(supplied) : undefined;
+        const isCanonicalSet = supplied
+          && unique?.size === canonicalScenarioIds.length
+          && supplied.length === canonicalScenarioIds.length
+          && canonicalScenarioIds.every((scenarioId) => unique.has(scenarioId));
+        if (!isCanonicalSet) {
+          return response.status(400).json({
+            error: {
+              code: "INVALID_SCENARIO_SET",
+              message: "scenarioIds must be omitted or contain the complete canonical disclosed corpus exactly once.",
+              canonicalScenarioIds,
+            },
+          });
+        }
+      }
+      const job = migrationRunner.start({ executionMode: body.executionMode });
       return response.status(202).json({ data: job });
     } catch (error) {
+      if (error instanceof MigrationCapacityError) {
+        response.set("Retry-After", String(error.retryAfterSeconds));
+        return response.status(503).json({
+          error: { code: error.code, message: error.message },
+        });
+      }
       return next(error);
     }
   });

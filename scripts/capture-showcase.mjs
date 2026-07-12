@@ -123,7 +123,7 @@ try {
   });
   const entry = await entryContext.newPage();
   await entry.goto(url, { waitUntil: "networkidle" });
-  await entry.getByRole("button", { name: "Start a local proof run", exact: true }).waitFor();
+  await entry.getByRole("button", { name: "Run Codex locally", exact: true }).waitFor();
   const entryLayout = await entry.evaluate(() => ({
     client: document.documentElement.clientWidth,
     scroll: document.documentElement.scrollWidth,
@@ -177,7 +177,7 @@ try {
   });
   const mobile = await mobileContext.newPage();
   await mobile.goto(url, { waitUntil: "networkidle" });
-  await mobile.getByRole("button", { name: "Start a local proof run", exact: true }).waitFor();
+  await mobile.getByRole("button", { name: "Run Codex locally", exact: true }).waitFor();
   const mobileEntryLayout = await mobile.evaluate(() => ({
     client: document.documentElement.clientWidth,
     scroll: document.documentElement.scrollWidth,

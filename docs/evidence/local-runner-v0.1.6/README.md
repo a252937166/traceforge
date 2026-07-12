@@ -1,4 +1,8 @@
-# Real Local Runner run — v0.1.6
+# HISTORICAL — Local Runner v0.1.6 — DO NOT USE AS CURRENT SUBMISSION EVIDENCE
+
+> The current exercised Local Runner is [`../local-runner-v0.1.9/`](../local-runner-v0.1.9/) with `15/15` focused tests, `7/7` scenarios, and `35/35` assertions. This directory preserves the original v0.1.6 facts only; do not upload or relabel them as current.
+
+## Original v0.1.6 run
 
 This directory records a complete Local Runner execution captured on 2026-07-11 from a fresh temporary clone of the pinned `local-runner-v0.1.6` tag, verified at commit `88fd9faa613f0b7280a584a79e209fae800272d9` before installation.
 

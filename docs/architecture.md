@@ -159,6 +159,8 @@ POST /api/proofs/verify-digest
 
 `GET /events` returns either Server-Sent Events or JSON. Clients can resume from a server sequence with `Last-Event-ID` or `?after=`. Each event records stage, actor, live/recorded origin, status, evidence and artifact links, payload, and a SHA-256 digest.
 
+The migration endpoint does not offer arbitrary scenario selection. `scenarioIds` must be omitted or contain the complete six-scenario disclosed corpus exactly once; partial, duplicate, mixed-type, and unknown sets fail with `INVALID_SCENARIO_SET`. The server normalizes that set to canonical order. Before issuing a proof it checks that those six disclosed scenarios and exactly one newly materialized verification-only scenario were executed. Every migration scenario persists the digest of its underlying deterministic proof. `scenarioSetDigest` hashes the ordered `{scenarioId, partition, proofDigest}` entries—not IDs alone—so changing proof content beneath an unchanged scenario name changes the set digest. The terminal job, `verification.scope.bound` event, and proof expose the same scenario set and digest.
+
 `MigrationStore` uses SQLite WAL mode. Event rows are inserted with a `(migration_id, sequence)` primary key; migration artifact rows are inserted with unique IDs. A completed run exposes:
 
 - `contract.json` — ordered rules plus initial, resolved, and remaining unknowns;
@@ -168,6 +170,8 @@ POST /api/proofs/verify-digest
 - `proof.json` — coverage, model provenance, candidate provenance, scenario results, limitations, and an internal digest.
 
 Downloads include an `X-Content-SHA256` header. The proof's internal digest can be recomputed through `POST /api/proofs/verify-digest` or `pnpm proof:verify <proof.json>`.
+
+The unauthenticated showcase has bounded resource use at the application layer: by default one client may make ten migration-start attempts per rolling minute, two jobs may run concurrently, and four more may wait. Additional work fails with `429 MIGRATION_RATE_LIMITED` or `503 MIGRATION_CAPACITY_EXCEEDED` instead of creating an unbounded queue. Terminal jobs, events, and artifacts are pruned together after 72 hours or beyond the newest 100 completed jobs. All limits are configurable through the `TRACEFORGE_MIGRATION_*` and `TRACEFORGE_RETENTION_*` variables documented in `deploy/traceforge.env.example`.
 
 ## Evidence and provenance
 
@@ -185,5 +189,5 @@ The proof digest covers its canonical JSON body. Artifact metadata has a separat
 - The example is a controlled returns laboratory, not browser capture of an unfamiliar third-party application.
 - The supported state surface is REST plus SQLite; external payment settlement and carrier systems are not executed.
 - SHA-256 detects accidental or visible tampering when a trusted digest is available, but artifacts are not signed and a database administrator can rewrite local storage.
-- Migration jobs are not a multi-tenant production queue and have no rate-limiting or human approval workflow.
+- Migration jobs are not an authenticated multi-tenant production queue and have no cancellation, durable cross-process scheduling, per-account quota, or human approval workflow. The showcase limits protect availability; they are not tenant isolation.
 - The seven executed scenarios support only the bounded claim in the proof; they do not establish universal behavioral equivalence.

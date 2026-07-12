@@ -13,10 +13,22 @@ export type MigrationActor =
   | "codex"
   | "host-verifier";
 
+export interface MigrationScenarioSetEntry {
+  scenarioId: string;
+  partition: "observed" | "counterexample" | "boundary" | "held-out";
+  /** Digest of the underlying deterministic per-scenario proof bundle. */
+  proofDigest: string;
+}
+
 export interface MigrationJob {
   id: string;
   executionMode: MigrationExecutionMode;
+  /** Canonical writer-visible corpus selected before verification. */
   scenarioIds: string[];
+  /** Exact scenarios executed by the verifier, populated before proof issue. */
+  verifiedScenarioIds?: string[];
+  verifiedScenarioSet?: MigrationScenarioSetEntry[];
+  scenarioSetDigest?: string;
   status: MigrationStatus;
   currentStage: MigrationStage;
   streamVersion: number;
@@ -82,9 +94,7 @@ export interface ModelInvocationEvidence {
   status: "succeeded" | "failed";
 }
 
-export interface MigrationScenarioProof {
-  scenarioId: string;
-  partition: "observed" | "counterexample" | "boundary" | "held-out";
+export interface MigrationScenarioProof extends MigrationScenarioSetEntry {
   status: VerificationStatus;
   legacyTraceId: string;
   candidateTraceId: string;
@@ -104,6 +114,7 @@ export interface MigrationProofBundle {
   claim: string;
   contractId: string;
   contractDigest: string;
+  scenarioSetDigest: string;
   modelInvocations: ModelInvocationEvidence[];
   candidate: {
     implementationId: string;
@@ -160,5 +171,4 @@ export interface MigrationArtifact extends MigrationArtifactMetadata {
 
 export interface StartMigrationRequest {
   executionMode: MigrationExecutionMode;
-  scenarioIds?: string[];
 }

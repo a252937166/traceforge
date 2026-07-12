@@ -14,6 +14,12 @@ import type {
 
 type EventDraft = Omit<MigrationEvent, "id" | "sequence" | "digest">;
 
+export interface MigrationRetentionPolicy {
+  maxCompletedJobs: number;
+  maxAgeMs: number;
+  now?: number;
+}
+
 export class MigrationStore {
   private readonly db: DatabaseSync;
   private readonly emitter = new EventEmitter();
@@ -71,6 +77,15 @@ export class MigrationStore {
       .prepare("SELECT payload_json FROM migration_jobs WHERE id = ?")
       .get(id) as { payload_json: string } | undefined;
     return row ? (JSON.parse(row.payload_json) as MigrationJob) : undefined;
+  }
+
+  listNonTerminalJobs(): MigrationJob[] {
+    const rows = this.db
+      .prepare("SELECT payload_json FROM migration_jobs ORDER BY created_at, id")
+      .all() as Array<{ payload_json: string }>;
+    return rows
+      .map(({ payload_json: payloadJson }) => JSON.parse(payloadJson) as MigrationJob)
+      .filter(({ status }) => status === "queued" || status === "running");
   }
 
   appendEvent(draft: EventDraft): MigrationEvent {
@@ -202,6 +217,51 @@ export class MigrationStore {
       href: `/api/migrations/${migrationId}/downloads/${encodeURIComponent(row.filename)}`,
       createdAt: row.created_at,
     };
+  }
+
+  /**
+   * Deletes only terminal jobs. Running and queued work is never selected,
+   * even when it is old or the completed-job cap has been reached.
+   */
+  pruneCompletedJobs(policy: MigrationRetentionPolicy): number {
+    const maxCompletedJobs = Math.max(1, Math.trunc(policy.maxCompletedJobs));
+    const maxAgeMs = Math.max(60_000, Math.trunc(policy.maxAgeMs));
+    const now = policy.now ?? Date.now();
+    const rows = this.db
+      .prepare("SELECT id, payload_json, updated_at FROM migration_jobs ORDER BY updated_at DESC, id DESC")
+      .all() as Array<{ id: string; payload_json: string; updated_at: string }>;
+    const completed = rows
+      .map((row) => ({ ...row, job: JSON.parse(row.payload_json) as MigrationJob }))
+      .filter(({ job }) => job.status === "passed" || job.status === "failed");
+    const expired = new Set(
+      completed
+        .filter(({ updated_at: updatedAt }) => {
+          const updated = Date.parse(updatedAt);
+          return !Number.isFinite(updated) || now - updated > maxAgeMs;
+        })
+        .map(({ id }) => id),
+    );
+    for (const { id } of completed.slice(maxCompletedJobs)) expired.add(id);
+    if (expired.size === 0) return 0;
+
+    const deleteArtifacts = this.db.prepare("DELETE FROM migration_artifacts WHERE migration_id = ?");
+    const deleteEvents = this.db.prepare("DELETE FROM migration_events WHERE migration_id = ?");
+    const deleteJob = this.db.prepare("DELETE FROM migration_jobs WHERE id = ?");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const id of expired) {
+        deleteArtifacts.run(id);
+        deleteEvents.run(id);
+        deleteJob.run(id);
+        this.emitter.removeAllListeners(id);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.db.exec("PRAGMA wal_checkpoint(PASSIVE)");
+    return expired.size;
   }
 
   close(): void {

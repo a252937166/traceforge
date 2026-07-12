@@ -52,7 +52,7 @@ async function buildAndReadStaticContract() {
   for (const token of [
     "TRACEFORGE",
     "PROOF RECORDER",
-    "Start a local proof run",
+    "Run Codex locally",
     "Inspect a completed proof",
     "Replay a verified run",
     "Host-only proof",
@@ -146,7 +146,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
   try {
     await page.goto(webBase, { waitUntil: "networkidle" });
     const recordedMode = page.locator('input[name="execution-mode"][value="recorded-replay"]');
-    const localRunnerCta = page.getByRole("button", { name: "Start a local proof run", exact: true });
+    const localRunnerCta = page.getByRole("button", { name: "Run Codex locally", exact: true });
     const judgeCta = page.getByRole("button", { name: "Inspect a completed proof", exact: true });
     assert.equal(await recordedMode.isChecked(), true, "the advanced public replay mode must be selected by default");
     const selectedMode = await recordedMode.getAttribute("value");
@@ -155,9 +155,11 @@ async function runIncrementalBrowserAcceptance(webBase) {
       0,
       "the public deployment must not expose an unusable fresh Live AI radio",
     );
-    assert.equal(await localRunnerCta.isEnabled(), true, "the single primary Local Runner CTA must be actionable");
-    assert.equal(await judgeCta.isEnabled(), true, "the completed-proof CTA must be immediately actionable");
+    assert.equal(await localRunnerCta.isEnabled(), true, "the advanced Local Runner CTA must be actionable");
+    assert.equal(await judgeCta.isEnabled(), true, "the primary completed-proof CTA must be immediately actionable");
     assert.equal(await page.locator(".landing-hero .action-primary").count(), 1, "the first screen must have one primary action");
+    assert.equal(await judgeCta.getAttribute("class"), "action-primary", "the zero-install judge path must own the primary treatment");
+    assert.equal(await localRunnerCta.getAttribute("class"), "action-link", "the setup-heavy Local Runner must remain secondary");
     assert.equal(await page.locator(".stage-rail").count(), 0, "idle landing must not render an empty stage rail");
     assert.equal(await page.locator(".provenance-strip").count(), 0, "idle landing must not render an empty provenance grid");
     const releaseEvidence = page.getByRole("region", { name: "Release evidence" });
@@ -341,7 +343,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     });
     await mobile.goto(webBase, { waitUntil: "networkidle" });
     const mobileRecordedMode = mobile.locator('input[name="execution-mode"][value="recorded-replay"]');
-    const mobileLocalRunnerCta = mobile.getByRole("button", { name: "Start a local proof run", exact: true });
+    const mobileLocalRunnerCta = mobile.getByRole("button", { name: "Run Codex locally", exact: true });
     const mobileJudgeCta = mobile.getByRole("button", { name: "Inspect a completed proof", exact: true });
     assert.equal(await mobileRecordedMode.isChecked(), true, "mobile advanced options must default to replay");
     assert.equal(
@@ -349,10 +351,10 @@ async function runIncrementalBrowserAcceptance(webBase) {
       0,
       "mobile must not render an unusable fresh Live AI radio",
     );
-    assert.equal(await mobileLocalRunnerCta.isEnabled(), true, "mobile must expose the primary Local Runner launcher");
+    assert.equal(await mobileLocalRunnerCta.isEnabled(), true, "mobile must expose the advanced Local Runner launcher");
     assert.equal(await mobile.locator(".stage-rail").count(), 0, "mobile idle landing must not render empty stages");
-    const mobileCtaBox = await mobileLocalRunnerCta.boundingBox();
-    assert.ok(mobileCtaBox, "mobile primary CTA must be rendered");
+    const mobileCtaBox = await mobileJudgeCta.boundingBox();
+    assert.ok(mobileCtaBox, "mobile zero-install primary CTA must be rendered");
     assert.ok(
       mobileCtaBox.y + mobileCtaBox.height <= 844,
       "mobile primary CTA must remain in the 390x844 first viewport",
