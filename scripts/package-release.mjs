@@ -50,4 +50,13 @@ delete packageJson.dependencies["@openai/codex-sdk"];
 packageJson.scripts = { start: "node dist/server.js" };
 await writeFile(resolve(api, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
 
+// Bind the server install to an exact npm dependency graph. The production
+// host intentionally runs `npm ci --omit=dev --ignore-scripts` against this
+// generated lock instead of resolving semver ranges during deployment.
+await execFileAsync(
+  "npm",
+  ["install", "--package-lock-only", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
+  { cwd: api, env: process.env, maxBuffer: 16 * 1024 * 1024 },
+);
+
 console.log(release);

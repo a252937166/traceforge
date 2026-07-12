@@ -11,6 +11,8 @@
 5. rolls back on any failed check;
 6. after success, retains only the newest two rollback releases by default.
 
+`pnpm release:package` emits an API `package-lock.json`. Populate `/opt/traceforge-next` with `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` before invoking the installer; do not resolve unpinned production dependencies on the live path.
+
 Set `TRACEFORGE_RELEASE_BACKUPS_TO_KEEP` to an integer from `1` through `10` when a different rollback window is required. The API resource and retention defaults are listed in `traceforge.env.example`.
 
 The hardened systemd unit is intentionally compatible with the deployment host's systemd 219. Code under `/opt/traceforge` is root-owned and explicitly read-only to the service, while SQLite may write only under `/var/lib/traceforge`. The unit uses the systemd 219 names `ReadOnlyDirectories`, `ReadWriteDirectories`, and `MemoryLimit`; the installer verifies their effective values instead of claiming newer directives that this host would ignore. A future server-side live Codex deployment needs a separately designed writable worktree boundary; do not weaken the public unit ad hoc.
