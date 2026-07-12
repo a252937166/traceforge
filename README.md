@@ -78,11 +78,11 @@ The pinned v0.1.9 Local Runner executes `15` focused candidate tests plus seven 
 
 The optional hands-on path has been exercised from a fresh `local-runner-v0.1.9` clone through the actual loopback UI with a real `gpt-5.6-sol` Codex turn. It passed `15/15` focused tests, `7/7` scenarios, `35/35` assertions—including `5/5` exhausted-stock failure assertions—with zero mismatches. Proof `sha256:0218e92475eb2c08cd875e2a5363ff6a0b71800d17503b5fb5381387d544453b` binds thread `019f5288-3b94-7a71-a087-032825fff3fa`; diff `sha256:5c51b3f7bd93a75c5dbeeb1d82b47086480d92a49ace52d26dc451479082386f` binds the one allowed change. UI deletion removed the session, writer, verifier, worktree, lock, and loopback server. See the [sanitized v0.1.9 run evidence](docs/evidence/local-runner-v0.1.9/README.md); the [v0.1.6 evidence](docs/evidence/local-runner-v0.1.6/README.md) is retained as historical context.
 
-Requires Node.js `22.5+`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. A public browser cannot silently start local Codex, so the terminal launch is required on first use. Windows is not supported by this verified release. See [docs/local-runner.md](docs/local-runner.md) for exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
+Requires Node.js `22.13+`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. Node 22.13 is the minimum because it is the first Node 22 release that exposes `node:sqlite` without a command-line flag. A public browser cannot silently start local Codex, so the terminal launch is required on first use. Windows is not supported by this verified release. See [docs/local-runner.md](docs/local-runner.md) for exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
 
 ## Run it
 
-Requires Node.js 22.5 or newer and pnpm 10.33.2. Node 22 is recommended because the API uses `node:sqlite`.
+Requires Node.js 22.13 or newer and pnpm 10.33.2. Node 22.13+ is required because the API uses the unflagged `node:sqlite` module.
 
 ```bash
 corepack enable

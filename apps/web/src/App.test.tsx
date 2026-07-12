@@ -324,7 +324,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(steps).getByRole('button', { name: 'Step 2 of 3: Review locally' })).not.toHaveAttribute('aria-current')
     expect(within(steps).getByRole('button', { name: 'Step 3 of 3: Collect proof' })).not.toHaveAttribute('aria-current')
     expect(dialog).toHaveTextContent('Launch the pinned source release')
-    expect(dialog).toHaveTextContent('Node.js 22.5+')
+    expect(dialog).toHaveTextContent('Node.js 22.13+')
     expect(dialog).toHaveTextContent('Pinned commit a2ce8b2394caf5d1491c2b142f99a8421f3cec2d · source install · no binary checksum claim')
     expect(within(dialog).getAllByRole('button', { name: 'Copy command' })).toHaveLength(1)
     expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.9/)).toBeInTheDocument()

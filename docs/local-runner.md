@@ -40,7 +40,7 @@ That v0.1.9 run binds recorded archaeology to live migration `migration_efaa0383
 ## First-run requirements
 
 - Git.
-- Node.js `22.5.0` or newer; Node 22 is recommended.
+- Node.js `22.13.0` or newer; this is the first Node 22 release where `node:sqlite` is available without an experimental CLI flag.
 - Corepack and the repository-pinned pnpm `10.33.2`.
 - Codex CLI exactly `0.144.1`, available as `codex` on `PATH`. Check with `codex --version`. To select a specific verified binary, set `TRACEFORGE_CODEX_BIN` to its executable path before launch.
 - A ChatGPT account whose Codex model list includes `gpt-5.6-sol`.

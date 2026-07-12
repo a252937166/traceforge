@@ -6,7 +6,7 @@ It does not establish universal workflow equivalence or rerun paid model calls i
 
 ## One-command gate
 
-From a clean checkout with Node.js 22.5 or newer and pnpm 10.33.2:
+From a clean checkout with Node.js 22.13 or newer and pnpm 10.33.2:
 
 ```bash
 pnpm install --frozen-lockfile

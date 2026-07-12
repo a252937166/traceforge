@@ -1095,7 +1095,7 @@ export default function App() {
 
             <div className="wizard-step-panel">
               {runnerStep === 0 && <section className="runner-install" aria-labelledby="runner-install-title">
-                <div className="wizard-section-heading"><span>01 · Install</span><div><h3 id="runner-install-title" tabIndex={-1}>Launch the pinned source release</h3><p>macOS / Linux · Git, Node.js 22.5+, Corepack, Codex CLI 0.144.1</p></div></div>
+                <div className="wizard-section-heading"><span>01 · Install</span><div><h3 id="runner-install-title" tabIndex={-1}>Launch the pinned source release</h3><p>macOS / Linux · Git, Node.js 22.13+, Corepack, Codex CLI 0.144.1</p></div></div>
                 <div className="runner-command"><code>{localRunnerCommand}</code><button type="button" onClick={() => void copyRunnerCommand()}>{copyStatus === 'copied' ? 'Copied' : 'Copy command'}</button></div>
                 <p className={`runner-copy-status status-${copyStatus}`} aria-live="polite">{copyStatus === 'copied' ? 'Command copied. This public page cannot detect the Runner; continue in the localhost tab it opens.' : copyStatus === 'failed' ? 'Clipboard access is blocked. Select the command and copy it manually.' : `Pinned commit ${localRunnerCommit} · source install · no binary checksum claim`}</p>
                 <dl className="runner-release-facts"><div><dt>Tag</dt><dd>{localRunnerTag}</dd></div><div><dt>Commit</dt><dd><code>{localRunnerCommit}</code></dd></div><div><dt>Platform</dt><dd>macOS / Linux</dd></div><div><dt>Artifact</dt><dd>Not published · source install</dd></div></dl>
