@@ -3971,6 +3971,33 @@ body {
   margin-right: auto;
 }
 
+@media (min-width: 821px) {
+  .landing-hero {
+    position: relative;
+  }
+
+  .landing-hero::before,
+  .landing-hero::after {
+    position: absolute;
+    top: 0;
+    bottom: -1px;
+    width: max(0px, calc((100vw - 100%) / 2));
+    border-bottom: 1px solid var(--graphite);
+    content: "";
+    pointer-events: none;
+  }
+
+  .landing-hero::before {
+    right: 100%;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+  }
+
+  .landing-hero::after {
+    left: 100%;
+    background: var(--graphite);
+  }
+}
+
 @media (max-width: 1040px) {
   .landing-hero {
     grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.55fr);
