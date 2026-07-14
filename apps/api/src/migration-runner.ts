@@ -197,7 +197,7 @@ function redactHostCommandText(value: string): string {
 const hostDeterministicContract = {
   id: "contract-host-deterministic-v1",
   source: "host-authored",
-  scope: "The seven deterministic Web returns scenarios executed by the local verifier only.",
+  scope: "STANDARD and VIP DAMAGED returns in the seven-scenario asserted domain; every non-DAMAGED condition is rejected before business-state writes.",
   rules: [
     {
       id: "HOST-R-HIGH-VALUE-HOLD",
@@ -221,7 +221,7 @@ const hostDeterministicContract = {
     },
   ],
   unknowns: [
-    "This host-authored contract does not claim behavior outside the executed REST and SQLite scenario corpus.",
+    "This host-authored contract does not claim behavior outside the executed REST and SQLite scenario corpus; non-DAMAGED inputs fail closed with OUTSIDE_EVIDENCE_BOUNDARY.",
   ],
 } as const;
 
@@ -908,7 +908,7 @@ export class MigrationRunner {
     }
     const liveContract = {
       id: `contract-live-${job.id}`,
-      scope: "Evidence-bounded Web returns workflow",
+      scope: "STANDARD and VIP DAMAGED returns within the asserted input domain; every non-DAMAGED condition is outside this contract and is rejected before business-state writes",
       rules: critic.output.revisedRules,
       findings: critic.output.findings,
       initialUnknowns: archaeologist.output.unknowns,
@@ -1016,7 +1016,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
 
 Role: Counterexample Hunter.
 Design exactly one valid workflow input with maximum expected information gain. ${iteration}
-Do not predict or execute the result; the host alone will validate and run it. amountCents must be between 1 and 100000.
+Do not predict or execute the result; the host alone will validate and run it. itemCondition must be DAMAGED because no other condition is inside the evidence-bounded contract. amountCents must be between 1 and 100000.
 
 Archaeology result:
 ${JSON.stringify(archaeology)}
@@ -1033,7 +1033,7 @@ ${JSON.stringify(this.tracePack(traces))}`;
     return `${this.readOnlyModelBoundary()}
 
 Role: Contract Critic.
-Audit the initial hypotheses against every fresh host trace, including adjacent boundary probes and the exhausted-stock failure attempt. Reject unsupported universal statements and produce the smallest ordered contract. A lower numeric priority runs first. The contract must preserve the observed replacement-stock precondition and atomic failure behavior: with zero sellable stock the replacement is rejected, no return record is created, inventory is unchanged, and no shipment or other side effect is returned. Cite the failure attempt evidence in that rule. Classify every initial unknown exactly once: put evidence-resolved items in resolvedUnknowns and unresolved items in remainingUnknowns. Do not invent, omit, duplicate, or silently downgrade an unknown. For each remaining item, mark whether it is inside the stated Web returns scope. Mark READY_FOR_BUILD only when the evidence supports the observed priority, exact threshold, and stock-sufficiency failure semantics and no remaining in-scope unknown was initially marked blocking. Preserve unresolved questions outside the observed domain as out-of-scope remaining unknowns.
+Audit the initial hypotheses against every fresh host trace, including adjacent boundary probes and the exhausted-stock failure attempt. The asserted input domain is STANDARD and VIP DAMAGED returns only; do not infer behavior for any other item condition. Reject unsupported universal statements and produce the smallest ordered contract. A lower numeric priority runs first. The contract must preserve the observed replacement-stock precondition and atomic failure behavior: with zero sellable stock the replacement is rejected, no return record is created, inventory is unchanged, and no shipment or other side effect is returned. Cite the failure attempt evidence in that rule. Classify every initial unknown exactly once: put evidence-resolved items in resolvedUnknowns and unresolved items in remainingUnknowns. Do not invent, omit, duplicate, or silently downgrade an unknown. For each remaining item, mark whether it is inside the stated Web returns scope. Mark READY_FOR_BUILD only when the evidence supports the observed priority, exact threshold, and stock-sufficiency failure semantics and no remaining in-scope unknown was initially marked blocking. Preserve unresolved questions outside the observed domain as out-of-scope remaining unknowns.
 
 Initial archaeology:
 ${JSON.stringify(archaeology)}

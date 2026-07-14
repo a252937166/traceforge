@@ -1,0 +1,53 @@
+{
+  "version": "traceforge.source-run-envelope.v2",
+  "originalProofPath": "proof.json",
+  "originalProofDigest": "sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc",
+  "originalProofFileDigest": "sha256:14b04967561d9d33f13bec7cec42807d13842783ba9da0e5c8da1f91b9851c81",
+  "recordedVerifierArtifactPath": "../../../apps/api/src/recorded-codex-build.generated.json",
+  "recordedVerifierArtifactFileDigest": "sha256:d807b17687bbbe16baa380034137d59dd3d60cfb19b44086cff6ff3f52c05fc1",
+  "verifiedScenarioSet": [
+    {
+      "scenarioId": "observed-standard-damaged-4500",
+      "partition": "observed",
+      "proofDigest": "sha256:572cdedeca2729f47d747834c248f2d71d917063fda66f930ed7e36dca1791b1"
+    },
+    {
+      "scenarioId": "observed-vip-damaged-12000",
+      "partition": "observed",
+      "proofDigest": "sha256:ad137a60074acc4030c48448f388284bd5e3f42f4c49355fdcf05e18cedb0114"
+    },
+    {
+      "scenarioId": "counterexample-vip-damaged-50000",
+      "partition": "counterexample",
+      "proofDigest": "sha256:f6e9f422b39fc8cc6c6f64168c69f56e78a10429b1f95ed870015a42c4637e7d"
+    },
+    {
+      "scenarioId": "counterexample-vip-damaged-no-sellable",
+      "partition": "counterexample",
+      "proofDigest": "sha256:44c18b5470838b5c81f039364deb05a9be2dce8455cd2a453d4996ca1b700483"
+    },
+    {
+      "scenarioId": "boundary-standard-damaged-49999",
+      "partition": "boundary",
+      "proofDigest": "sha256:b2e0c3669922810b5dc627c184cfeb43d6e78400b194114614a482b9b68d7969"
+    },
+    {
+      "scenarioId": "boundary-standard-damaged-50000",
+      "partition": "boundary",
+      "proofDigest": "sha256:4b531502934639481ae6b24c36934055719a01d6475aabbf1297d68f3b782006"
+    },
+    {
+      "scenarioId": "host-hidden-252b1708e9e9",
+      "partition": "held-out",
+      "proofDigest": "sha256:8148b6144e1208509f0675ebbf88cc242be3b50340c07f93e0ea48ecaa87f7ea"
+    }
+  ],
+  "scenarioSetDigest": "sha256:142d9123ec2c33e0e48abba37dc184f9f0b6c82162dbdb83fcf50df7d749c0da",
+  "hostGate": {
+    "testsPassed": 56,
+    "testsTotal": 56,
+    "replayOnlyGuards": 4
+  },
+  "generatedAt": "2026-07-12T11:37:28.000Z",
+  "digest": "sha256:ed50d2155cb31c2dd5d059bf41f89a281892fa683e97b0283ec2dd7b4d7deb9b"
+}

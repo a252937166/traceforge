@@ -4,6 +4,7 @@ import {
 } from "./candidates/generated-return-workflow.js";
 import { executeLegacyReturnWorkflow } from "./legacy/return-workflow.js";
 import {
+  assertWithinEvidenceBoundary,
   createHostHiddenScenario,
   findScenario,
   scenarios,
@@ -16,8 +17,11 @@ import type {
 } from "./types.js";
 
 export {
+  assertWithinEvidenceBoundary,
   createHostHiddenScenario,
+  EVIDENCE_BOUNDED_ITEM_CONDITION,
   findScenario,
+  OutsideEvidenceBoundaryError,
   scenarios,
   validateWorkflowInput,
 } from "./scenarios.js";
@@ -38,16 +42,20 @@ export function executeReplacementWorkflow(
   candidateVersion: CandidateVersion = "seeded",
   _deprecatedGeneratedConfig?: unknown,
 ): WorkflowExecution {
+  const input = validateWorkflowInput(rawInput);
+  assertWithinEvidenceBoundary(input);
   return candidateVersion === "generated"
-    ? executeGeneratedReturnWorkflow(rawInput)
-    : executeSeededReturnWorkflow(rawInput);
+    ? executeGeneratedReturnWorkflow(input)
+    : executeSeededReturnWorkflow(input);
 }
 
 export function executeGeneratedReplacementWorkflow(
   rawInput: unknown,
   _deprecatedGeneratedConfig?: unknown,
 ): WorkflowExecution {
-  return executeGeneratedReturnWorkflow(rawInput);
+  const input = validateWorkflowInput(rawInput);
+  assertWithinEvidenceBoundary(input);
+  return executeGeneratedReturnWorkflow(input);
 }
 
 /** Compatibility dispatcher; business behavior remains isolated in modules. */
@@ -56,9 +64,11 @@ export function executeWorkflow(
   system: SystemName,
   candidateVersion: CandidateVersion = "seeded",
 ): WorkflowExecution {
+  const input = validateWorkflowInput(rawInput);
+  assertWithinEvidenceBoundary(input);
   return system === "legacy"
-    ? executeLegacyReturnWorkflow(rawInput)
-    : executeReplacementWorkflow(rawInput, candidateVersion);
+    ? executeLegacyReturnWorkflow(input)
+    : executeReplacementWorkflow(input, candidateVersion);
 }
 
 // Keep these imports live so package consumers can continue importing the
@@ -66,4 +76,5 @@ export function executeWorkflow(
 void findScenario;
 void scenarios;
 void validateWorkflowInput;
+void assertWithinEvidenceBoundary;
 void createHostHiddenScenario;

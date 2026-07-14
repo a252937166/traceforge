@@ -21,7 +21,10 @@ import {
   type CandidatePolicyEvidence,
 } from "./candidate-policy.js";
 import { sha256Text } from "./fixture-digest.js";
-import type { LocalFixture } from "./fixture.js";
+import {
+  verifyLocalFixtureReleaseCustody,
+  type LocalFixture,
+} from "./fixture.js";
 import {
   LOCAL_RUNNER_MANIFEST,
   LOCAL_RUNNER_RELEASE_TAG,
@@ -50,6 +53,39 @@ const OUTPUT_SCHEMA = {
 const LOCAL_BUILD_DEVELOPER_INSTRUCTIONS = `TraceForge is running a bounded local build.
 Use only the three immutable .traceforge repair-input files and the generated candidate module named in the user prompt. Do not inspect parent directories, the legacy implementation, tests, verifier code, credentials, or other Codex threads. Do not broaden filesystem or network access. The host alone verifies the result after this turn.`;
 
+const EVIDENCE_BOUNDARY_PROBE = `
+const { executeGeneratedReturnWorkflow } = await import("./src/candidates/generated-return-workflow.ts");
+const input = {
+  returnId: "RET-HOST-BOUNDARY-SELLABLE",
+  sku: "SKU-HOST-BOUNDARY-SELLABLE",
+  amountCents: 12000,
+  customerTier: "VIP",
+  itemCondition: "SELLABLE",
+  initialInventory: { sellable: 10, quarantine: 0 },
+};
+try {
+  const result = executeGeneratedReturnWorkflow(input);
+  throw new Error("LOCAL_EVIDENCE_BOUNDARY_RETURNED_RESULT:" + JSON.stringify({
+    decision: result?.result?.decision ?? null,
+    sideEffectsCount: Array.isArray(result?.result?.sideEffects) ? result.result.sideEffects.length : null,
+  }));
+} catch (error) {
+  if (error?.code !== "OUTSIDE_EVIDENCE_BOUNDARY") throw error;
+  if (error?.message !== "input is outside the evidence-bounded DAMAGED-only contract") throw error;
+  console.log(JSON.stringify({
+    evidenceBoundary: {
+      status: "PASSED",
+      inputCondition: "SELLABLE",
+      supportedCondition: "DAMAGED",
+      failureCode: error.code,
+      failureMessage: error.message,
+      resultReturned: false,
+      sideEffectsCount: 0,
+    },
+  }));
+}
+`.trim();
+
 const VERIFY_COMMANDS = {
   install: ["corepack", "pnpm", "install", "--offline", "--frozen-lockfile"],
   // Restrict the local proof to the candidate-relevant, socket-free tests.
@@ -67,6 +103,23 @@ const VERIFY_COMMANDS = {
     "tsx",
     "tests/champion-workflow.test.ts",
     "tests/workflow.test.ts",
+  ],
+  // A host-owned probe, absent from the pinned legacy fixture, proves that the
+  // repaired function itself refuses the unobserved SELLABLE branch. This is
+  // a separate gate from the seven DAMAGED scenarios and cannot be satisfied
+  // by the old fixture's permissive input validator alone.
+  boundaryProbe: [
+    "corepack",
+    "pnpm",
+    "--filter",
+    "@traceforge/api",
+    "exec",
+    "node",
+    "--input-type=module",
+    "--import",
+    "tsx",
+    "--eval",
+    EVIDENCE_BOUNDARY_PROBE,
   ],
   // Invoke the Node loader directly. The `tsx` CLI creates a dynamic IPC
   // socket, while the verifier only needs the static loader for this script.
@@ -144,6 +197,7 @@ export type LocalCommandDiagnosticCode =
   | "COMMAND_NOT_FOUND"
   | "OFFLINE_INSTALL_FAILED"
   | "CANDIDATE_TESTS_FAILED"
+  | "EVIDENCE_BOUNDARY_PROBE_FAILED"
   | "DIFFERENTIAL_SUITE_FAILED";
 
 export interface LocalTestCounts {
@@ -152,6 +206,23 @@ export interface LocalTestCounts {
   failed: number;
   skipped: number;
   candidateSafeTotal: number;
+}
+
+export interface LocalEvidenceBoundaryVerification {
+  status: "PASSED";
+  inputCondition: "SELLABLE";
+  supportedCondition: "DAMAGED";
+  failureCode: "OUTSIDE_EVIDENCE_BOUNDARY";
+  failureMessage: "input is outside the evidence-bounded DAMAGED-only contract";
+  resultReturned: false;
+  sideEffectsCount: 0;
+}
+
+export interface LocalHostGateCounts {
+  passed: number;
+  total: number;
+  focusedTests: number;
+  evidenceBoundaryChecks: 1;
 }
 
 export interface LocalProofBundle {
@@ -209,6 +280,8 @@ export interface LocalProofBundle {
       diagnosticCode: LocalCommandDiagnosticCode;
     }>;
     tests: LocalTestCounts | null;
+    evidenceBoundary: LocalEvidenceBoundaryVerification | null;
+    hostGates: LocalHostGateCounts;
     suite: GeneratedCandidateSuiteEvidence | null;
     suiteValidation: GeneratedSuiteValidation;
   };
@@ -416,6 +489,42 @@ function parseTestCounts(output: string): LocalTestCounts | null {
   };
 }
 
+export function parseEvidenceBoundaryVerification(
+  output: string,
+): LocalEvidenceBoundaryVerification {
+  const candidates = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [asRecord(JSON.parse(line))];
+      } catch {
+        return [];
+      }
+    });
+  const boundary = candidates
+    .map((candidate) => asRecord(candidate.evidenceBoundary))
+    .find((candidate) => Object.keys(candidate).length > 0);
+  const expected: LocalEvidenceBoundaryVerification = {
+    status: "PASSED",
+    inputCondition: "SELLABLE",
+    supportedCondition: "DAMAGED",
+    failureCode: "OUTSIDE_EVIDENCE_BOUNDARY",
+    failureMessage: "input is outside the evidence-bounded DAMAGED-only contract",
+    resultReturned: false,
+    sideEffectsCount: 0,
+  };
+  if (
+    !boundary
+    || Object.keys(boundary).sort().join("\n") !== Object.keys(expected).sort().join("\n")
+    || Object.entries(expected).some(([key, value]) => boundary[key] !== value)
+  ) {
+    throw new Error("LOCAL_EVIDENCE_BOUNDARY_PROOF_INVALID");
+  }
+  return expected;
+}
+
 export function diagnoseLocalCommand(
   name: keyof typeof VERIFY_COMMANDS,
   exitCode: number,
@@ -435,6 +544,7 @@ export function diagnoseLocalCommand(
   }
   if (name === "install") return "OFFLINE_INSTALL_FAILED";
   if (name === "apiTests") return "CANDIDATE_TESTS_FAILED";
+  if (name === "boundaryProbe") return "EVIDENCE_BOUNDARY_PROBE_FAILED";
   return "DIFFERENTIAL_SUITE_FAILED";
 }
 
@@ -898,6 +1008,7 @@ export async function runLocalRepair(
 
   try {
     context.signal?.throwIfAborted();
+    await verifyLocalFixtureReleaseCustody(context.fixture);
     queueEvent("prepare", "repair.started", "running", "Local repair started", "Recorded GPT-5.6 evidence is ready for this machine's Codex.", {
       sessionId,
       repairInputDigest: context.fixture.inputEvidence.digest,
@@ -947,9 +1058,10 @@ export async function runLocalRepair(
     if (diffResult.exitCode !== 0 || !diffResult.stdout.trim()) {
       throw new Error("LOCAL_CANDIDATE_DIFF_MISSING");
     }
-    queueEvent("build", "candidate.policy-verified", "passed", "Candidate boundary verified", "Immutable inputs survived and only the generated workflow function changed.", {
+    queueEvent("build", "candidate.policy-verified", "passed", "Candidate boundary verified", "Immutable inputs survived; only the generated workflow function changed, with the exact DAMAGED-only guard before business logic.", {
       changedFiles: whitelist.changed,
       sourceDigest: candidatePolicy.sourceDigest,
+      evidenceBoundary: candidatePolicy.evidenceBoundary,
     });
 
     await assertPermissionProfile(
@@ -1012,7 +1124,7 @@ export async function runLocalRepair(
     };
 
     if (install.exitCode === 0) {
-      for (const name of ["apiTests", "generatedSuite"] as const) {
+      for (const name of ["apiTests", "boundaryProbe", "generatedSuite"] as const) {
         const command = await execVerificationCommand(
           context.verifyAppServer,
           name,
@@ -1023,7 +1135,12 @@ export async function runLocalRepair(
           context.signal,
         );
         commands.push(command);
-        queueEvent("verify", "command.completed", command.exitCode === 0 ? "passed" : "failed", name === "apiTests" ? "Candidate-safe tests completed" : "Seven-scenario verification completed", `Exit ${command.exitCode}`, {
+        const title = name === "apiTests"
+          ? "Candidate-safe tests completed"
+          : name === "boundaryProbe"
+            ? "Out-of-scope refusal verified"
+            : "Seven-scenario verification completed";
+        queueEvent("verify", "command.completed", command.exitCode === 0 ? "passed" : "failed", title, `Exit ${command.exitCode}`, {
           command: command.argv,
           executor: command.executor,
           stdoutDigest: command.stdoutDigest,
@@ -1038,8 +1155,24 @@ export async function runLocalRepair(
     }
 
     const apiTests = commands.find(({ name }) => name === "apiTests");
+    const boundaryCommand = commands.find(({ name }) => name === "boundaryProbe");
     const generatedCommand = commands.find(({ name }) => name === "generatedSuite");
     const tests = apiTests ? parseTestCounts(`${apiTests.stdout}\n${apiTests.stderr}`) : null;
+    let evidenceBoundary: LocalEvidenceBoundaryVerification | null = null;
+    if (boundaryCommand?.exitCode === 0) {
+      try {
+        evidenceBoundary = parseEvidenceBoundaryVerification(boundaryCommand.stdout);
+      } catch {
+        evidenceBoundary = null;
+      }
+    }
+    const boundaryPassed = evidenceBoundary?.status === "PASSED";
+    const hostGates: LocalHostGateCounts = {
+      passed: (tests?.passed ?? 0) + (boundaryPassed ? 1 : 0),
+      total: (tests?.candidateSafeTotal ?? 0) + 1,
+      focusedTests: tests?.candidateSafeTotal ?? 0,
+      evidenceBoundaryChecks: 1,
+    };
     let suite: GeneratedCandidateSuiteEvidence | null = null;
     let suiteValidation: GeneratedSuiteValidation = {
       passed: false,
@@ -1057,22 +1190,28 @@ export async function runLocalRepair(
       }
     }
     const verificationPassed =
-      commands.length === 3
+      commands.length === 4
       && commands.every(({ exitCode }) => exitCode === 0)
       && tests !== null
       && tests.failed === 0
       && tests.passed === tests.candidateSafeTotal
       && tests.candidateSafeTotal > 0
+      && boundaryPassed
+      && hostGates.passed === hostGates.total
       && suite?.status === "PASSED"
       && suiteValidation.passed;
 
+    // Re-resolve the release tag after the writer and verifier have finished,
+    // immediately before the proof claims release custody. A moved checkout or
+    // tag therefore fails closed and cannot produce a passing proof.
+    await verifyLocalFixtureReleaseCustody(context.fixture);
     const generatedAt = new Date().toISOString();
     const proofBody: Omit<LocalProofBundle, "digest"> = {
       version: "traceforge.local-proof.v1",
       proofId: `local_proof_${randomUUID()}`,
       sessionId,
       status: verificationPassed ? "PASSED" : "FAILED",
-      claim: "Evidence-bounded local Codex rebuild verified against the executed host suite.",
+      claim: "Evidence-bounded local Codex rebuild passed 15 focused tests, one host-owned non-DAMAGED refusal gate, and the seven-scenario DAMAGED suite.",
       provenance: {
         archaeology: "recorded-gpt-5.6",
         build: "live-local-codex",
@@ -1081,7 +1220,7 @@ export async function runLocalRepair(
       },
       runner: {
         version: LOCAL_RUNNER_VERSION,
-        releaseTag: LOCAL_RUNNER_RELEASE_TAG,
+        releaseTag: context.fixture.releaseTag,
         releaseCommit: context.fixture.releaseCommit,
         manifestDigest: sha256Digest(LOCAL_RUNNER_MANIFEST),
         buildPermissionProfile: buildPermissionProfileId,
@@ -1122,12 +1261,14 @@ export async function runLocalRepair(
           diagnosticCode,
         })),
         tests,
+        evidenceBoundary,
+        hostGates,
         suite,
         suiteValidation,
       },
       limitations: [
         "Recorded GPT-5.6 archaeology is source evidence; only the Codex build and host verification ran live on this machine.",
-        "The proof covers the seven executed returns scenarios and five asserted behavior fields per scenario, including atomic failure semantics for exhausted replacement stock.",
+        "The proof covers the seven executed DAMAGED-return scenarios, five asserted behavior fields per scenario, atomic exhausted-stock failure, and one separate host-owned SELLABLE refusal probe.",
         "SHA-256 provides recomputable integrity, not identity, timestamping, or non-repudiation.",
       ],
       generatedAt,
@@ -1136,7 +1277,7 @@ export async function runLocalRepair(
       ...proofBody,
       digest: sha256Digest(proofBody),
     };
-    queueEvent("complete", "proof.completed", verificationPassed ? "passed" : "failed", verificationPassed ? "Fresh local proof passed" : "Local verification found a mismatch", suite ? `${suite.summary.passed}/${suite.summary.total} scenarios passed.` : "No valid seven-scenario suite was produced.", {
+    queueEvent("complete", "proof.completed", verificationPassed ? "passed" : "failed", verificationPassed ? "Fresh local proof passed" : "Local verification found a mismatch", suite ? `${hostGates.passed}/${hostGates.total} host gates and ${suite.summary.passed}/${suite.summary.total} scenarios passed.` : "No valid seven-scenario suite was produced.", {
       proof,
     });
     await flushEvents();

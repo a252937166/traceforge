@@ -51,7 +51,7 @@ async function buildAndReadStaticContract() {
   assert.match(html, /<[^>]+ id="root"[^>]*><\/[^>]+>/);
   for (const token of [
     "TRACEFORGE",
-    "PROOF RECORDER",
+    "MIGRATION LOOM",
     "Run Codex locally",
     "Inspect a completed proof",
     "Replay a verified run",
@@ -485,7 +485,7 @@ try {
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.service, "traceforge-api");
   assert.match(health.body.release?.sha ?? "", /^[a-f0-9]{40}$/);
-  assert.equal(health.body.release?.version, "local-runner-v0.1.9");
+  assert.equal(health.body.release?.version, "traceforge-v0.1.10");
 
   const browserAutomation = await runIncrementalBrowserAcceptance(webBase);
 

@@ -124,7 +124,7 @@ export const archaeologySchemas = {
               sku: { type: "string" },
               amountCents: { type: "integer", minimum: 1, maximum: 100_000 },
               customerTier: { type: "string", enum: ["STANDARD", "VIP"] },
-              itemCondition: { type: "string", enum: ["DAMAGED", "SELLABLE"] },
+              itemCondition: { type: "string", const: "DAMAGED" },
               initialInventory: {
                 type: "object",
                 properties: {

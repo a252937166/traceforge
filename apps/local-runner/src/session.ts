@@ -114,11 +114,11 @@ const COPY: Record<LocalRunnerPhase, { title: string; message: string }> = {
   },
   verifying: {
     title: "Running the local differential suite",
-    message: "The writer turn is closed. A fresh host-only input is now being verified in a second sandbox.",
+    message: "The writer turn is closed. Focused tests, a host-owned SELLABLE refusal probe, and a fresh host-only scenario now run in a second sandbox.",
   },
   passed: {
     title: "Fresh local proof issued",
-    message: "The live candidate matched the legacy behavior across every verification scenario.",
+    message: "The live candidate matched all seven DAMAGED scenarios and refused the unobserved SELLABLE branch without guessing.",
   },
   failed: {
     title: "The local run did not issue a passing proof",

@@ -19,7 +19,7 @@ function normalizeRelease(value: unknown): ReleaseIdentity | undefined {
   const builtAt = nonEmptyString(candidate.builtAt);
   if (!sha || !version || !builtAt) return undefined;
   if (!/^[a-f0-9]{40}$/.test(sha)) return undefined;
-  if (!/^local-runner-v\d+\.\d+\.\d+$/.test(version)) return undefined;
+  if (!/^traceforge-v\d+\.\d+\.\d+$/.test(version)) return undefined;
   if (Number.isNaN(Date.parse(builtAt))) return undefined;
   return { sha, version, builtAt };
 }

@@ -446,6 +446,8 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
     const failureCode = failedCommand?.diagnosticCode
       ?? (result.proof.verification.tests === null
         ? "TEST_OUTPUT_INVALID"
+        : result.proof.verification.evidenceBoundary === null
+          ? "EVIDENCE_BOUNDARY_PROOF_INVALID"
         : result.proof.verification.suite === null
           ? "SUITE_OUTPUT_INVALID"
           : result.proof.verification.suiteValidation.passed
@@ -460,8 +462,8 @@ export class TraceForgeLocalActions implements LocalRunnerActions {
         diffDigest: result.proof.candidate.diffDigest,
         threadId: result.threadId,
         model: result.proof.codex.model,
-        testsPassed: result.proof.verification.tests?.passed ?? 0,
-        testsTotal: result.proof.verification.tests?.candidateSafeTotal ?? 0,
+        testsPassed: result.proof.verification.hostGates.passed,
+        testsTotal: result.proof.verification.hostGates.total,
         scenariosPassed: suite?.summary.passed ?? 0,
         scenariosTotal: suite?.summary.total ?? 0,
         assertionsPassed: assertionCount - mismatchCount,

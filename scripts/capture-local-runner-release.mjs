@@ -21,6 +21,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const EXPECTED_TESTS = 15;
+const EXPECTED_BOUNDARY_CHECKS = 1;
+const EXPECTED_HOST_GATES = EXPECTED_TESTS + EXPECTED_BOUNDARY_CHECKS;
 const EXPECTED_SCENARIOS = 7;
 const EXPECTED_ASSERTIONS = 35;
 const ALLOWED_CANDIDATE_PATH = "apps/api/src/candidates/generated-return-workflow.ts";
@@ -293,6 +295,27 @@ try {
   assert.equal(proof.verification.tests.failed, 0);
   assert.equal(proof.verification.tests.skipped, 0);
   assert.equal(proof.verification.tests.candidateSafeTotal, EXPECTED_TESTS);
+  assert.deepEqual(proof.verification.evidenceBoundary, {
+    status: "PASSED",
+    inputCondition: "SELLABLE",
+    supportedCondition: "DAMAGED",
+    failureCode: "OUTSIDE_EVIDENCE_BOUNDARY",
+    failureMessage: "input is outside the evidence-bounded DAMAGED-only contract",
+    resultReturned: false,
+    sideEffectsCount: 0,
+  });
+  assert.deepEqual(proof.verification.hostGates, {
+    passed: EXPECTED_HOST_GATES,
+    total: EXPECTED_HOST_GATES,
+    focusedTests: EXPECTED_TESTS,
+    evidenceBoundaryChecks: EXPECTED_BOUNDARY_CHECKS,
+  });
+  assert.deepEqual(
+    proof.verification.commands.map(({ name }) => name),
+    ["install", "apiTests", "boundaryProbe", "generatedSuite"],
+  );
+  assert.equal(terminalState.result.testsPassed, EXPECTED_HOST_GATES);
+  assert.equal(terminalState.result.testsTotal, EXPECTED_HOST_GATES);
   assert.equal(proof.verification.suite.summary.total, EXPECTED_SCENARIOS);
   assert.equal(proof.verification.suite.summary.passed, EXPECTED_SCENARIOS);
   assert.equal(proof.verification.suite.summary.failed, 0);
@@ -352,6 +375,8 @@ try {
     turnId: proof.codex.turnId,
     tokenUsage: proof.codex.usage,
     tests: proof.verification.tests,
+    evidenceBoundary: proof.verification.evidenceBoundary,
+    hostGates: proof.verification.hostGates,
     scenarios: proof.verification.suite.summary,
     assertions: assertionCount,
     mismatches: mismatchCount,

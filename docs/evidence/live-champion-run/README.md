@@ -16,7 +16,8 @@ It is the source run for TraceForge's judge-facing recorded replay. The source r
 | Coverage | `2 observed + 2 counterexamples + 2 boundaries + 1 verification-only` |
 | Result | `7/7 scenarios · 35/35 assertions · 0 mismatches` |
 | Proof ID | `migration-proof_54c63c5b-f5ca-4675-b0bc-7fedb6956dbb` |
-| Internal proof digest | `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc` |
+| Historical proof digest | `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc` |
+| Derived scenario-set digest | `sha256:142d9123ec2c33e0e48abba37dc184f9f0b6c82162dbdb83fcf50df7d749c0da` |
 
 The final row, `host-hidden-252b1708e9e9`, was materialized only after the Codex turn. The schema calls this partition `held-out`; the public product calls it **verification-only** because one generated input is not evidence of statistical generalization.
 
@@ -72,24 +73,30 @@ Codex received the final GPT contract, four failed proofs, and seven disclosed s
 | [`contract.json`](contract.json) | Evidence-linked rules and closed unknown lifecycle |
 | [`candidate.diff`](candidate.diff) | Accepted one-file Codex diff |
 | [`commands.json`](commands.json) | Redacted host commands and raw TAP/suite output |
-| [`proof.json`](proof.json) | Model, candidate, host-gate, seven-row proof, and internal digest |
+| [`proof.json`](proof.json) | Untouched historical proof: model, candidate, host gate, seven rows, and its original internal digest |
+| [`source-run-envelope-v2.json`](source-run-envelope-v2.json) | Derived v2 commitment to the original proof bytes, checked-in recorded verifier artifact, seven exact per-scenario proof digests, scenario-set digest, and split host gate |
 | [`artifacts.json`](artifacts.json) | Serialized download digests and sizes |
 | [`invocations/`](invocations/) | Four bounded GPT input/output/metadata triples |
 | [`codex/`](codex/) | Codex prompt, output, inputs, source, and metadata |
 
 Canonical object digests and serialized artifact digests have different scopes. The proof object's internal digest is `sha256:4be44d…03bc`; the serialized `proof.json` download digest in `artifacts.json` is `sha256:0ac36f…f518`.
 
+`proof.json` is deliberately preserved byte-for-byte from the source run. It predates the runtime's `scenarioSetDigest` hardening, so object-integrity verification of that historical file is not a claim that it satisfies the current `MigrationProofBundle` schema. The adjacent v2 envelope closes that version boundary without rewriting history: it binds the original internal digest and raw-file digest; the exact bytes of [`recorded-codex-build.generated.json`](../../../apps/api/src/recorded-codex-build.generated.json) under digest `sha256:d807b17687bbbe16baa380034137d59dd3d60cfb19b44086cff6ff3f52c05fc1`; the ordered `{scenarioId, partition, proofDigest}` rows parsed from that artifact's unique final verifier suite; the recomputable scenario-set digest; `56/56` candidate-safe tests; and four separately run replay guards.
+
 ## Verify
 
 ```bash
-pnpm proof:verify docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-integrity docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-envelope docs/evidence/live-champion-run/source-run-envelope-v2.json
 jq '[.invocations[].usage.total_tokens] | {turns: length, totalTokens: add}' \
   docs/evidence/live-champion-run/invocations/manifest.json
 jq '{threadId, baseCommit, changedFiles, repairInput, sourceDigest, diffDigest}' \
   docs/evidence/live-champion-run/codex/metadata.json
 ```
 
-The expected proof result is `valid: true` with matching claimed and computed digest `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc`.
+Both verifier commands must return `valid: true`. The integrity command reports matching historical proof digests `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc`. The envelope command additionally checks the raw proof bytes, the recorded verifier artifact's raw bytes and source-run identity, exactly one passing final suite, exact ordered scenario tuples, coverage, host gate, `scenarioSetDigest`, and envelope digest. Replacing a per-row digest and recomputing the envelope's own digests still fails unless it matches the checked-in verifier suite.
+
+For a proof freshly issued by the hardened runtime, use `pnpm proof:verify-current <proof.json>`. That command requires the current schema and recomputes coverage and `scenarioSetDigest`; it is intentionally not used to relabel the older source-run object.
 
 ## Preserved evidence history
 

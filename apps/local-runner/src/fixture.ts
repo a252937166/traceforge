@@ -14,6 +14,7 @@ import {
 import {
   LOCAL_RUNNER_FIXTURE_TAG,
   LOCAL_RUNNER_MANIFEST,
+  LOCAL_RUNNER_RELEASE_TAG,
   validateLocalRunnerManifest,
 } from "./manifest.js";
 import { sha256Text } from "./fixture-digest.js";
@@ -46,6 +47,8 @@ export function assertDedicatedCodexHome(options: {
 
 export interface LocalFixture {
   repoRoot: string;
+  /** Annotated/lightweight release ref whose peeled commit was verified by the host. */
+  releaseTag: typeof LOCAL_RUNNER_RELEASE_TAG;
   /** Full Git SHA of the Local Runner executable checkout. */
   releaseCommit: string;
   sessionRoot: string;
@@ -129,7 +132,33 @@ export async function verifyCheckedOutReleaseCommit(
   if (checkedOutCommit !== declaredReleaseCommit) {
     throw new Error("LOCAL_RELEASE_SHA_MISMATCH");
   }
+  const taggedCommit = await git(repoRoot, [
+    "rev-parse",
+    "--verify",
+    `refs/tags/${LOCAL_RUNNER_RELEASE_TAG}^{commit}`,
+  ]).then((value) => value.trim()).catch(() => {
+    throw new Error("LOCAL_RELEASE_TAG_UNRESOLVED");
+  });
+  if (!/^[0-9a-f]{40}$/.test(taggedCommit)) {
+    throw new Error("LOCAL_RELEASE_TAG_SHA_INVALID");
+  }
+  if (taggedCommit !== checkedOutCommit) {
+    throw new Error("LOCAL_RELEASE_TAG_COMMIT_MISMATCH");
+  }
   return checkedOutCommit;
+}
+
+/**
+ * Re-checks release custody at the proof boundary. This catches a checkout or
+ * release tag that was moved after the local session was prepared.
+ */
+export async function verifyLocalFixtureReleaseCustody(
+  fixture: Pick<LocalFixture, "repoRoot" | "releaseTag" | "releaseCommit">,
+): Promise<void> {
+  if (fixture.releaseTag !== LOCAL_RUNNER_RELEASE_TAG) {
+    throw new Error("LOCAL_RELEASE_TAG_INVALID");
+  }
+  await verifyCheckedOutReleaseCommit(fixture.repoRoot, fixture.releaseCommit);
 }
 
 export async function prepareLocalFixture(
@@ -237,6 +266,7 @@ export async function prepareLocalFixture(
 
     return {
       repoRoot,
+      releaseTag: LOCAL_RUNNER_RELEASE_TAG,
       releaseCommit,
       sessionRoot: await realpath(sessionRoot),
       buildHome: await realpath(buildHome),

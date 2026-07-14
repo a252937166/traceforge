@@ -191,7 +191,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
           </dl>
           <p class="scope-note">Codex sends the bounded build context to OpenAI. Credentials, generated source, diff, and proof are not uploaded to the TraceForge website.</p>
           <div class="gate-compare" aria-label="Verification gate comparison">
-            <div class="gate-row"><span>Local gate</span><strong>15 focused candidate tests + 7 differential scenarios</strong></div>
+            <div class="gate-row"><span>Local gate</span><strong>15 focused tests + 1 SELLABLE fail-closed probe + 7 differential scenarios</strong></div>
             <div class="gate-row"><span>Source champion gate</span><strong>56 candidate-safe tests + 4 separate replay guards</strong></div>
           </div>
         </section>
@@ -204,7 +204,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
             <p class="state-detail" id="state-detail"></p>
             <div class="error" id="error" data-visible="false"></div>
             <div class="run-result" id="run-result" data-visible="false">
-              <div class="metric"><strong id="metric-tests">—</strong><span>Focused tests passed</span></div>
+              <div class="metric"><strong id="metric-tests">—</strong><span>Host gates passed</span></div>
               <div class="metric"><strong id="metric-scenarios">—</strong><span>Scenarios passed</span></div>
               <div class="metric"><strong id="metric-assertions">—</strong><span>Assertions passed</span></div>
               <div class="metric"><strong id="metric-mismatches">—</strong><span>Mismatches</span></div>
@@ -236,6 +236,7 @@ export function renderLocalPage({ nonce, csrfToken }: LocalPageOptions): string 
     const commandDiagnostics = {
       install: { label: "Offline dependency check", command: "corepack pnpm install --offline --frozen-lockfile" },
       apiTests: { label: "Candidate-safe API tests", command: "corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts" },
+      boundaryProbe: { label: "SELLABLE fail-closed probe", command: "host-owned direct candidate execution · expects OUTSIDE_EVIDENCE_BOUNDARY" },
       generatedSuite: { label: "Seven-scenario differential suite", command: "corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts" },
     };
     const busyPhases = new Set(["preflight", "signing-in", "preparing", "codex", "verifying", "deleting"]);

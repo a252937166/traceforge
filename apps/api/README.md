@@ -4,7 +4,7 @@ The API owns the complete migration state machine: Observe → Infer → Challen
 
 ## Run
 
-Node.js 22.13 or newer is required so `node:sqlite` is available without a CLI flag.
+Node.js `>=22.13.0` is required so `node:sqlite` is available without a CLI flag. Node `22.23.1` is pinned in `.nvmrc` and CI.
 
 ```bash
 pnpm --filter @traceforge/api dev

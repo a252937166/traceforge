@@ -7,7 +7,7 @@ import { readReleaseIdentity } from "../src/release.js";
 
 const packagedRelease = {
   sha: "a".repeat(40),
-  version: "local-runner-v0.1.9",
+  version: "traceforge-v0.1.10",
   builtAt: "2026-07-11T14:30:00.000Z",
 };
 
@@ -38,4 +38,12 @@ test("production refuses to start without a valid packaged release identity", ()
 
 test("source development can run without claiming a packaged release", () => {
   assert.equal(readReleaseIdentity({}, join(tmpdir(), "traceforge-release-missing", "dist")), undefined);
+});
+
+test("a Local Runner tag cannot be presented as the hosted product release", () => {
+  assert.equal(readReleaseIdentity({
+    TRACEFORGE_RELEASE_SHA: packagedRelease.sha,
+    TRACEFORGE_RELEASE_VERSION: "local-runner-v0.1.10",
+    TRACEFORGE_RELEASE_BUILT_AT: packagedRelease.builtAt,
+  }), undefined);
 });

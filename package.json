@@ -1,6 +1,6 @@
 {
   "name": "traceforge",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "Evidence-bounded workflow modernization with differential proof.",
   "packageManager": "pnpm@10.33.2",
@@ -8,8 +8,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "preinstall": "node scripts/check-node-version.cjs",
     "dev": "concurrently -n api,web -c blue,magenta \"pnpm --filter @traceforge/api dev\" \"pnpm --filter @traceforge/web dev\"",
-    "local:run": "node --import tsx apps/local-runner/src/cli.ts",
+    "local:run": "node scripts/check-node-version.cjs && node --import tsx apps/local-runner/src/cli.ts",
     "build": "pnpm -r build",
     "test": "pnpm -r --workspace-concurrency=1 test",
     "typecheck": "pnpm -r typecheck",
@@ -26,7 +27,10 @@
     "evidence:export-run": "node scripts/export-migration-run.mjs",
     "evidence:test-redaction": "node --test scripts/export-redaction.test.mjs",
     "evidence:update-recorded": "node scripts/update-recorded-champion.mjs",
-    "proof:verify": "pnpm --filter @traceforge/api proof:verify"
+    "proof:verify": "pnpm proof:verify-integrity",
+    "proof:verify-integrity": "pnpm --filter @traceforge/api proof:verify-integrity",
+    "proof:verify-current": "pnpm --filter @traceforge/api proof:verify-current",
+    "proof:verify-envelope": "pnpm --filter @traceforge/api proof:verify-envelope"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

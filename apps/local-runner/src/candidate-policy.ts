@@ -43,8 +43,14 @@ const ALLOWED_DIRECT_CALLS = new Set([
   "candidateEvents",
   "validateWorkflowInput",
 ]);
+const OUTSIDE_EVIDENCE_MESSAGE = "input is outside the evidence-bounded DAMAGED-only contract";
+const OUTSIDE_EVIDENCE_CODE = "OUTSIDE_EVIDENCE_BOUNDARY";
 
-function isExactFailureCodeAssignment(node: ts.CallExpression): boolean {
+function isExactFailureCodeAssignment(
+  node: ts.CallExpression,
+  message: string,
+  code: string,
+): boolean {
   if (
     !ts.isPropertyAccessExpression(node.expression)
     || !ts.isIdentifier(node.expression.expression)
@@ -62,7 +68,7 @@ function isExactFailureCodeAssignment(node: ts.CallExpression): boolean {
     || errorArgument.expression.text !== "Error"
     || errorArgument.arguments?.length !== 1
     || !ts.isStringLiteral(errorArgument.arguments[0]!)
-    || errorArgument.arguments[0]!.text !== "replacement cannot be issued without sellable stock"
+    || errorArgument.arguments[0]!.text !== message
     || !metadataArgument
     || !ts.isObjectLiteralExpression(metadataArgument)
     || metadataArgument.properties.length !== 1
@@ -76,14 +82,74 @@ function isExactFailureCodeAssignment(node: ts.CallExpression): boolean {
     && ts.isIdentifier(property.name)
     && property.name.text === "code"
     && ts.isStringLiteral(property.initializer)
-    && property.initializer.text === "INSUFFICIENT_SELLABLE_STOCK",
+    && property.initializer.text === code,
   );
+}
+
+function isEvidenceBoundaryInputDeclaration(statement: ts.Statement): boolean {
+  if (!ts.isVariableStatement(statement) || statement.declarationList.declarations.length !== 1) {
+    return false;
+  }
+  if ((statement.declarationList.flags & ts.NodeFlags.Const) === 0) return false;
+  const declaration = statement.declarationList.declarations[0];
+  return Boolean(
+    declaration
+    && ts.isIdentifier(declaration.name)
+    && declaration.name.text === "input"
+    && declaration.initializer
+    && ts.isCallExpression(declaration.initializer)
+    && ts.isIdentifier(declaration.initializer.expression)
+    && declaration.initializer.expression.text === "validateWorkflowInput"
+    && declaration.initializer.arguments.length === 1
+    && ts.isIdentifier(declaration.initializer.arguments[0]!)
+    && declaration.initializer.arguments[0]!.text === "rawInput",
+  );
+}
+
+function isExactEvidenceBoundaryGuard(statement: ts.Statement): boolean {
+  if (
+    !ts.isIfStatement(statement)
+    || statement.elseStatement
+    || !ts.isBinaryExpression(statement.expression)
+    || statement.expression.operatorToken.kind !== ts.SyntaxKind.ExclamationEqualsEqualsToken
+  ) {
+    return false;
+  }
+  const { left, right } = statement.expression;
+  if (
+    !ts.isPropertyAccessExpression(left)
+    || !ts.isIdentifier(left.expression)
+    || left.expression.text !== "input"
+    || left.name.text !== "itemCondition"
+    || !ts.isStringLiteral(right)
+    || right.text !== "DAMAGED"
+  ) {
+    return false;
+  }
+  const body = ts.isBlock(statement.thenStatement)
+    ? statement.thenStatement.statements
+    : [statement.thenStatement];
+  if (body.length !== 1 || !ts.isThrowStatement(body[0]!) || !body[0]!.expression) {
+    return false;
+  }
+  const expression = body[0]!.expression;
+  return ts.isCallExpression(expression)
+    && isExactFailureCodeAssignment(
+      expression,
+      OUTSIDE_EVIDENCE_MESSAGE,
+      OUTSIDE_EVIDENCE_CODE,
+    );
 }
 
 export interface CandidatePolicyEvidence {
   sourceDigest: string;
   changedFunction: typeof GENERATED_FUNCTION;
   allowedImports: string[];
+  evidenceBoundary: {
+    itemCondition: "DAMAGED";
+    rejectionCode: typeof OUTSIDE_EVIDENCE_CODE;
+    beforeBusinessLogic: true;
+  };
 }
 
 function sourceFile(source: string): ts.SourceFile {
@@ -154,6 +220,15 @@ export function validateCandidateSource(
   }
 
   const generated = generatedFunction(candidateFile);
+  const [inputDeclaration, evidenceBoundaryGuard] = generated.body?.statements ?? [];
+  if (
+    !inputDeclaration
+    || !evidenceBoundaryGuard
+    || !isEvidenceBoundaryInputDeclaration(inputDeclaration)
+    || !isExactEvidenceBoundaryGuard(evidenceBoundaryGuard)
+  ) {
+    throw new Error("LOCAL_CANDIDATE_EVIDENCE_BOUNDARY_GUARD_REQUIRED");
+  }
   const visit = (node: ts.Node): void => {
     if (node !== generated && ts.isFunctionLike(node)) {
       throw new Error("LOCAL_CANDIDATE_NESTED_EXECUTABLE_BLOCKED");
@@ -168,7 +243,15 @@ export function validateCandidateSource(
         && ts.isIdentifier(expression.expression)
         && expression.expression.text === "sideEffects"
         && expression.name.text === "push";
-      const failureCodeAssignment = isExactFailureCodeAssignment(node);
+      const failureCodeAssignment = isExactFailureCodeAssignment(
+        node,
+        "replacement cannot be issued without sellable stock",
+        "INSUFFICIENT_SELLABLE_STOCK",
+      ) || isExactFailureCodeAssignment(
+        node,
+        OUTSIDE_EVIDENCE_MESSAGE,
+        OUTSIDE_EVIDENCE_CODE,
+      );
       if (!directCall && !sideEffectPush && !failureCodeAssignment) {
         throw new Error("LOCAL_CANDIDATE_CALL_BLOCKED");
       }
@@ -229,5 +312,10 @@ export function validateCandidateSource(
     sourceDigest: sha256Text(candidateSource),
     changedFunction: GENERATED_FUNCTION,
     allowedImports: [...new Set(imports)].sort(),
+    evidenceBoundary: {
+      itemCondition: "DAMAGED",
+      rejectionCode: OUTSIDE_EVIDENCE_CODE,
+      beforeBusinessLogic: true,
+    },
   };
 }

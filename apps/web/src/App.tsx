@@ -44,7 +44,7 @@ const terminalOutputRetryDelays = [0, 250, 750, 1_500] as const
 const repositoryUrl = 'https://github.com/a252937166/traceforge'
 const publishedEvidenceCommit = 'f0ede87cb763e3c9f0776f263cbd61ce63d8c770'
 const liveRunEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/live-champion-run`
-const proofVerificationUrl = `${repositoryUrl}/blob/${publishedEvidenceCommit}/README.md#verify-the-proof-digest-locally`
+const proofVerificationUrl = `${repositoryUrl}/blob/${publishedEvidenceCommit}/README.md#reproducible-evidence`
 const localRunnerRepository = 'a252937166/traceforge'
 const localRunnerTag = 'local-runner-v0.1.9'
 const localRunnerCommit = 'a2ce8b2394caf5d1491c2b142f99a8421f3cec2d'
@@ -53,7 +53,8 @@ const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/$
 const localRunnerTagUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
 const localRunnerEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/local-runner-v0.1.9`
 
-const localRunnerCommand = `EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
+const localRunnerNodeGate = `node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error("TraceForge Local Runner requires Node.js >=22.13.0; found " + process.versions.node + ". Install Node.js 22.23.1, then rerun. No clone or installation was started."); process.exit(64); }'`
+const localRunnerCommand = `${localRunnerNodeGate} && EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -80,8 +81,8 @@ function formatTime(value?: string): string {
 }
 
 function releaseLabel(release: ReleaseIdentity): string {
-  const version = release.version.startsWith('local-runner-')
-    ? `Local Runner ${release.version.slice('local-runner-'.length)}`
+  const version = release.version.startsWith('traceforge-')
+    ? `TraceForge ${release.version.slice('traceforge-'.length)}`
     : release.version
   return `Release ${release.sha.slice(0, 7)} · ${version}`
 }
@@ -323,7 +324,7 @@ function ReleaseEvidenceStrip({ release, health, onRetry }: {
         >
           <small>Production</small>
           <strong>{release ? release.sha.slice(0, 7) : 'Checking health…'}</strong>
-          <span>{release ? `API-attested · ${release.version}` : 'Reading deployment identity'}</span>
+          <span>{release ? `Hosted product · ${release.version}` : 'Reading deployment identity'}</span>
         </a>
       )}
       <a className="release-evidence-item" href={`${repositoryUrl}/commit/${localRunnerCommit}`} target="_blank" rel="noreferrer">
@@ -945,7 +946,7 @@ export default function App() {
   return (
     <main className="traceforge-page">
       <header className="site-header">
-        <a className="site-wordmark" href="#top" aria-label="TraceForge home">TRACEFORGE <span>/ PROOF RECORDER</span></a>
+        <a className="site-wordmark" href="#top" aria-label="TraceForge home">TRACEFORGE <span>/ MIGRATION LOOM</span></a>
         <div className="site-tools">
           <button type="button" className="local-boundary-trigger" onClick={() => setBoundaryOpen(true)} aria-haspopup="dialog">Local boundary</button>
           <a className="site-release" href={releaseIdentity ? `${repositoryUrl}/commit/${releaseIdentity.sha}` : '/api/health'} target="_blank" rel="noreferrer">
@@ -957,7 +958,7 @@ export default function App() {
       <section className="landing-hero" id="top">
         <div className="landing-copy">
           <span className="hero-kicker">Local migration proof</span>
-          <h1>Prove what changed.<br />Keep Codex local.</h1>
+          <h1>Prove what changed.<br />Run the builder on your terms.</h1>
           <p>Rebuild one bounded legacy workflow, preserve the failed attempts, and issue a proof that says exactly what the verifier checked.</p>
           <div className="hero-actions">
             <div className="hero-action-choice">
@@ -974,11 +975,11 @@ export default function App() {
           <p className="hero-assurance">No local files, Codex credentials, generated source, or session history are sent to this website.</p>
         </div>
         <div className="custody-trace" aria-label="Proof custody path">
-          <span className="trace-label">Proof path</span>
+          <span className="trace-label">Evidence custody</span>
           <ol>
             <li><i>01</i><span><strong>Recorded evidence</strong><small>Contract + failed proofs</small></span></li>
-            <li><i>02</i><span><strong>Local Codex</strong><small>One explicit bounded build</small></span></li>
-            <li><i>03</i><span><strong>Host verifier</strong><small>Hidden differential checks</small></span></li>
+            <li><i>02</i><span><strong>Codex candidate</strong><small>Recorded in replay · live in Local Runner</small></span></li>
+            <li><i>03</i><span><strong>Fresh host verification</strong><small>Independent differential checks</small></span></li>
             <li><i>04</i><span><strong>Proof bundle</strong><small>Diff + scenarios + digests</small></span></li>
           </ol>
         </div>
