@@ -6,6 +6,7 @@ import { MigrationRequestLimiter } from "./migration-guard.js";
 import { MigrationCapacityError, MigrationRunner } from "./migration-runner.js";
 import { MigrationStore } from "./migration-store.js";
 import { readReleaseIdentity, type ReleaseIdentity } from "./release.js";
+import { OutsideEvidenceBoundaryError } from "./scenarios.js";
 import { ArtifactStore } from "./store.js";
 import { TraceForgeService } from "./service.js";
 import type { MigrationExecutionMode, MigrationProofBundle } from "./migration-types.js";
@@ -410,6 +411,15 @@ export function createApp(dependencies: AppDependencies = {}) {
           code: error.code,
           message: error.message,
           evidence: error.evidence,
+        },
+      });
+    }
+    if (error instanceof OutsideEvidenceBoundaryError) {
+      return response.status(422).json({
+        error: {
+          code: error.code,
+          message: error.message,
+          evidenceBoundary: { itemCondition: "DAMAGED" },
         },
       });
     }

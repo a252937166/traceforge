@@ -30,16 +30,18 @@ await cp(resolve(root, "apps/api/dist"), resolve(api, "dist"), { recursive: true
 await cp(resolve(root, "apps/web/dist"), web, { recursive: true });
 
 const { stdout: releaseShaOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
-const localRunnerPackage = JSON.parse(await readFile(resolve(root, "apps/local-runner/package.json"), "utf8"));
-const localRunnerVersion = String(localRunnerPackage.version ?? "").trim();
-if (!/^\d+\.\d+\.\d+$/.test(localRunnerVersion)) throw new Error("local runner package version is invalid");
-const localRunnerManifest = await readFile(resolve(root, "apps/local-runner/src/manifest.ts"), "utf8");
-if (!localRunnerManifest.includes(`LOCAL_RUNNER_VERSION = "${localRunnerVersion}"`)) {
-  throw new Error("local runner package and manifest versions disagree");
+const productPackage = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+const productVersion = String(productPackage.version ?? "").trim();
+if (!/^\d+\.\d+\.\d+$/.test(productVersion)) throw new Error("TraceForge product version is invalid");
+for (const workspacePackagePath of ["apps/api/package.json", "apps/web/package.json"]) {
+  const workspacePackage = JSON.parse(await readFile(resolve(root, workspacePackagePath), "utf8"));
+  if (String(workspacePackage.version ?? "").trim() !== productVersion) {
+    throw new Error(`TraceForge product and ${workspacePackagePath} versions disagree`);
+  }
 }
 const releaseIdentity = {
   sha: releaseShaOutput.trim(),
-  version: `local-runner-v${localRunnerVersion}`,
+  version: `traceforge-v${productVersion}`,
   builtAt: new Date().toISOString(),
 };
 await writeFile(resolve(api, "release.json"), `${JSON.stringify(releaseIdentity, null, 2)}\n`, "utf8");

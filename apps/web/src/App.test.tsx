@@ -77,7 +77,7 @@ function installSuccessfulApi(mode: 'live-ai' | 'recorded-replay' | 'determinist
         gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
         release: {
           sha: 'de748868292639c57abea7b8d53e933987bea03e',
-          version: 'local-runner-v0.1.9',
+          version: 'traceforge-v0.1.10',
           builtAt: '2026-07-11T14:30:00.000Z',
         },
       })
@@ -101,7 +101,7 @@ async function startMigration() {
   return user
 }
 
-describe('TraceForge Migration Loom', () => {
+describe('TraceForge', () => {
   beforeEach(() => {
     FakeEventSource.instances = []
     installEventSource()
@@ -113,7 +113,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true, truthfulBoundary: 'GPT-5.6 is configured.' },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.9',
+            version: 'traceforge-v0.1.10',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -131,7 +131,12 @@ describe('TraceForge Migration Loom', () => {
   it('starts with one primary zero-credential proof CTA and no empty run panels', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'Prove what changed. Keep Codex local.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prove what changed. Run the builder on your terms.' })).toBeInTheDocument()
+    expect(screen.getByText('/ MIGRATION LOOM')).toBeInTheDocument()
+    expect(screen.getByText('Evidence custody')).toBeInTheDocument()
+    expect(screen.getByText('Codex candidate')).toBeInTheDocument()
+    expect(screen.getByText('Recorded in replay · live in Local Runner')).toBeInTheDocument()
+    expect(screen.getByText('Fresh host verification')).toBeInTheDocument()
     const primaryAction = screen.getByRole('button', { name: 'Inspect a completed proof' })
     expect(primaryAction).toHaveClass('action-primary')
     expect(screen.getByText('Try instantly · no credentials')).toBeInTheDocument()
@@ -159,7 +164,7 @@ describe('TraceForge Migration Loom', () => {
         gpt56Status: { configured: true },
         release: {
           sha: 'de748868292639c57abea7b8d53e933987bea03e',
-          version: 'local-runner-v0.1.9',
+          version: 'traceforge-v0.1.10',
           builtAt: '2026-07-11T14:30:00.000Z',
         },
       })
@@ -296,6 +301,8 @@ describe('TraceForge Migration Loom', () => {
     const deployment = within(release).getByRole('link', { name: /Deployment traceforge\.axiqo\.xyz/ })
 
     expect(production).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/de748868292639c57abea7b8d53e933987bea03e')
+    expect(production).toHaveTextContent('Hosted product · traceforge-v0.1.10')
+    expect(production).not.toHaveTextContent('Local Runner')
     expect(runner).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/a2ce8b2394caf5d1491c2b142f99a8421f3cec2d')
     expect(runner).toHaveTextContent('Executable source commit · no binary claim')
     expect(localRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/local-runner-v0.1.9'))
@@ -304,7 +311,7 @@ describe('TraceForge Migration Loom', () => {
     expect(sourceRun).toHaveTextContent('Recorded model evidence · archived')
     expect(deployment).toHaveAttribute('href', '/api/health')
     expect(production).not.toHaveAttribute('href', runner.getAttribute('href'))
-    expect(screen.getByRole('contentinfo')).toHaveTextContent('Release de74886')
+    expect(screen.getByRole('contentinfo')).toHaveTextContent('Release de74886 · TraceForge v0.1.10')
   })
 
   it('opens a three-step fixed-demo Runner guide with one copy command and a replay exit', async () => {
@@ -330,9 +337,13 @@ describe('TraceForge Migration Loom', () => {
     expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.9/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
-    await waitFor(() => expect(clipboard).toHaveBeenCalledWith(
-      'EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p \'process.arch\')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts',
-    ))
+    await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
+    const copiedCommand = clipboard.mock.calls[0]?.[0]
+    expect(copiedCommand).toContain('TraceForge Local Runner requires Node.js >=22.13.0')
+    expect(copiedCommand).toContain('Install Node.js 22.23.1, then rerun. No clone or installation was started.')
+    expect(copiedCommand).toContain('EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d"')
+    expect(copiedCommand).toContain('git clone --filter=blob:none --branch local-runner-v0.1.9')
+    expect(copiedCommand?.indexOf('node -e')).toBeLessThan(copiedCommand?.indexOf('git clone') ?? 0)
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Next: review local scope' }))
@@ -487,7 +498,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.9',
+            version: 'traceforge-v0.1.10',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -563,7 +574,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.9',
+            version: 'traceforge-v0.1.10',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -638,7 +649,7 @@ describe('TraceForge Migration Loom', () => {
           gpt56Status: { configured: true },
           release: {
             sha: 'de748868292639c57abea7b8d53e933987bea03e',
-            version: 'local-runner-v0.1.9',
+            version: 'traceforge-v0.1.10',
             builtAt: '2026-07-11T14:30:00.000Z',
           },
         })
@@ -778,7 +789,7 @@ describe('TraceForge Migration Loom', () => {
     expect(within(verification).getByText('Proof digest reported')).toHaveClass('verified')
     expect(within(verification).getByText('Differential scenarios checked')).toHaveClass('verified')
     expect(within(verification).getByText('Host verification reported')).not.toHaveClass('verified')
-    expect(screen.getByRole('link', { name: 'Verify proof' })).toHaveAttribute('href', expect.stringContaining('#verify-the-proof-digest-locally'))
+    expect(screen.getByRole('link', { name: 'Verify proof' })).toHaveAttribute('href', expect.stringContaining('#reproducible-evidence'))
     expect(screen.getByRole('link', { name: /proof.json/ })).toHaveAttribute(
       'href',
       '/api/migrations/migration-01/downloads/proof.json',

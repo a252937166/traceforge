@@ -169,19 +169,21 @@ The migration endpoint does not offer arbitrary scenario selection. `scenarioIds
 - `commands.json` — host verification command summaries;
 - `proof.json` — coverage, model provenance, candidate provenance, scenario results, limitations, and an internal digest.
 
-Downloads include an `X-Content-SHA256` header. The proof's internal digest can be recomputed through `POST /api/proofs/verify-digest` or `pnpm proof:verify <proof.json>`.
+Downloads include an `X-Content-SHA256` header. The proof's internal digest can be recomputed through `POST /api/proofs/verify-digest`. On the command line, `pnpm proof:verify-current <proof.json>` validates both the canonical object digest and the current schema, including coverage and `scenarioSetDigest`. `pnpm proof:verify-integrity <historical-proof.json>` has the narrower, explicitly named purpose of checking an older object's canonical digest without asserting that it has today's fields.
 
 The unauthenticated showcase has bounded resource use at the application layer: by default one client may make ten migration-start attempts per rolling minute, two jobs may run concurrently, and four more may wait. Additional work fails with `429 MIGRATION_RATE_LIMITED` or `503 MIGRATION_CAPACITY_EXCEEDED` instead of creating an unbounded queue. Terminal jobs, events, and artifacts are pruned together after 72 hours or beyond the newest 100 completed jobs. All limits are configurable through the `TRACEFORGE_MIGRATION_*` and `TRACEFORGE_RETENTION_*` variables documented in `deploy/traceforge.env.example`.
 
 ## Evidence and provenance
 
-The checked-in [champion evidence directory](evidence/live-champion-run/README.md) is the export of live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, backed by four real GPT-5.6 Sol archaeology threads and the real Codex build thread above. It includes the raw redacted model invocations, immutable Codex input artifacts, accepted source and diff, host command logs, and the proof bundle. Its proof reports `7/7` scenarios, `35/35` assertions, zero mismatches, and digest:
+The checked-in [champion evidence directory](evidence/live-champion-run/README.md) is the export of live migration `migration_efaa0383-628a-4fba-94df-96bfe344bcbe`, backed by four real GPT-5.6 Sol archaeology threads and the real Codex build thread above. It includes the raw redacted model invocations, immutable Codex input artifacts, accepted source and diff, host command logs, and the proof bundle. Its untouched historical proof reports `7/7` scenarios, `35/35` assertions, zero mismatches, and digest:
 
 ```text
 sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc
 ```
 
-The proof digest covers its canonical JSON body. Artifact metadata has a separate digest computed by the same canonical digest helper over the artifact body string; these values serve different purposes and are intentionally not conflated.
+That source proof was issued before `scenarioSetDigest` became a required runtime field. TraceForge does not silently rewrite it into the new schema. [`source-run-envelope-v2.json`](evidence/live-champion-run/source-run-envelope-v2.json) is a derived companion that binds the original proof's canonical digest and exact serialized bytes to the raw-file digest of the checked-in [`recorded-codex-build.generated.json`](../apps/api/src/recorded-codex-build.generated.json). The verifier parses exactly one successful final suite from that artifact and requires the envelope's seven ordered `{scenarioId, partition, proofDigest}` entries to match it byte-for-byte at the value level before recomputing `scenarioSetDigest`. It also cross-checks source-run identity and the `56/56` candidate-safe plus four separate replay-guard split against both historical artifacts. `pnpm proof:verify-envelope` validates those links; fresh hardened proofs use `pnpm proof:verify-current`.
+
+The historical proof digest covers its canonical JSON body. The envelope has its own canonical digest. Artifact metadata has a separate digest computed by the same canonical digest helper over the artifact body string; these values serve different purposes and are intentionally not conflated.
 
 ## Current limitations
 

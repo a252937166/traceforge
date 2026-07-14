@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  assertWithinEvidenceBoundary,
   createHostHiddenScenario,
   executeWorkflow,
   findScenario,
@@ -65,6 +66,15 @@ function implementationIdFor(
 }
 
 function failureCodeFor(error: unknown): WorkflowFailureCode {
+  const explicitCode = error && typeof error === "object" && "code" in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+  if (
+    explicitCode === "INSUFFICIENT_SELLABLE_STOCK"
+    || explicitCode === "OUTSIDE_EVIDENCE_BOUNDARY"
+  ) {
+    return explicitCode;
+  }
   const message = error instanceof Error ? error.message : String(error);
   return /without sellable stock/i.test(message)
     ? "INSUFFICIENT_SELLABLE_STOCK"
@@ -102,6 +112,10 @@ export class TraceForgeService {
     scenarioId?: string,
   ): WorkflowTrace {
     const input = validateWorkflowInput(rawInput);
+    // This is intentionally before resetBusinessState. Initializing the
+    // SQLite fixture is itself a business-state mutation, so an unsupported
+    // condition must be refused before the workflow or store is touched.
+    assertWithinEvidenceBoundary(input);
     const persistedBefore = this.store.resetBusinessState(system, input);
     const executed = executeWorkflow(input, system, candidateVersion);
     const persistedAfter = this.store.applyBusinessResult(system, executed.result);
@@ -197,6 +211,10 @@ export class TraceForgeService {
     scenarioId?: string,
   ): WorkflowAttemptTrace {
     const input = validateWorkflowInput(rawInput);
+    // Keep the evidence boundary outside the failure-attempt transaction too.
+    // captureAttempt is for covered-domain business failures (for example
+    // exhausted stock), not a mechanism for seeding unsupported inputs.
+    assertWithinEvidenceBoundary(input);
     const persistedBefore = this.store.resetBusinessState(system, input);
     let status: WorkflowAttemptTrace["outcome"]["status"] = "FAILED";
     let failureCode: WorkflowFailureCode | null = null;
@@ -335,9 +353,10 @@ export class TraceForgeService {
     const contract: BehaviorContract = {
       contractId: `contract_${randomUUID()}`,
       sourceTraceId: trace.traceId,
-      scope: `Observed ${trace.result.appliedRuleId} branch for ${trace.input.itemCondition} item`,
+      scope: `Observed ${trace.result.appliedRuleId} DAMAGED branch only; every non-DAMAGED condition is outside this contract and is refused before business-state writes`,
       generation: { method: "deterministic-demo-extractor", openaiUsed: false },
       preconditions: [
+        "itemCondition is DAMAGED; the host rejects every other condition with OUTSIDE_EVIDENCE_BOUNDARY before business-state writes",
         "amountCents is a positive integer",
         "inventory quantities are non-negative integers",
         ...(trace.result.decision === "REPLACEMENT" ? ["at least one sellable unit is available"] : []),
@@ -350,11 +369,8 @@ export class TraceForgeService {
           evidenceIds: [ruleEvidence],
         },
         {
-          ruleId: `RULE-${trace.input.itemCondition}-DISPOSITION`,
-          statement:
-            trace.input.itemCondition === "DAMAGED"
-              ? "A processed damaged return never increases sellable inventory and is placed in quarantine."
-              : "A processed sellable return may be restored to sellable inventory.",
+          ruleId: "RULE-DAMAGED-DISPOSITION",
+          statement: "Within this DAMAGED-only contract, a processed return never increases sellable inventory and is placed in quarantine.",
           confidence: 1,
           evidenceIds: [stateAfterEvidence, evidenceFor(trace, "side-effects.recorded")],
         },

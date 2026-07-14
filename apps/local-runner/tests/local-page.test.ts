@@ -10,7 +10,10 @@ test("failed verification diagnostics use only fixed command labels and commands
   assert.match(page, /Command output is not displayed; only its digests are included in the proof/);
   assert.doesNotMatch(page, /stdout\s*\+|stderr\s*\+/);
   assert.match(page, /Local gate/);
-  assert.match(page, /15 focused candidate tests \+ 7 differential scenarios/);
+  assert.match(page, /15 focused tests \+ 1 SELLABLE fail-closed probe \+ 7 differential scenarios/);
+  assert.match(page, /Host gates passed/);
+  assert.match(page, /SELLABLE fail-closed probe/);
+  assert.match(page, /OUTSIDE_EVIDENCE_BOUNDARY/);
   assert.match(page, /56 candidate-safe tests \+ 4 separate replay guards/);
   assert.match(page, /metric-tests/);
   assert.match(page, /Local executable/);

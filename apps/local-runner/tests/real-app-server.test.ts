@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import test from "node:test";
-import { promisify } from "node:util";
 import { spawnAppServer } from "../src/app-server-client.js";
 import { cleanupLocalFixture, prepareLocalFixture } from "../src/fixture.js";
 import {
@@ -11,15 +9,14 @@ import {
   writeCodexPermissionConfig,
 } from "../src/permissions.js";
 import { resolveLocalCodexExecutable } from "../src/runner-actions.js";
-
-const execFileAsync = promisify(execFile);
+import { createReleaseTaggedCheckout } from "./release-checkout.js";
 
 test(
   "real Codex App Server loads the pinned permission profile without global auth",
   { skip: process.env.TRACEFORGE_REAL_CODEX !== "1" },
   async (t) => {
-    const releaseCommit = (await execFileAsync("git", ["rev-parse", "HEAD"])).stdout.trim();
-    const fixture = await prepareLocalFixture(process.cwd(), releaseCommit);
+    const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
+    const fixture = await prepareLocalFixture(repoRoot, releaseCommit);
     t.after(() => cleanupLocalFixture(fixture));
     const config = await writeCodexPermissionConfig({
       codexHome: fixture.verifyCodexHome,

@@ -20,12 +20,14 @@ Open **Build live with your local Codex** on the public site, copy the command f
 macOS or Linux:
 
 ```bash
-EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error(`TraceForge Local Runner requires Node.js >=22.13.0; found ${process.versions.node}. Install Node.js 22.23.1, then rerun. No clone or installation was started.`); process.exit(64); }' && EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command clones the pinned `local-runner-v0.1.9` tag into a new temporary directory and refuses to continue unless it resolves to commit `a2ce8b2394caf5d1491c2b142f99a8421f3cec2d`. After that comparison succeeds, it exports the checked-out SHA as `TRACEFORGE_LOCAL_RELEASE_SHA`. The Runner independently compares that full value with `git rev-parse HEAD` before preparing a session, then binds the same SHA into `proof.runner.releaseCommit`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.7` tag if the pinned fixture commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2` is absent, then verifies that the tag peels to that manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
+The leading gate rejects Node.js 22.12 and older with exit code 64 before a clone or installation. The command then clones the pinned `local-runner-v0.1.9` tag into a new temporary directory and refuses to continue unless it resolves to commit `a2ce8b2394caf5d1491c2b142f99a8421f3cec2d`. After that comparison succeeds, it exports the checked-out SHA as `TRACEFORGE_LOCAL_RELEASE_SHA`. The Runner independently compares that full value with `git rev-parse HEAD` before preparing a session, then binds the same SHA into `proof.runner.releaseCommit`. It then installs both x64 and arm64 variants of required optional native tools and starts the Runner directly under the active Node binary so `Ctrl-C` remains owned by its cleanup handler. It binds a random-port server to `127.0.0.1` and opens its one-time bootstrap URL. The Runner fetches only the exact `local-runner-fixture-v0.1.7` tag if the pinned fixture commit `eb0e6169974b96bd3bff3b536b38ef5f665127c2` is absent, then verifies that the tag peels to that manifest SHA before use. If the browser does not open, use the localhost URL printed in the terminal.
 
-The two release identities have separate meanings. The **hosted demo release SHA** shown in the public footer and `/api/health` identifies the deployed API/web package. The **local executable release SHA** shown by the launcher, localhost preflight, and local proof identifies the exact checked-out Runner code that executed on the reviewer's machine. They may differ because the hosted deployment can move without changing an immutable Local Runner tag.
+`main` now contains the v0.1.10 release candidate with `engines.node >=22.13.0`, root and workspace preinstall gates, and a runtime gate that executes before the Runner module graph is loaded. Its verifier also adds a host-owned SELLABLE probe outside the pinned fixture: a passing candidate must reject that input with `OUTSIDE_EVIDENCE_BOUNDARY` before returning a result or side effects. Candidate policy requires that exact guard immediately after input validation, so the older fixture's permissive validator cannot make a guessing candidate pass. It must not be described as published or exercised until the immutable `local-runner-v0.1.10` tag and a fresh real-run evidence directory exist. The v0.1.9 command and evidence above remain the current published facts until that release ceremony is complete.
+
+The two release identities have separate meanings and separate names. The **hosted demo release** shown in the public footer and `/api/health` uses `traceforge-vX.Y.Z` plus the deployed commit SHA and build time; it identifies only the packaged API/web product. The **local executable release** shown by the launcher, localhost preflight, and local proof uses an immutable `local-runner-vX.Y.Z` tag plus the exact checked-out Runner commit. They may differ because the hosted deployment can move without changing an immutable Local Runner tag; neither identity is relabeled as the other.
 
 This is a one-terminal-command launch, not a browser-to-Codex connection. There is no public WebSocket into Codex, no custom protocol handler, and no cloud relay of the generated source, diff, proof, or credentials in this release.
 
@@ -40,7 +42,7 @@ That v0.1.9 run binds recorded archaeology to live migration `migration_efaa0383
 ## First-run requirements
 
 - Git.
-- Node.js `22.13.0` or newer; this is the first Node 22 release where `node:sqlite` is available without an experimental CLI flag.
+- Node.js `22.23.1` is recommended and pinned by `.nvmrc` and CI. The enforced minimum is `22.13.0`, the first Node 22 release where `node:sqlite` is available without an experimental CLI flag.
 - Corepack and the repository-pinned pnpm `10.33.2`.
 - Codex CLI exactly `0.144.1`, available as `codex` on `PATH`. Check with `codex --version`. To select a specific verified binary, set `TRACEFORGE_CODEX_BIN` to its executable path before launch.
 - A ChatGPT account whose Codex model list includes `gpt-5.6-sol`.
@@ -85,18 +87,19 @@ Set `TRACEFORGE_LOCAL_CODEX_HOME` only when a different dedicated directory is r
 
 The build Codex is not given the legacy implementation, verifier implementation, tests, or the post-turn verification-only input. The Runner also blocks turn-supplied sandbox overrides, arbitrary App Server methods, inherited shell environment, login shells, hooks, plugins, apps, browser/computer use, multi-agent features, and persistent history.
 
-The trusted Runner host performs a frozen, offline dependency check before verification and copies the already-policy-checked candidate into the temporary verifier worktree. The verifier then executes only these two bounded commands through the read-only verification profile:
+The trusted Runner host performs a frozen, offline dependency check before verification and copies the already-policy-checked candidate into the temporary verifier worktree. The v0.1.10 verifier then executes only these three bounded gates through the read-only verification profile:
 
 ```text
 corepack pnpm --filter @traceforge/api exec node --test --import tsx tests/champion-workflow.test.ts tests/workflow.test.ts
+host-owned direct candidate probe: SELLABLE must throw OUTSIDE_EVIDENCE_BOUNDARY with no result or side effects
 corepack pnpm --filter @traceforge/api exec node --import tsx scripts/verify-generated.ts
 ```
 
-The first command is the socket-free candidate gate (`15/15` focused tests in the verified v0.1.9 profile). The second emits the seven-scenario suite: six visible scenarios plus one host-generated verification-only scenario. Both run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
+The first command is the socket-free candidate gate (`15/15` focused tests in the verified v0.1.9 profile). The second is a v0.1.10 host-owned boundary gate that directly invokes the repaired function against SELLABLE on the old fixture and parses only the exact typed refusal. The third emits the seven-scenario DAMAGED suite: six visible scenarios plus one host-generated verification-only scenario. All run with `network.enabled = false`; the Runner does not enable local binding as a shortcut.
 
 The localhost confirmation and result views show this comparison explicitly:
 
-- **Local gate:** `15` focused candidate tests plus seven differential scenarios.
+- **Local gate in v0.1.10:** `15` focused candidate tests plus one SELLABLE fail-closed check (`16/16` host gates), followed by seven DAMAGED differential scenarios.
 - **Source champion gate:** `56` candidate-safe tests plus four separate replay-integrity guards.
 
 The local profile removes socket-requiring API harness checks so it can stay network-denied. It still executes the same seven business scenarios and `35` deterministic assertions used for the evidence-bounded conformance claim. Six successful rows compare decision, return status, refund amount, sellable quantity, and quarantine quantity. The exhausted-stock row instead compares failure status, failure code plus message, no return record, unchanged inventory, and zero side effects.
@@ -110,7 +113,7 @@ No generated code, diff, proof, token, or Codex history is uploaded to the publi
 3. If requested, complete the dedicated ChatGPT sign-in.
 4. Confirm that preflight reports Codex CLI `0.144.1`, `gpt-5.6-sol`, and **Ready**.
 5. Press **Start local build**.
-6. Watch the new Codex thread, candidate-policy check, post-turn input creation, candidate-safe tests, and seven-scenario differential verification.
+6. Watch the new Codex thread, candidate-policy check, post-turn input creation, candidate-safe tests, separate SELLABLE refusal gate, and seven-scenario differential verification.
 7. On success, open **Open proof bundle** and **Inspect diff** before deleting the session.
 8. Press **Cancel and delete session**, or stop the terminal with `Ctrl-C`.
 

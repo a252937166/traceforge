@@ -12,7 +12,7 @@ Use **Replay a verified run** for the judged video so the complete experiment fi
 
 ## 9–17 seconds — make the truth mode explicit
 
-**Screen:** Keep **Replay a verified run — interactive replay, recorded AI, fresh proof** selected, then click **Run the verified migration**. Keep the secured New live AI run boundary and evidence link in frame.
+**Screen:** Keep **Replay a verified run — interactive replay, recorded AI, fresh proof** selected, then click **Run the verified migration**. Keep the disclosure that no model call occurs during replay and the separate Local Runner evidence link in frame.
 
 **Narration:**
 

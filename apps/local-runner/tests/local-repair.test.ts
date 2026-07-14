@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { promisify } from "node:util";
 import {
   GENERATED_CANDIDATE_PATH,
   runCommand,
@@ -12,6 +10,7 @@ import { cleanupLocalFixture, prepareLocalFixture } from "../src/fixture.js";
 import {
   createCodexTurnFailureError,
   diagnoseLocalCommand,
+  parseEvidenceBoundaryVerification,
   runBoundedTrustedHostCommand,
   runLocalRepair,
   verifyLocalProofDigest,
@@ -22,8 +21,23 @@ import {
   TRACEFORGE_BUILD_PROFILE_ID,
   TRACEFORGE_VERIFY_PROFILE_ID,
 } from "../src/permissions.js";
+import { LOCAL_RUNNER_RELEASE_TAG } from "../src/manifest.js";
+import {
+  createReleaseTaggedCheckout,
+  gitOutput,
+} from "./release-checkout.js";
 
-const execFileAsync = promisify(execFile);
+const generatedFunctionInput = "export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecution {\n  const input = validateWorkflowInput(rawInput);\n";
+const evidenceBoundaryGuard = `  if (input.itemCondition !== "DAMAGED") {\n    throw Object.assign(\n      new Error("input is outside the evidence-bounded DAMAGED-only contract"),\n      { code: "OUTSIDE_EVIDENCE_BOUNDARY" },\n    );\n  }\n`;
+
+function withEvidenceBoundaryGuard(source: string): string {
+  const guarded = source.replace(
+    generatedFunctionInput,
+    `${generatedFunctionInput}${evidenceBoundaryGuard}`,
+  );
+  assert.notEqual(guarded, source);
+  return guarded;
+}
 
 test("Codex turn auth and usage failures collapse to fixed safe codes", () => {
   const reauthRaw = "Your access token could not be refreshed because your refresh token was revoked. Please log out and sign in again.";
@@ -146,6 +160,28 @@ test("command diagnostics expose a safe architecture code without raw output", (
   assert.doesNotMatch(diagnostic, /sk-do-not-show|Bearer/);
 });
 
+test("boundary probe parser accepts only the exact fail-closed evidence", () => {
+  const valid = JSON.stringify({
+    evidenceBoundary: {
+      status: "PASSED",
+      inputCondition: "SELLABLE",
+      supportedCondition: "DAMAGED",
+      failureCode: "OUTSIDE_EVIDENCE_BOUNDARY",
+      failureMessage: "input is outside the evidence-bounded DAMAGED-only contract",
+      resultReturned: false,
+      sideEffectsCount: 0,
+    },
+  });
+  assert.equal(
+    parseEvidenceBoundaryVerification(valid).failureCode,
+    "OUTSIDE_EVIDENCE_BOUNDARY",
+  );
+  assert.throws(
+    () => parseEvidenceBoundaryVerification(valid.replace('"sideEffectsCount":0', '"sideEffectsCount":1')),
+    /LOCAL_EVIDENCE_BOUNDARY_PROOF_INVALID/,
+  );
+});
+
 test("trusted-host commands terminate promptly when the session is aborted", async () => {
   const controller = new AbortController();
   const startedAt = Date.now();
@@ -179,14 +215,64 @@ test("trusted-host command timeouts are bounded and return a fixed diagnostic", 
   assert.ok(Date.now() - startedAt < 2_000, "timeout cleanup must remain bounded");
 });
 
-test("local repair turns recorded evidence into a fresh recomputable proof", async (t) => {
-  const releaseCommit = (await execFileAsync("git", ["rev-parse", "HEAD"])).stdout.trim();
-  const fixture = await prepareLocalFixture(process.cwd(), releaseCommit);
+test("local repair refuses to claim a release tag that moved after fixture preparation", async (t) => {
+  const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
+  const fixture = await prepareLocalFixture(repoRoot, releaseCommit);
   t.after(() => cleanupLocalFixture(fixture));
-  const repairedSource = await readFile(
+  await gitOutput(repoRoot, ["tag", "--delete", LOCAL_RUNNER_RELEASE_TAG]);
+  const events: string[] = [];
+
+  await assert.rejects(
+    runLocalRepair(
+      {
+        fixture,
+        buildAppServer: new FakeBuildClient(fixture.writerRoot, fixture.baseCandidateSource),
+        verifyAppServer: new FakeVerifyClient(),
+      },
+      (event) => {
+        events.push(event.type);
+      },
+    ),
+    /LOCAL_RELEASE_TAG_UNRESOLVED/,
+  );
+  assert.equal(events.includes("proof.completed"), false);
+  assert.equal(events.includes("repair.failed"), true);
+});
+
+test("local repair cannot issue a proof when the generated function omits the early boundary guard", async (t) => {
+  const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
+  const fixture = await prepareLocalFixture(repoRoot, releaseCommit);
+  t.after(() => cleanupLocalFixture(fixture));
+  const unguardedSource = await readFile(
     join(fixture.repoRoot, GENERATED_CANDIDATE_PATH),
     "utf8",
   );
+  const events: string[] = [];
+  await assert.rejects(
+    runLocalRepair(
+      {
+        fixture,
+        buildAppServer: new FakeBuildClient(fixture.writerRoot, unguardedSource),
+        verifyAppServer: new FakeVerifyClient(),
+      },
+      (event) => {
+        events.push(event.type);
+      },
+    ),
+    /LOCAL_CANDIDATE_EVIDENCE_BOUNDARY_GUARD_REQUIRED/,
+  );
+  assert.equal(events.includes("proof.completed"), false);
+  assert.equal(events.includes("repair.failed"), true);
+});
+
+test("local repair turns recorded evidence into a fresh recomputable proof", async (t) => {
+  const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
+  const fixture = await prepareLocalFixture(repoRoot, releaseCommit);
+  t.after(() => cleanupLocalFixture(fixture));
+  const repairedSource = withEvidenceBoundaryGuard(await readFile(
+    join(fixture.repoRoot, GENERATED_CANDIDATE_PATH),
+    "utf8",
+  ));
   const events: string[] = [];
   const result = await runLocalRepair(
     {
@@ -215,14 +301,29 @@ test("local repair turns recorded evidence into a fresh recomputable proof", asy
   assert.equal(result.proof.runner.releaseCommit, releaseCommit);
   assert.equal(result.proof.verification.suite?.summary.passed, 7);
   assert.equal(result.proof.verification.tests?.candidateSafeTotal, 15);
+  assert.deepEqual(result.proof.verification.evidenceBoundary, {
+    status: "PASSED",
+    inputCondition: "SELLABLE",
+    supportedCondition: "DAMAGED",
+    failureCode: "OUTSIDE_EVIDENCE_BOUNDARY",
+    failureMessage: "input is outside the evidence-bounded DAMAGED-only contract",
+    resultReturned: false,
+    sideEffectsCount: 0,
+  });
+  assert.deepEqual(result.proof.verification.hostGates, {
+    passed: 16,
+    total: 16,
+    focusedTests: 15,
+    evidenceBoundaryChecks: 1,
+  });
   assert.equal(result.proof.verification.commands[0]?.executor, "trusted-host");
   assert.deepEqual(
     result.proof.verification.commands.slice(1).map(({ executor }) => executor),
-    ["app-server", "app-server"],
+    ["app-server", "app-server", "app-server"],
   );
   assert.deepEqual(
     result.proof.verification.commands.map(({ diagnosticCode }) => diagnosticCode),
-    ["OK", "OK", "OK"],
+    ["OK", "OK", "OK", "OK"],
   );
   assert.equal(verifyLocalProofDigest(result.proof, releaseCommit), true);
   assert.equal(verifyLocalProofDigest(result.proof, "0".repeat(40)), false);

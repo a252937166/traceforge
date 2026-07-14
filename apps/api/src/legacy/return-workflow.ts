@@ -21,7 +21,10 @@ type SelectedRule = {
  * helper cannot accidentally make differential verification self-confirming.
  */
 export function executeLegacyReturnWorkflow(rawInput: unknown): WorkflowExecution {
-  const input = validateWorkflowInput(rawInput);
+  // The legacy oracle remains inspectable outside the migrated domain so its
+  // historical behavior is not rewritten. Every supported TraceForge host and
+  // candidate path uses the default fail-closed validator instead.
+  const input = validateWorkflowInput(rawInput, { allowOutsideEvidenceBoundary: true });
   const initial = input.initialInventory ?? { sellable: 10, quarantine: 0 };
   const before = { sku: input.sku, sellable: initial.sellable, quarantine: initial.quarantine };
   const after = { ...before };

@@ -6,7 +6,7 @@ It does not establish universal workflow equivalence or rerun paid model calls i
 
 ## One-command gate
 
-From a clean checkout with Node.js 22.13 or newer and pnpm 10.33.2:
+From a clean checkout with Node.js `>=22.13.0` and pnpm `10.33.2` (CI and `.nvmrc` pin Node `22.23.1`):
 
 ```bash
 pnpm install --frozen-lockfile
@@ -73,7 +73,7 @@ The same gate verifies:
 
 `pnpm acceptance:ui` builds the React app and inspects the emitted HTML, JavaScript, and CSS. The production bundle must contain:
 
-- the TraceForge Migration Loom identity;
+- the `TRACEFORGE / MIGRATION LOOM` product identity;
 - all three explicit execution modes;
 - the migration API and `EventSource` integration;
 - the counterexample and evidence-download surfaces;
@@ -131,13 +131,15 @@ API integration tests, run by `pnpm check`, exercise the truth boundary directly
 
 Fresh authenticated `live-ai` execution is intentionally outside the repeatable CI gate because it depends on model access, credentials, latency, and token usage. Its checked-in provenance is documented in [`evidence/live-champion-run/README.md`](evidence/live-champion-run/README.md).
 
-## Verify a checked-in proof directly
+## Verify historical and current proof versions explicitly
 
 ```bash
-pnpm proof:verify docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-integrity docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-envelope docs/evidence/live-champion-run/source-run-envelope-v2.json
+pnpm proof:verify-current path/to/a/fresh-proof.json
 ```
 
-The command exits non-zero if the internal proof digest does not match its canonical body.
+The integrity command exits non-zero if a historical object's internal digest does not match its canonical body; it does not claim current-schema conformance. The package-level compatibility form `pnpm --filter @traceforge/api proof:verify <historical-proof.json>` calls that verifier directly and is covered by an executable CLI test. The envelope command also verifies the original file bytes, the checked-in recorded verifier artifact's raw bytes, its unique successful final suite, the exact ordered scenario identities and per-scenario proof digests, recomputed coverage, `scenarioSetDigest`, host gate, and envelope digest. Its tests re-sign a changed per-row digest and still require rejection against the recorded suite, and separately exercise recorded-artifact byte and content tampering. The current-proof command requires all current `MigrationProofBundle` fields; enforces that scenario status, mismatch evidence, proof status, coverage, and host test totals agree in both directions; requires a fully green host gate for `PASSED`; and rejects re-signed semantic, schema, or scenario-set tampering. `hostVerification.scope` remains optional exactly as declared by the runtime type.
 
 ## Honest limits
 

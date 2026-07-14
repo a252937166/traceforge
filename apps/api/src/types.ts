@@ -88,6 +88,7 @@ export interface WorkflowTrace {
 
 export type WorkflowFailureCode =
   | "INSUFFICIENT_SELLABLE_STOCK"
+  | "OUTSIDE_EVIDENCE_BOUNDARY"
   | "UNEXPECTED_WORKFLOW_ERROR";
 
 /**

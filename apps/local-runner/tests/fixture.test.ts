@@ -8,11 +8,14 @@ import { promisify } from "node:util";
 import {
   assertDedicatedCodexHome,
   cleanupLocalFixture,
-  findRepoRoot,
   prepareLocalFixture,
   verifyCheckedOutReleaseCommit,
 } from "../src/fixture.js";
 import { LOCAL_RUNNER_MANIFEST } from "../src/manifest.js";
+import {
+  createReleaseTaggedCheckout,
+  gitOutput,
+} from "./release-checkout.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,8 +33,8 @@ test("fixture pins recorded inputs and physically separates writer from verifier
     await rm(durableRoot, { recursive: true, force: true });
   });
 
-  const releaseCommit = await checkedOutCommit();
-  const fixture = await prepareLocalFixture(process.cwd(), releaseCommit);
+  const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
+  const fixture = await prepareLocalFixture(repoRoot, releaseCommit);
   t.after(() => cleanupLocalFixture(fixture));
   assert.equal(fixture.releaseCommit, releaseCommit);
   assert.equal(fixture.inputEvidence.digest, LOCAL_RUNNER_MANIFEST.repairInputDigest);
@@ -45,9 +48,8 @@ test("fixture pins recorded inputs and physically separates writer from verifier
   await access(join(fixture.verifierRoot, "apps", "api", "tests", "champion-workflow.test.ts"));
 });
 
-test("release provenance fails closed unless the declared full SHA is the checked-out commit", async () => {
-  const repoRoot = await findRepoRoot();
-  const releaseCommit = await checkedOutCommit(repoRoot);
+test("release provenance binds the declared full SHA, checkout, and peeled release tag", async (t) => {
+  const { repoRoot, releaseCommit } = await createReleaseTaggedCheckout(t);
   assert.equal(
     await verifyCheckedOutReleaseCommit(repoRoot, releaseCommit),
     releaseCommit,
@@ -63,6 +65,22 @@ test("release provenance fails closed unless the declared full SHA is the checke
   await assert.rejects(
     verifyCheckedOutReleaseCommit(repoRoot, "0".repeat(40)),
     /LOCAL_RELEASE_SHA_MISMATCH/,
+  );
+
+  await gitOutput(repoRoot, [
+    "-c", "user.name=TraceForge Tests",
+    "-c", "user.email=tests@traceforge.invalid",
+    "commit", "--allow-empty", "--message", "move checkout without moving release tag",
+  ]);
+  const movedCheckout = await checkedOutCommit(repoRoot);
+  await assert.rejects(
+    verifyCheckedOutReleaseCommit(repoRoot, movedCheckout),
+    /LOCAL_RELEASE_TAG_COMMIT_MISMATCH/,
+  );
+  await gitOutput(repoRoot, ["tag", "--delete", "local-runner-v0.1.10"]);
+  await assert.rejects(
+    verifyCheckedOutReleaseCommit(repoRoot, movedCheckout),
+    /LOCAL_RELEASE_TAG_UNRESOLVED/,
   );
 });
 

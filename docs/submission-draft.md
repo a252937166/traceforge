@@ -74,7 +74,7 @@ After the turn, the host ran `56/56` candidate-safe tests. Four replay-source gu
 - **Replay a verified run** visibly streams the successful source run with its original timestamp and provenance. No model call occurs during playback, but the host suite executes again and issues fresh artifacts.
 - **Host-only proof** skips all model stages and claims only the host verification it actually runs.
 
-The public deployment keeps write-capable live adapters disabled. Its health response presents **New live AI run** as a deliberately secured capability, while the actionable verified replay remains selected and immediately runnable.
+The public deployment does not expose an anonymous live-model trigger. It leads with a disclosed replay that streams recorded GPT-5.6 and Codex provenance, then executes a fresh host proof. Reviewers who want a fresh Codex writing turn use the separately pinned, loopback-only Local Runner on their own machine.
 
 ## Challenges we ran into
 
@@ -94,6 +94,7 @@ The development evidence also preserves failures. One run timed out while starti
 - Six successful rows compare decision, status, refund, sellable inventory, and quarantine inventory; the stockout row compares failure status, code plus message, no return record, unchanged inventory, and zero side effects.
 - The successful live proof reports `7/7` scenarios, `35/35` assertions, zero mismatches, and digest `sha256:4be44d476f222ca492d025a13f296997148142471e2387d532c61479bc3703bc`.
 - Anyone can inspect the raw bounded GPT and Codex inputs and outputs, contract, failed-proof digests, accepted diff, host command log, and final proof.
+- Reviewers can optionally execute Build + Verify through the pinned Local Runner. The exercised release produced a fresh Codex thread, a one-file diff, a post-turn verification-only input, `15/15` focused tests, `7/7` scenarios, `35/35` assertions, and a digest-bound local proof.
 
 ## What we learned
 

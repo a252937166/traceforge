@@ -1,11 +1,31 @@
 #!/usr/bin/env node
-import { prepareLocalFixture } from "./fixture.js";
-import { openLocalRunnerPage, shouldOpenLocalRunnerPage } from "./open-browser.js";
-import { TraceForgeLocalActions } from "./runner-actions.js";
-import { startLocalRunnerServer, type LocalRunnerServer } from "./local-server.js";
-import { LocalRunnerSession } from "./session.js";
+import { createRequire } from "node:module";
+import type { LocalRunnerServer } from "./local-server.js";
+
+const require = createRequire(import.meta.url);
+const { assertSupportedNodeVersion } = require("../../../scripts/check-node-version.cjs") as {
+  assertSupportedNodeVersion(version?: string): void;
+};
+
+// Keep this check before dynamically importing the Runner graph. Older Node 22
+// releases must receive a useful error instead of failing while linking
+// `node:sqlite` or another runtime-only dependency.
+assertSupportedNodeVersion(process.versions.node);
 
 async function main(): Promise<void> {
+  const [
+    { prepareLocalFixture },
+    { openLocalRunnerPage, shouldOpenLocalRunnerPage },
+    { TraceForgeLocalActions },
+    { startLocalRunnerServer },
+    { LocalRunnerSession },
+  ] = await Promise.all([
+    import("./fixture.js"),
+    import("./open-browser.js"),
+    import("./runner-actions.js"),
+    import("./local-server.js"),
+    import("./session.js"),
+  ]);
   const fixture = await prepareLocalFixture();
   const actions = new TraceForgeLocalActions(fixture);
   const session = new LocalRunnerSession(actions);

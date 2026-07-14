@@ -529,6 +529,9 @@ export function validateCodexRepairInput(input: CodexRepairInput): void {
   ) {
     throw new Error("CODEX_REPAIR_REJECTS_HIDDEN_SCENARIOS");
   }
+  if (input.visibleScenarios.some(({ input: scenarioInput }) => scenarioInput.itemCondition !== "DAMAGED")) {
+    throw new Error("CODEX_REPAIR_REJECTS_OUTSIDE_EVIDENCE_BOUNDARY");
+  }
   const visibleIds = new Set(input.visibleScenarios.map(({ id }) => id));
   if (visibleIds.size !== input.visibleScenarios.length) {
     throw new Error("CODEX_REPAIR_REQUIRES_UNIQUE_VISIBLE_SCENARIOS");
@@ -633,6 +636,13 @@ Hard constraints:
 - The only repository file you may edit is ${GENERATED_CANDIDATE_PATH}.
 - Do not change executeSeededReturnWorkflow. Repair executeGeneratedReturnWorkflow's complete decision tree and side effects.
 - Treat the contract as the requirement and the proofs as evidence; do not invent rules that are absent from them.
+- The contract is DAMAGED-only; do not infer SELLABLE behavior. Immediately after validateWorkflowInput(rawInput), before initial state, persistence data, or side-effect arrays are created, add exactly this guard:
+  if (input.itemCondition !== "DAMAGED") {
+    throw Object.assign(
+      new Error("input is outside the evidence-bounded DAMAGED-only contract"),
+      { code: "OUTSIDE_EVIDENCE_BOUNDARY" },
+    );
+  }
 - Do not inspect repository tests, the legacy/oracle implementation, verifier internals, or host-only inputs.
 - Do not edit tests, package files, lockfiles, any .traceforge input, or any other file.
 - Do not use network access, commit, push, merge, deploy, or create another worktree.

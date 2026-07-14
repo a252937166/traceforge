@@ -1,4 +1,4 @@
-# TraceForge Migration Loom
+# TraceForge
 
 [![verify](https://github.com/a252937166/traceforge/actions/workflows/ci.yml/badge.svg)](https://github.com/a252937166/traceforge/actions/workflows/ci.yml)
 
@@ -10,7 +10,17 @@ TraceForge is an **evidence-bounded behavior migration system**. It turns observ
 
 The current executable laboratory is deliberately narrow: one Web returns workflow, REST, and SQLite. It is not a claim that arbitrary software can already be migrated. It demonstrates the hard part of that product honestly: preserving uncertainty, finding a hidden priority rule, rejecting an incomplete implementation, and issuing a proof limited to the scenarios actually executed.
 
-TraceForge Migration Loom is the distinctive project name used for this OpenAI Build Week entry. It is built by **ouyangduning** as a solo project; the GitHub organization/account and video channel linked below are publication surfaces for the same entry.
+**Migration Loom** is the name of TraceForge's judge-facing product experience: the evidence-custody path from recorded behavior to a bounded candidate and fresh host proof. TraceForge is built by **ouyangduning** as a solo project; the GitHub organization/account and video channel linked below are publication surfaces for the same entry.
+
+## How Codex & GPT-5.6 were used
+
+| System | Real role in the project | Verifiable output |
+| --- | --- | --- |
+| **GPT-5.6 Sol** | Four read-only, schema-constrained behavior-archaeology turns: propose competing hypotheses, choose discriminating counterexamples, and critique the final evidence-linked contract. The host—not the model—executes every proposed input. | `121,673` tokens of bounded inputs and structured outputs, with thread IDs, cited evidence IDs, and content digests in the [champion run evidence](docs/evidence/live-champion-run/README.md). |
+| **OpenAI Codex SDK** | One isolated code-writing turn receives the resolved contract, four preserved failed proofs, and disclosed scenarios. It may repair only `apps/api/src/candidates/generated-return-workflow.ts`; it cannot edit the verifier, commit, push, deploy, or decide that it passed. | Codex thread `019f5244-7bef-71f2-8f25-8ed1446a539e`, its exact immutable inputs, accepted one-file diff, and host command log are checked in with the evidence. |
+| **TraceForge host verifier** | Materializes a concrete verification-only input after the Codex turn, resets both systems, and compares deterministic decisions plus SQLite side effects. | `7/7` scenarios, `35/35` assertions, zero mismatches, and a downloadable digest-bound proof. |
+
+GPT-5.6 is therefore the behavior investigator, Codex is the constrained implementer, and neither is allowed to certify its own result.
 
 ## The five-stage run
 
@@ -46,13 +56,16 @@ Six successful rows compare decision, return status, refund amount, sellable qua
 
 The checked-in evidence directory is the successful **live-ai** source run. The public UI leads with **Replay a verified run** (`recorded-replay`): it streams the disclosed model events with their original provenance, then executes the differential suite again and issues fresh artifacts. No GPT or Codex call is implied to be running during replay. A new live run remains a secured, credentialled capability rather than an anonymous public trigger.
 
-Verify the proof digest locally:
+Verify the untouched historical proof and its derived v2 scenario-set envelope locally:
 
 ```bash
-pnpm proof:verify docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-integrity docs/evidence/live-champion-run/proof.json
+pnpm proof:verify-envelope docs/evidence/live-champion-run/source-run-envelope-v2.json
 ```
 
-Expected result:
+Both commands return `valid: true`. The first checks only the original object's canonical digest; the second binds its exact bytes and the checked-in recorded verifier artifact's exact bytes to the seven ordered per-scenario proof digests, then parses the artifact's unique final suite and recomputes coverage, scenario-set digest, and the split `56/56 + 4 replay guards` host gate. Fresh proofs issued by the hardened runtime use `pnpm proof:verify-current <proof.json>`.
+
+Historical integrity result:
 
 ```json
 {
@@ -69,20 +82,20 @@ Reviewers can run the bounded **Build + Verify** stages with their own local Cod
 macOS or Linux:
 
 ```bash
-EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error(`TraceForge Local Runner requires Node.js >=22.13.0; found ${process.versions.node}. Install Node.js 22.23.1, then rerun. No clone or installation was started.`); process.exit(64); }' && EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch local-runner-v0.1.9 https://github.com/a252937166/traceforge.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts
 ```
 
-The command verifies that the pinned `local-runner-v0.1.9` tag resolves to commit `a2ce8b2394caf5d1491c2b142f99a8421f3cec2d` before installation, then exports and binds that checked-out SHA into the local proof. The resulting provenance is explicit: GPT-5.6 archaeology is recorded source evidence, while the `gpt-5.6-sol` Codex build, post-turn verification-only input, deterministic host verification, diff, and proof are fresh on the reviewer's machine. Preflight forces a credential refresh and fails closed when Codex reports a reached usage limit. The Runner uses a dedicated ChatGPT sign-in, never reads global `~/.codex/auth.json`, permits one candidate file to change, and disables agent command network and Git publication operations.
+The leading gate rejects Node.js 22.12 and older with exit code 64 before cloning or installing anything. The command then verifies that the pinned `local-runner-v0.1.9` tag resolves to commit `a2ce8b2394caf5d1491c2b142f99a8421f3cec2d` before installation, exports that checked-out SHA, and binds it into the local proof. The resulting provenance is explicit: GPT-5.6 archaeology is recorded source evidence, while the `gpt-5.6-sol` Codex build, post-turn verification-only input, deterministic host verification, diff, and proof are fresh on the reviewer's machine. Preflight forces a credential refresh and fails closed when Codex reports a reached usage limit. The Runner uses a dedicated ChatGPT sign-in, never reads global `~/.codex/auth.json`, permits one candidate file to change, and disables agent command network and Git publication operations.
 
 The pinned v0.1.9 Local Runner executes `15` focused candidate tests plus seven differential scenarios. The source champion gate contains `56` candidate-safe tests plus four separate replay-integrity guards. The local path narrows the host harness for a socket-free verifier; it retains all seven business scenarios and their `35` assertions. The linked v0.1.6 evidence remains an explicitly historical `13`-test, six-scenario run rather than proof of the current profile.
 
 The optional hands-on path has been exercised from a fresh `local-runner-v0.1.9` clone through the actual loopback UI with a real `gpt-5.6-sol` Codex turn. It passed `15/15` focused tests, `7/7` scenarios, `35/35` assertions—including `5/5` exhausted-stock failure assertions—with zero mismatches. Proof `sha256:0218e92475eb2c08cd875e2a5363ff6a0b71800d17503b5fb5381387d544453b` binds thread `019f5288-3b94-7a71-a087-032825fff3fa`; diff `sha256:5c51b3f7bd93a75c5dbeeb1d82b47086480d92a49ace52d26dc451479082386f` binds the one allowed change. UI deletion removed the session, writer, verifier, worktree, lock, and loopback server. See the [sanitized v0.1.9 run evidence](docs/evidence/local-runner-v0.1.9/README.md); the [v0.1.6 evidence](docs/evidence/local-runner-v0.1.6/README.md) is retained as historical context.
 
-Requires Node.js `22.13+`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. Node 22.13 is the minimum because it is the first Node 22 release that exposes `node:sqlite` without a command-line flag. A public browser cannot silently start local Codex, so the terminal launch is required on first use. Windows is not supported by this verified release. See [docs/local-runner.md](docs/local-runner.md) for exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
+Requires Node.js `>=22.13.0`, Corepack/pnpm `10.33.2`, Git, Codex CLI exactly `0.144.1`, and access to `gpt-5.6-sol`. Node `22.23.1` is pinned in `.nvmrc` and CI and is the recommended reviewer version; Node 22.13 is the minimum because it is the first Node 22 release that exposes `node:sqlite` without a command-line flag. A public browser cannot silently start local Codex, so the terminal launch is required on first use. Windows is not supported by this verified release. See [docs/local-runner.md](docs/local-runner.md) for exact read/write/network/Git boundaries, artifacts, cleanup, and troubleshooting. The [hosted replay](https://traceforge.axiqo.xyz) remains the zero-install fallback.
 
 ## Run it
 
-Requires Node.js 22.13 or newer and pnpm 10.33.2. Node 22.13+ is required because the API uses the unflagged `node:sqlite` module.
+Requires Node.js `>=22.13.0` and pnpm `10.33.2`; Node `22.23.1` is pinned for development and CI. The minimum is required because the API uses the unflagged `node:sqlite` module.
 
 ```bash
 corepack enable

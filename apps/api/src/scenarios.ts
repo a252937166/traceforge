@@ -3,6 +3,32 @@ import type { ReturnWorkflowInput, Scenario } from "./types.js";
 
 const inventory = { sellable: 10, quarantine: 0 } as const;
 
+export const EVIDENCE_BOUNDED_ITEM_CONDITION = "DAMAGED" as const;
+
+/**
+ * Raised by the host before it initializes or mutates business state.
+ *
+ * The controlled legacy oracle can still describe historical SELLABLE
+ * behavior when imported directly for archaeology. TraceForge's supported
+ * migration boundary deliberately refuses to extrapolate that behavior into
+ * the replacement because the canonical contract contains DAMAGED evidence
+ * only.
+ */
+export class OutsideEvidenceBoundaryError extends Error {
+  readonly code = "OUTSIDE_EVIDENCE_BOUNDARY" as const;
+
+  constructor(readonly itemCondition: unknown) {
+    super("input is outside the evidence-bounded DAMAGED-only contract");
+    this.name = "OutsideEvidenceBoundaryError";
+  }
+}
+
+export function assertWithinEvidenceBoundary(input: ReturnWorkflowInput): void {
+  if (input.itemCondition !== EVIDENCE_BOUNDED_ITEM_CONDITION) {
+    throw new OutsideEvidenceBoundaryError(input.itemCondition);
+  }
+}
+
 /**
  * The experiment corpus is deliberately ordered by disclosure:
  *
@@ -183,7 +209,10 @@ export function findScenario(id: string): Scenario | undefined {
   return scenarios.find((scenario) => scenario.id === canonicalId);
 }
 
-export function validateWorkflowInput(value: unknown): ReturnWorkflowInput {
+export function validateWorkflowInput(
+  value: unknown,
+  options: { allowOutsideEvidenceBoundary?: boolean } = {},
+): ReturnWorkflowInput {
   if (!value || typeof value !== "object") {
     throw new Error("input must be an object");
   }
@@ -209,7 +238,7 @@ export function validateWorkflowInput(value: unknown): ReturnWorkflowInput {
   ) {
     throw new Error("initialInventory quantities must be non-negative integers");
   }
-  return {
+  const validated: ReturnWorkflowInput = {
     returnId: input.returnId,
     sku: input.sku,
     amountCents: input.amountCents as number,
@@ -217,4 +246,8 @@ export function validateWorkflowInput(value: unknown): ReturnWorkflowInput {
     itemCondition: input.itemCondition,
     initialInventory: { ...initialInventory },
   };
+  if (!options.allowOutsideEvidenceBoundary) {
+    assertWithinEvidenceBoundary(validated);
+  }
+  return validated;
 }
