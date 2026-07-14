@@ -1,0 +1,95 @@
+diff --git a/apps/api/src/candidates/generated-return-workflow.ts b/apps/api/src/candidates/generated-return-workflow.ts
+index dfa7a0c..af0335e 100644
+--- a/apps/api/src/candidates/generated-return-workflow.ts
++++ b/apps/api/src/candidates/generated-return-workflow.ts
+@@ -96,6 +96,12 @@ export function executeSeededReturnWorkflow(rawInput: unknown): WorkflowExecutio
+  */
+ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecution {
+   const input = validateWorkflowInput(rawInput);
++  if (input.itemCondition !== "DAMAGED") {
++    throw Object.assign(
++      new Error("input is outside the evidence-bounded DAMAGED-only contract"),
++      { code: "OUTSIDE_EVIDENCE_BOUNDARY" },
++    );
++  }
+   const initial = input.initialInventory ?? { sellable: 10, quarantine: 0 };
+   const before = { sku: input.sku, sellable: initial.sellable, quarantine: initial.quarantine };
+   const after = { ...before };
+@@ -104,43 +110,36 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
+   let status: WorkflowResult["returnRecord"]["status"];
+   let refundCents = 0;
+ 
+-  // Preserve the observed VIP replacement branch. This pre-Codex fixture is
+-  // deliberately incomplete: tier currently outranks the high-value hold.
+-  if (input.customerTier === "VIP") {
++  if (input.amountCents >= 50_000) {
++    selected = {
++      decision: "MANUAL_REVIEW",
++      ruleId: "RULE-HIGH-VALUE-REVIEW",
++      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
++    };
++    status = "PENDING_REVIEW";
++    sideEffects.push({
++      type: "REVIEW_QUEUE",
++      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
++    });
++  } else if (input.customerTier === "VIP") {
+     selected = {
+       decision: "REPLACEMENT",
+       ruleId: "RULE-VIP-REPLACEMENT",
+       statement: "Eligible VIP returns receive a replacement instead of a refund.",
+     };
+     if (after.sellable < 1) {
+-      throw new Error("replacement cannot be issued without sellable stock");
++      throw Object.assign(
++        new Error("replacement cannot be issued without sellable stock"),
++        { code: "INSUFFICIENT_SELLABLE_STOCK" },
++      );
+     }
+     status = "REPLACEMENT_ISSUED";
+     after.sellable -= 1;
+     sideEffects.push({ type: "SHIPMENT", detail: { sku: input.sku, quantity: 1 } });
+-    if (input.itemCondition === "DAMAGED") {
+-      after.quarantine += 1;
+-      sideEffects.push({
+-        type: "INVENTORY_MOVE",
+-        detail: { destination: "QUARANTINE", quantity: 1 },
+-      });
+-    } else {
+-      after.sellable += 1;
+-      sideEffects.push({
+-        type: "INVENTORY_MOVE",
+-        detail: { destination: "SELLABLE", quantity: 1 },
+-      });
+-    }
+-  } else if (input.amountCents >= 50_000) {
+-    selected = {
+-      decision: "MANUAL_REVIEW",
+-      ruleId: "RULE-HIGH-VALUE-REVIEW",
+-      statement: "Returns worth at least 50,000 cents require manual review before side effects.",
+-    };
+-    status = "PENDING_REVIEW";
++    after.quarantine += 1;
+     sideEffects.push({
+-      type: "REVIEW_QUEUE",
+-      detail: { queue: "HIGH_VALUE", amountCents: input.amountCents },
++      type: "INVENTORY_MOVE",
++      detail: { destination: "QUARANTINE", quantity: 1 },
+     });
+   } else {
+     selected = {
+@@ -155,12 +154,10 @@ export function executeGeneratedReturnWorkflow(rawInput: unknown): WorkflowExecu
+       detail: { amountCents: input.amountCents },
+     });
+ 
+-    // Deliberate fixture defect: refunded damaged inventory is restored to
+-    // sellable stock instead of quarantine.
+-    after.sellable += 1;
++    after.quarantine += 1;
+     sideEffects.push({
+       type: "INVENTORY_MOVE",
+-      detail: { destination: "SELLABLE", quantity: 1 },
++      detail: { destination: "QUARANTINE", quantity: 1 },
+     });
+   }
+ 

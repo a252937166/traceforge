@@ -1,0 +1,310 @@
+{
+  "version": "traceforge.local-proof.v1",
+  "proofId": "local_proof_8f9fbfd0-6c40-4a27-94d4-f30e74ca72a5",
+  "sessionId": "local_8697fa7b-b370-470c-8538-ed2477285340",
+  "status": "PASSED",
+  "claim": "Evidence-bounded local Codex rebuild passed 15 focused tests, one host-owned non-DAMAGED refusal gate, and the seven-scenario DAMAGED suite.",
+  "provenance": {
+    "archaeology": "recorded-gpt-5.6",
+    "build": "live-local-codex",
+    "verification": "live-local-host",
+    "sourceRunId": "migration_efaa0383-628a-4fba-94df-96bfe344bcbe"
+  },
+  "runner": {
+    "version": "0.1.10",
+    "releaseTag": "local-runner-v0.1.10",
+    "releaseCommit": "d9b0d853acc7cab36eba859a778763c231e37325",
+    "manifestDigest": "sha256:7123935c0dc6e34898dff59dba09ff2bc13d0b4c40fa33b7e39d9900de4cab12",
+    "buildPermissionProfile": "traceforge-build",
+    "verifyPermissionProfile": "traceforge-verify"
+  },
+  "codex": {
+    "model": "gpt-5.6-sol",
+    "threadId": "019f5eb8-3394-7bc0-ae68-0c134f314c7f",
+    "turnId": "019f5eb8-33c2-7422-97dc-50634eebc484",
+    "turnCompletedAt": "2026-07-14T03:43:53.753Z",
+    "usage": {
+      "totalTokens": 30494,
+      "inputTokens": 30329,
+      "cachedInputTokens": 28416,
+      "outputTokens": 165,
+      "reasoningOutputTokens": 42
+    }
+  },
+  "repairInput": {
+    "digest": "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+    "contractDigest": "sha256:235acdcc4a120bf5965035dc8c43658dac534a4f85da7bbc78b26c01fcafc716",
+    "failedProofDigests": [
+      "sha256:f242aabce2cb8b436593070a3f0b1c26451909e5d318518eab60e62dd5029502",
+      "sha256:409b421be3e1285dc4d9cc814ef87b7915c6682b10cd00acd665b61744d8d7d1",
+      "sha256:5861c57d1dc16e61697b01cc3ead70c7548fdfead197994774d7861e29788906",
+      "sha256:b3ea08c0626d2bb02d78bc27d0697a7b1faec141e4fb15849a41048e8fed697a"
+    ],
+    "visibleScenarioIds": [
+      "observed-standard-damaged-4500",
+      "observed-vip-damaged-12000",
+      "counterexample-vip-damaged-50000",
+      "counterexample-vip-damaged-no-sellable",
+      "boundary-standard-damaged-49999",
+      "boundary-standard-damaged-50000",
+      "live-covered-high-migration_efaa0383-628a-4fba-94df-96bfe344bcbe"
+    ]
+  },
+  "candidate": {
+    "path": "apps/api/src/candidates/generated-return-workflow.ts",
+    "baseSourceDigest": "sha256:05844477fc80904aebf51825c10f20611c8f6a1dc2af117079a17dc60bf2503f",
+    "sourceDigest": "sha256:d366ae9137600207a2b28e92468d5550b07692fedc75e976c31144ce065727db",
+    "diffDigest": "sha256:5b996c8e70acf203fd41e0c8062ea8714397b22059e080738a6d3da293e37567",
+    "changedFiles": [
+      "apps/api/src/candidates/generated-return-workflow.ts"
+    ],
+    "policy": {
+      "sourceDigest": "sha256:d366ae9137600207a2b28e92468d5550b07692fedc75e976c31144ce065727db",
+      "changedFunction": "executeGeneratedReturnWorkflow",
+      "allowedImports": [
+        "../scenarios.js",
+        "../types.js"
+      ],
+      "evidenceBoundary": {
+        "itemCondition": "DAMAGED",
+        "rejectionCode": "OUTSIDE_EVIDENCE_BOUNDARY",
+        "beforeBusinessLogic": true
+      }
+    },
+    "structuredOutputDigest": "sha256:470bf861ff769cb8f329de5846584049f338672e8c6dd3e75946d563ba2d3a84"
+  },
+  "verification": {
+    "inputCreatedAt": "2026-07-14T03:43:55.459Z",
+    "nonceDigest": "sha256:d95de8e94de876222aa73a6ec3f03109f85ce014099147b67dda540f4f29027a",
+    "commands": [
+      {
+        "name": "install",
+        "executor": "trusted-host",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "install",
+          "--offline",
+          "--frozen-lockfile"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:a3a59261482019d0f5ba3a8e5e998591c423753d8842771fce5b27df4fc80a6f",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "apiTests",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--test",
+          "--import",
+          "tsx",
+          "tests/champion-workflow.test.ts",
+          "tests/workflow.test.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:c200d97179b959785557dc5c51ccea8a816216782b2ebe274b1d7d6167586217",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "boundaryProbe",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--input-type=module",
+          "--import",
+          "tsx",
+          "--eval",
+          "const { executeGeneratedReturnWorkflow } = await import(\"./src/candidates/generated-return-workflow.ts\");\nconst input = {\n  returnId: \"RET-HOST-BOUNDARY-SELLABLE\",\n  sku: \"SKU-HOST-BOUNDARY-SELLABLE\",\n  amountCents: 12000,\n  customerTier: \"VIP\",\n  itemCondition: \"SELLABLE\",\n  initialInventory: { sellable: 10, quarantine: 0 },\n};\ntry {\n  const result = executeGeneratedReturnWorkflow(input);\n  throw new Error(\"LOCAL_EVIDENCE_BOUNDARY_RETURNED_RESULT:\" + JSON.stringify({\n    decision: result?.result?.decision ?? null,\n    sideEffectsCount: Array.isArray(result?.result?.sideEffects) ? result.result.sideEffects.length : null,\n  }));\n} catch (error) {\n  if (error?.code !== \"OUTSIDE_EVIDENCE_BOUNDARY\") throw error;\n  if (error?.message !== \"input is outside the evidence-bounded DAMAGED-only contract\") throw error;\n  console.log(JSON.stringify({\n    evidenceBoundary: {\n      status: \"PASSED\",\n      inputCondition: \"SELLABLE\",\n      supportedCondition: \"DAMAGED\",\n      failureCode: error.code,\n      failureMessage: error.message,\n      resultReturned: false,\n      sideEffectsCount: 0,\n    },\n  }));\n}"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:6a313ea6680b66120e9b4a139e409cfd8a256ba893a5f5e71eca528b4233064e",
+        "stderrDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "diagnosticCode": "OK"
+      },
+      {
+        "name": "generatedSuite",
+        "executor": "app-server",
+        "argv": [
+          "corepack",
+          "pnpm",
+          "--filter",
+          "@traceforge/api",
+          "exec",
+          "node",
+          "--import",
+          "tsx",
+          "scripts/verify-generated.ts"
+        ],
+        "exitCode": 0,
+        "stdoutDigest": "sha256:7a4e52b83e8a25bc2bc8f9aa77308956f3b5bdfa9d95463c963ae5f0a7b7f31c",
+        "stderrDigest": "sha256:bff41b05c9b555f0b5a4026011819ebbc0deacbc7296964d0d5b52162e06c2a8",
+        "diagnosticCode": "OK"
+      }
+    ],
+    "tests": {
+      "discovered": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "candidateSafeTotal": 15
+    },
+    "evidenceBoundary": {
+      "status": "PASSED",
+      "inputCondition": "SELLABLE",
+      "supportedCondition": "DAMAGED",
+      "failureCode": "OUTSIDE_EVIDENCE_BOUNDARY",
+      "failureMessage": "input is outside the evidence-bounded DAMAGED-only contract",
+      "resultReturned": false,
+      "sideEffectsCount": 0
+    },
+    "hostGates": {
+      "passed": 16,
+      "total": 16,
+      "focusedTests": 15,
+      "evidenceBoundaryChecks": 1
+    },
+    "suite": {
+      "repairInputDigest": "sha256:afe5ac02691e8929f1600f00bf57247b1915da88b759892087deb3b6e81755b8",
+      "candidateVersion": "generated",
+      "status": "PASSED",
+      "expectedScenarioIds": [
+        "observed-standard-damaged-4500",
+        "observed-vip-damaged-12000",
+        "counterexample-vip-damaged-50000",
+        "counterexample-vip-damaged-no-sellable",
+        "boundary-standard-damaged-49999",
+        "boundary-standard-damaged-50000",
+        "host-hidden-76222aa73a6e"
+      ],
+      "summary": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "runs": [
+        {
+          "scenarioId": "observed-standard-damaged-4500",
+          "partition": "observed",
+          "runId": "run_36b3a543-a76f-45e1-8e42-cabfa8b981a1",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_00f95e07-8ade-487b-be03-92cd358a2623",
+          "proofDigest": "sha256:9aa46ff67815bd3a8b6be3d444be3748d10b197e777a538394be01a1863a73ba",
+          "legacyTraceId": "trace_322fe029-d751-41a9-990f-8b7bea0c4983",
+          "candidateTraceId": "trace_e6f863b8-f6fd-41f8-b7d2-9d8c7b279f14",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "observed-vip-damaged-12000",
+          "partition": "observed",
+          "runId": "run_b88b8456-1ee9-417b-9595-aed6d1dc0c52",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_84107e95-82df-4265-ba3e-e51d3708e12a",
+          "proofDigest": "sha256:155b8d2d54767ec812752ab66424ef8314ba86536d5dd3a9c5315c97a64e3295",
+          "legacyTraceId": "trace_0dd86e31-3d79-453e-80fb-f6a52bbe092a",
+          "candidateTraceId": "trace_deaf9b05-ab19-4b6b-ad0c-913673fc301c",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "counterexample-vip-damaged-50000",
+          "partition": "counterexample",
+          "runId": "run_5aaa1fc5-2f96-468b-aadd-b100aca5858f",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_4769bec6-c8d2-41ef-812d-a2d50782fdd6",
+          "proofDigest": "sha256:52edda35fe9acbe9c883202a261160f6a03446bbbffb873c9979dad72a7a564c",
+          "legacyTraceId": "trace_353a6383-3549-4773-854b-225eb1c949ec",
+          "candidateTraceId": "trace_3cd72a6d-6ec3-4f28-991b-d06061570536",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "counterexample-vip-damaged-no-sellable",
+          "partition": "counterexample",
+          "runId": "run_967397f3-7ca7-402b-9eb6-a7deaaa3469d",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_503b77c7-c39a-4a20-9cec-2ae598b1cace",
+          "proofDigest": "sha256:2d3538609fbfef7e2a91999a957287d0995e822b65646b3b719999c988782120",
+          "legacyTraceId": "trace_e52b1efa-f397-446c-b8fc-b888e0aa75c2",
+          "candidateTraceId": "trace_95ba75a8-ef1b-4bfd-8469-95e4ca352ccc",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-49999",
+          "partition": "boundary",
+          "runId": "run_56bc3854-e4d0-42b2-984b-7c05a84bfcf7",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_9e42e4b6-5095-41e8-b725-158510a5aabc",
+          "proofDigest": "sha256:2b71ee4815f5a7e76ad7ec1177881cf003b1fc510b98e79c57e0e3aef73da8c2",
+          "legacyTraceId": "trace_ecb539b6-4117-40e3-b794-e9a8900d08dd",
+          "candidateTraceId": "trace_0cea708c-8071-40c5-84a7-09a911eeb4f3",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "boundary-standard-damaged-50000",
+          "partition": "boundary",
+          "runId": "run_03f3fce9-59b7-46dd-b033-0e4c1bddec00",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_646a840d-2301-45be-b1fc-50eabf8d1768",
+          "proofDigest": "sha256:41541a08d705b69d5ec661bd3fe74b45c3fa683b0f2137e64972db7e2fd546d8",
+          "legacyTraceId": "trace_ee2b951a-ffc6-4760-9c45-ffbe239d7a8f",
+          "candidateTraceId": "trace_d8b72805-ac93-4c6d-be43-15aa860bc225",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        },
+        {
+          "scenarioId": "host-hidden-76222aa73a6e",
+          "partition": "held-out",
+          "runId": "run_43b05bea-9d85-49f2-bde0-f0d8af80e865",
+          "status": "PASSED",
+          "implementationId": "replacement.return-workflow.generated-candidate",
+          "proofId": "proof_43921a2c-2f53-41c3-86d0-e649a33be72c",
+          "proofDigest": "sha256:f1815ce73ccc61feb8fad06d71e9104195c52db5fee38c1103f3a690cda63cf7",
+          "legacyTraceId": "trace_7c150821-ae87-4e45-84bd-0422d637de01",
+          "candidateTraceId": "trace_677ca5e3-fa5d-47aa-96e5-6ed40c80e528",
+          "assertionCount": 5,
+          "mismatchCount": 0,
+          "proofPersisted": true
+        }
+      ]
+    },
+    "suiteValidation": {
+      "passed": true,
+      "problems": []
+    }
+  },
+  "limitations": [
+    "Recorded GPT-5.6 archaeology is source evidence; only the Codex build and host verification ran live on this machine.",
+    "The proof covers the seven executed DAMAGED-return scenarios, five asserted behavior fields per scenario, atomic exhausted-stock failure, and one separate host-owned SELLABLE refusal probe.",
+    "SHA-256 provides recomputable integrity, not identity, timestamping, or non-repudiation."
+  ],
+  "generatedAt": "2026-07-14T03:43:56.826Z",
+  "digest": "sha256:b67ba62f1e5cae421d96e8b28596a456f5234f8a303a070e67dcf5244832c272"
+}
