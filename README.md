@@ -8,6 +8,8 @@ TraceForge is an **evidence-bounded behavior migration system**. It turns observ
 
 **Hosted showcase:** [traceforge.axiqo.xyz](https://traceforge.axiqo.xyz)
 
+**2:44 judge demo:** [GPT-5.6 discovers the rules, Codex rebuilds, the host verifies](https://youtu.be/xQnKzDhUCl0)
+
 The current executable laboratory is deliberately narrow: one Web returns workflow, REST, and SQLite. It is not a claim that arbitrary software can already be migrated. It demonstrates the hard part of that product honestly: preserving uncertainty, finding a hidden priority rule, rejecting an incomplete implementation, and issuing a proof limited to the scenarios actually executed.
 
 **Migration Loom** is the name of TraceForge's judge-facing product experience: the evidence-custody path from recorded behavior to a bounded candidate and fresh host proof. TraceForge is built by **ouyangduning** as a solo project; the GitHub organization/account and video channel linked below are publication surfaces for the same entry.
