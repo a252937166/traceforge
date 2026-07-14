@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-07-14T03:43:57.361Z",
+  "releaseTag": "local-runner-v0.1.10",
+  "releaseCommit": "d9b0d853acc7cab36eba859a778763c231e37325",
+  "runnerVersion": "0.1.10",
+  "route": "headless Playwright clicked Start local build on the loopback UI",
+  "terminalPhase": "passed",
+  "pageErrors": [],
+  "proofId": "local_proof_8f9fbfd0-6c40-4a27-94d4-f30e74ca72a5",
+  "proofDigest": "sha256:b67ba62f1e5cae421d96e8b28596a456f5234f8a303a070e67dcf5244832c272",
+  "proofDigestValid": true,
+  "proofDigestVerifier": "clone-local-repair",
+  "diffDigest": "sha256:5b996c8e70acf203fd41e0c8062ea8714397b22059e080738a6d3da293e37567",
+  "model": "gpt-5.6-sol",
+  "threadId": "019f5eb8-3394-7bc0-ae68-0c134f314c7f",
+  "turnId": "019f5eb8-33c2-7422-97dc-50634eebc484",
+  "tokenUsage": {
+    "totalTokens": 30494,
+    "inputTokens": 30329,
+    "cachedInputTokens": 28416,
+    "outputTokens": 165,
+    "reasoningOutputTokens": 42
+  },
+  "tests": {
+    "discovered": 15,
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "candidateSafeTotal": 15
+  },
+  "evidenceBoundary": {
+    "status": "PASSED",
+    "inputCondition": "SELLABLE",
+    "supportedCondition": "DAMAGED",
+    "failureCode": "OUTSIDE_EVIDENCE_BOUNDARY",
+    "failureMessage": "input is outside the evidence-bounded DAMAGED-only contract",
+    "resultReturned": false,
+    "sideEffectsCount": 0
+  },
+  "hostGates": {
+    "passed": 16,
+    "total": 16,
+    "focusedTests": 15,
+    "evidenceBoundaryChecks": 1
+  },
+  "scenarios": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "assertions": 35,
+  "mismatches": 0,
+  "stockoutScenario": {
+    "scenarioId": "counterexample-vip-damaged-no-sellable",
+    "status": "PASSED",
+    "assertions": 5
+  },
+  "changedFiles": [
+    "apps/api/src/candidates/generated-return-workflow.ts"
+  ]
+}

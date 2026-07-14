@@ -1,0 +1,2 @@
+# Preserve byte-exact recorded diffs even when the generated source contains whitespace findings.
+docs/evidence/**/candidate.diff -whitespace
