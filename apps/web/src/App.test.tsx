@@ -295,7 +295,7 @@ describe('TraceForge', () => {
 
     const release = screen.getByRole('region', { name: 'Release evidence' })
     const production = await within(release).findByRole('link', { name: /Production de74886/ })
-    const runner = within(release).getByRole('link', { name: /Pinned runner v0\.1\.9 · a2ce8b2/ })
+    const runner = within(release).getByRole('link', { name: /Pinned runner v0\.1\.10 · d9b0d85/ })
     const localRun = within(release).getByRole('link', { name: /Real local run PASS · 7\/7/ })
     const sourceRun = within(release).getByRole('link', { name: /Source run 4 GPT · 1 Codex/ })
     const deployment = within(release).getByRole('link', { name: /Deployment traceforge\.axiqo\.xyz/ })
@@ -303,10 +303,10 @@ describe('TraceForge', () => {
     expect(production).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/de748868292639c57abea7b8d53e933987bea03e')
     expect(production).toHaveTextContent('Hosted product · traceforge-v0.1.10')
     expect(production).not.toHaveTextContent('Local Runner')
-    expect(runner).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/a2ce8b2394caf5d1491c2b142f99a8421f3cec2d')
+    expect(runner).toHaveAttribute('href', 'https://github.com/a252937166/traceforge/commit/d9b0d853acc7cab36eba859a778763c231e37325')
     expect(runner).toHaveTextContent('Executable source commit · no binary claim')
-    expect(localRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/local-runner-v0.1.9'))
-    expect(localRun).toHaveTextContent('v0.1.9 · 35/35 assertions · archived')
+    expect(localRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/local-runner-v0.1.10'))
+    expect(localRun).toHaveTextContent('v0.1.10 · 16/16 gates · 35/35 assertions')
     expect(sourceRun).toHaveAttribute('href', expect.stringContaining('/docs/evidence/live-champion-run'))
     expect(sourceRun).toHaveTextContent('Recorded model evidence · archived')
     expect(deployment).toHaveAttribute('href', '/api/health')
@@ -332,17 +332,17 @@ describe('TraceForge', () => {
     expect(within(steps).getByRole('button', { name: 'Step 3 of 3: Collect proof' })).not.toHaveAttribute('aria-current')
     expect(dialog).toHaveTextContent('Launch the pinned source release')
     expect(dialog).toHaveTextContent('Node.js 22.13+')
-    expect(dialog).toHaveTextContent('Pinned commit a2ce8b2394caf5d1491c2b142f99a8421f3cec2d · source install · no binary checksum claim')
+    expect(dialog).toHaveTextContent('Pinned commit d9b0d853acc7cab36eba859a778763c231e37325 · source install · no binary checksum claim')
     expect(within(dialog).getAllByRole('button', { name: 'Copy command' })).toHaveLength(1)
-    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.9/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/git clone --filter=blob:none --branch local-runner-v0\.1\.10/)).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy command' }))
     await waitFor(() => expect(clipboard).toHaveBeenCalledTimes(1))
     const copiedCommand = clipboard.mock.calls[0]?.[0]
     expect(copiedCommand).toContain('TraceForge Local Runner requires Node.js >=22.13.0')
     expect(copiedCommand).toContain('Install Node.js 22.23.1, then rerun. No clone or installation was started.')
-    expect(copiedCommand).toContain('EXPECTED_SHA="a2ce8b2394caf5d1491c2b142f99a8421f3cec2d"')
-    expect(copiedCommand).toContain('git clone --filter=blob:none --branch local-runner-v0.1.9')
+    expect(copiedCommand).toContain('EXPECTED_SHA="d9b0d853acc7cab36eba859a778763c231e37325"')
+    expect(copiedCommand).toContain('git clone --filter=blob:none --branch local-runner-v0.1.10')
     expect(copiedCommand?.indexOf('node -e')).toBeLessThan(copiedCommand?.indexOf('git clone') ?? 0)
     expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 
@@ -369,11 +369,11 @@ describe('TraceForge', () => {
       'Proof',
     ])
     expect(dialog).toHaveTextContent('One changed file + diff digest')
-    expect(dialog).toHaveTextContent('15 tests + 7 scenarios + 35 assertions')
+    expect(dialog).toHaveTextContent('16 host gates + 7 scenarios + 35 assertions')
     expect(dialog).toHaveTextContent('Runner commit + input + candidate + output digests')
-    expect(within(dialog).getByRole('link', { name: /Inspect the archived v0\.1\.9 run/ })).toHaveAttribute(
+    expect(within(dialog).getByRole('link', { name: /Inspect the verified v0\.1\.10 run/ })).toHaveAttribute(
       'href',
-      expect.stringContaining('/docs/evidence/local-runner-v0.1.9'),
+      expect.stringContaining('/docs/evidence/local-runner-v0.1.10'),
     )
 
     await user.click(within(dialog).getByRole('button', { name: 'Inspect completed proof instead' }))

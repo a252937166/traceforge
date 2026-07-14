@@ -42,16 +42,16 @@ const modeCopy: Record<ExecutionMode, { title: string; label: string; detail: st
 const publicModeOrder: ExecutionMode[] = ['recorded-replay', 'deterministic-only']
 const terminalOutputRetryDelays = [0, 250, 750, 1_500] as const
 const repositoryUrl = 'https://github.com/a252937166/traceforge'
-const publishedEvidenceCommit = 'f0ede87cb763e3c9f0776f263cbd61ce63d8c770'
+const publishedEvidenceCommit = '343fbbb5ddad828c18b0f618893c50a6cb1d50a1'
 const liveRunEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/live-champion-run`
 const proofVerificationUrl = `${repositoryUrl}/blob/${publishedEvidenceCommit}/README.md#reproducible-evidence`
 const localRunnerRepository = 'a252937166/traceforge'
-const localRunnerTag = 'local-runner-v0.1.9'
-const localRunnerCommit = 'a2ce8b2394caf5d1491c2b142f99a8421f3cec2d'
+const localRunnerTag = 'local-runner-v0.1.10'
+const localRunnerCommit = 'd9b0d853acc7cab36eba859a778763c231e37325'
 const localRunnerCommitShort = localRunnerCommit.slice(0, 7)
 const localRunnerSourceUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerCommit}`
 const localRunnerTagUrl = `https://github.com/${localRunnerRepository}/tree/${localRunnerTag}`
-const localRunnerEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/local-runner-v0.1.9`
+const localRunnerEvidenceUrl = `${repositoryUrl}/tree/${publishedEvidenceCommit}/docs/evidence/local-runner-v0.1.10`
 
 const localRunnerNodeGate = `node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error("TraceForge Local Runner requires Node.js >=22.13.0; found " + process.versions.node + ". Install Node.js 22.23.1, then rerun. No clone or installation was started."); process.exit(64); }'`
 const localRunnerCommand = `${localRunnerNodeGate} && EXPECTED_SHA="${localRunnerCommit}" && RUN_DIR="$(mktemp -d)" && git clone --filter=blob:none --branch ${localRunnerTag} https://github.com/${localRunnerRepository}.git "$RUN_DIR/traceforge" && cd "$RUN_DIR/traceforge" && ACTUAL_SHA="$(git rev-parse HEAD)" && { test "$ACTUAL_SHA" = "$EXPECTED_SHA" || { echo "Unexpected TraceForge release commit" >&2; exit 64; }; } && export TRACEFORGE_LOCAL_RELEASE_SHA="$ACTUAL_SHA" && NODE_ARCH="$(node -p 'process.arch')" && npm_config_arch="$NODE_ARCH" corepack pnpm install --frozen-lockfile && npm_config_arch="$NODE_ARCH" node --import tsx apps/local-runner/src/cli.ts`
@@ -329,13 +329,13 @@ function ReleaseEvidenceStrip({ release, health, onRetry }: {
       )}
       <a className="release-evidence-item" href={`${repositoryUrl}/commit/${localRunnerCommit}`} target="_blank" rel="noreferrer">
         <small>Pinned runner</small>
-        <strong>v0.1.9 · {localRunnerCommitShort}</strong>
+        <strong>v0.1.10 · {localRunnerCommitShort}</strong>
         <span>Executable source commit · no binary claim</span>
       </a>
       <a className="release-evidence-item evidence-pass" href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">
         <small>Real local run</small>
         <strong>PASS · 7/7</strong>
-        <span>v0.1.9 · 35/35 assertions · archived</span>
+        <span>v0.1.10 · 16/16 gates · 35/35 assertions</span>
       </a>
       <a className="release-evidence-item" href={liveRunEvidenceUrl} target="_blank" rel="noreferrer">
         <small>Source run</small>
@@ -1119,9 +1119,9 @@ export default function App() {
               {runnerStep === 2 && <section className="runner-proof-preview" aria-labelledby="runner-proof-title">
                 <div className="wizard-section-heading"><span>03 · Proof</span><div><h3 id="runner-proof-title" tabIndex={-1}>Follow the local run to a recomputable result</h3><p>The localhost page streams real session state; the public site receives nothing.</p></div></div>
                 <ol className="local-run-stages"><li>Preflight</li><li>Sign in</li><li>Review scope</li><li>Codex build</li><li>Host verify</li><li>Proof</li></ol>
-                <div className="proof-preview-grid"><article><span>What changed</span><strong>One changed file + diff digest</strong></article><article><span>What passed</span><strong>15 tests + 7 scenarios + 35 assertions</strong></article><article><span>What is bound</span><strong>Runner commit + input + candidate + output digests</strong></article></div>
+                <div className="proof-preview-grid"><article><span>What changed</span><strong>One changed file + diff digest</strong></article><article><span>What passed</span><strong>16 host gates + 7 scenarios + 35 assertions</strong></article><article><span>What is bound</span><strong>Runner commit + input + candidate + output digests</strong></article></div>
                 <p className="approval-note">A fresh local bundle includes PASS/FAIL, mismatch counts, SHA-256 digests, diff, command-output digests, and a verification nonce. It does not claim a Runner signature or trusted timestamp.</p>
-                <a className="runner-evidence-link" href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">Inspect the archived v0.1.9 run <span aria-hidden="true">↗</span></a>
+                <a className="runner-evidence-link" href={localRunnerEvidenceUrl} target="_blank" rel="noreferrer">Inspect the verified v0.1.10 run <span aria-hidden="true">↗</span></a>
               </section>}
             </div>
 

@@ -56,9 +56,9 @@ async function buildAndReadStaticContract() {
     "Inspect a completed proof",
     "Replay a verified run",
     "Host-only proof",
-    "local-runner-v0.1.9",
-    "a2ce8b2394caf5d1491c2b142f99a8421f3cec2d",
-    "15 tests + 7 scenarios + 35 assertions",
+    "local-runner-v0.1.10",
+    "d9b0d853acc7cab36eba859a778763c231e37325",
+    "16 host gates + 7 scenarios + 35 assertions",
     "Rules must survive a counterexample",
     "Download the evidence",
     "Run the verified migration",
@@ -165,10 +165,10 @@ async function runIncrementalBrowserAcceptance(webBase) {
     const releaseEvidence = page.getByRole("region", { name: "Release evidence" });
     await releaseEvidence.waitFor({ state: "visible" });
     assert.match(await releaseEvidence.innerText(), /Production[\s\S]+Pinned runner[\s\S]+Real local run[\s\S]+Source run[\s\S]+Deployment/i);
-    assert.match(await releaseEvidence.innerText(), /v0\.1\.9/);
+    assert.match(await releaseEvidence.innerText(), /v0\.1\.10/);
     assert.equal(
       await releaseEvidence.getByRole("link", { name: /Real local run/ }).getAttribute("href"),
-      "https://github.com/a252937166/traceforge/tree/f0ede87cb763e3c9f0776f263cbd61ce63d8c770/docs/evidence/local-runner-v0.1.9",
+      "https://github.com/a252937166/traceforge/tree/343fbbb5ddad828c18b0f618893c50a6cb1d50a1/docs/evidence/local-runner-v0.1.10",
     );
     const desktopCtaBox = await judgeCta.boundingBox();
     assert.ok(desktopCtaBox, "the judge demo CTA must be rendered");
@@ -185,8 +185,8 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await runnerDialog.innerText(), /fixed damaged-returns demo/i);
     assert.match(await runnerDialog.innerText(), /does not browse or modify your own project/i);
     assert.match(await runnerDialog.innerText(), /Codex CLI 0\.144\.1/);
-    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.9/);
-    assert.match(await runnerDialog.innerText(), /a2ce8b2394caf5d1491c2b142f99a8421f3cec2d/);
+    assert.match(await runnerDialog.innerText(), /local-runner-v0\.1\.10/);
+    assert.match(await runnerDialog.innerText(), /d9b0d853acc7cab36eba859a778763c231e37325/);
     assert.match(await runnerDialog.innerText(), /no binary checksum claim/i);
     assert.equal(await runnerDialog.getByRole("button", { name: "Copy command" }).count(), 1);
     await runnerDialog.getByRole("button", { name: "Next: review local scope" }).click();
@@ -194,7 +194,7 @@ async function runIncrementalBrowserAcceptance(webBase) {
     assert.match(await runnerDialog.innerText(), /No pairing, heartbeat, file browser, or approval state/);
     assert.match(await runnerDialog.innerText(), /One candidate file/);
     await runnerDialog.getByRole("button", { name: "Next: see proof output" }).click();
-    assert.match(await runnerDialog.innerText(), /15 tests \+ 7 scenarios \+ 35 assertions/);
+    assert.match(await runnerDialog.innerText(), /16 host gates \+ 7 scenarios \+ 35 assertions/);
     assert.match(await runnerDialog.innerText(), /does not claim a Runner signature or trusted timestamp/i);
     await runnerDialog.getByRole("button", { name: "Close Local Runner guide" }).click();
     await runnerDialog.waitFor({ state: "hidden" });
