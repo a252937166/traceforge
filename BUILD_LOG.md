@@ -61,6 +61,16 @@ This log separates development-time Codex assistance, product-runtime model exec
 - Published the signed-out-playable 1080p judge video at `https://youtu.be/tRtgOKyW7qs`.
 - Preserved the earlier six-scenario source under `docs/evidence/superseded-champion-run-v1-20260711/` with an explicit `DO NOT SUBMIT` notice. Its old metrics remain intact as historical evidence, not as current claims.
 
+## 2026-07-14 — exercised Local Runner v0.1.10
+
+- Verified immutable tag `local-runner-v0.1.10` at commit `d9b0d853acc7cab36eba859a778763c231e37325` from a fresh clone before installation.
+- Used the actual loopback UI to approve one live local `gpt-5.6-sol` Codex turn, thread `019f5eb8-3394-7bc0-ae68-0c134f314c7f`, with `30,494` total tokens.
+- The host accepted `15/15` focused tests and a separate host-owned SELLABLE refusal probe (`16/16` host gates), then passed `7/7` DAMAGED scenarios and `35/35` assertions with zero mismatches.
+- Local proof digest: `sha256:b67ba62f1e5cae421d96e8b28596a456f5234f8a303a070e67dcf5244832c272`.
+- Local diff digest: `sha256:5b996c8e70acf203fd41e0c8062ea8714397b22059e080738a6d3da293e37567`.
+- UI-triggered cleanup verified deletion or closure of the session, writer, verifier, registered worktree, Codex lock, and loopback server.
+- Published the sanitized proof, diff, preflight, run summary, cleanup checks, and full-resolution screenshot under `docs/evidence/local-runner-v0.1.10/` at immutable repository commit `343fbbb5ddad828c18b0f618893c50a6cb1d50a1`.
+
 ## Evidence policy
 
 - A recorded replay is always labelled with its original timestamp and never described as a current model call.
